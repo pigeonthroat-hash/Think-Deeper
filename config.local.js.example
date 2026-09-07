@@ -1,0 +1,20 @@
+/**
+ * Think Deeper — local config (Option A)
+ *
+ * 1. Copy this file to: config.local.js
+ * 2. Fill in your Google OAuth Web Client ID
+ * 3. Keep config.local.js out of git (.gitignore)
+ *
+ * Google Cloud Console → APIs & Services → Credentials → Create OAuth Client ID (Web)
+ * Authorized JavaScript origins: your site origin (e.g. http://localhost:5500 or https://you.github.io)
+ */
+window.__THINK_DEEPER_CONFIG = {
+  googleClientId: "YOUR_CLIENT_ID.apps.googleusercontent.com"
+  // Optional later:
+  // firebaseConfig: {
+  //   apiKey: "...",
+  //   authDomain: "...",
+  //   projectId: "...",
+  //   appId: "..."
+  // }
+};
