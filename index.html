@@ -475,7 +475,7 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 <button id="plugins-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg> Plugins</button>
 <button id="workspace-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> External Workspace</button>
 <button id="settings-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
-<button id="theme-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> Theme</button>
+<button class="icon-btn" id="theme-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> Theme</button>
 </div>
 </aside>
 <main class="main">
@@ -485,7 +485,12 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 <button class="model-btn" id="model-btn"><span id="model-label">Select model</span><svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
 <div class="model-dropdown" id="model-dropdown"><div class="model-search"><input type="text" id="model-search" placeholder="Search models…"></div><div class="model-list" id="model-list"></div></div>
 </div>
-<div class="header-right"><span class="workspace-badge" id="workspace-status">No external workspace</span></div>
+<div class="header-right"><span class="workspace-badge" id="workspace-status">No external workspace</span>
+<div id="auth-area" style="display:flex;gap:6px;align-items:center">
+<button type="button" class="auth-btn" id="btn-login">Log in</button>
+<button type="button" class="auth-btn" id="btn-signup">Sign up</button>
+</div>
+</div>
 </header>
 <div class="chat-area" id="chat-area"><div class="chat-topbar"><span class="spacer"></span>
 <button type="button" class="icon-soft" id="chat-files-btn" title="Workspace files">📁</button>
@@ -646,6 +651,8 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 <div class="toast-container" id="toasts"></div>
 <input type="file" id="file-input" multiple accept="image/*,.txt,.md,.py,.js,.ts,.json,.csv,.html,.css" style="display:none">
 
+<!-- Option A: local secrets (gitignored). Copy from config.local.js.example -->
+<script src="./config.local.js" onerror="console.info('[Think Deeper] config.local.js not found — Google login needs Client ID in that file or Settings')"></script>
 <script>
 const INTENSITY={
   fast:{label:'Fast',maxIterations:4,maxTools:6,temperature:0.3,extra:'Prefer a direct answer. Use tools only if essential. Keep replies short.',ultraSkills:false},
@@ -2120,6 +2127,161 @@ enhanceCodeBlocks(container){
 
 copyMessage(text){navigator.clipboard.writeText(text||'');toast('Copied','success')}
 editMessage(msgId,el){const body=el.querySelector('.final-content')||el.querySelector('.message-body');if(!body)return;const cur=body.innerText;const next=prompt('Edit response',cur);if(next===null)return;body.innerHTML=this.renderMarkdown(next);this.enhanceCodeBlocks(body);this._renderMath(body);const conv=this.app.conversations.get(this.app.conversations.currentId);if(conv){const m=conv.messages.find(x=>x.id===msgId);if(m){m.content=next;this.app.conversations.persist()}}toast('Updated','success')}
+
+renderAuth(){
+  const area=$('#auth-area');if(!area)return;
+  const user=this.app.storage.get('googleUser',null);
+  if(user&&user.picture){
+    area.innerHTML=`<img class="auth-avatar" src="${escapeHtml(user.picture)}" alt=""><button type="button" class="auth-btn" id="btn-logout">Log out</button>`;
+    const b=$('#btn-logout');if(b)b.onclick=()=>this.logoutGoogle();
+  } else {
+    area.innerHTML=`<button type="button" class="auth-btn" id="btn-login">Log in</button><button type="button" class="auth-btn" id="btn-signup">Sign up</button>`;
+    const li=$('#btn-login');if(li)li.onclick=()=>this.openAuthModal('login');
+    const su=$('#btn-signup');if(su)su.onclick=()=>this.openAuthModal('signup');
+  }
+}
+openAuthModal(mode){
+  const overlay=document.createElement('div');overlay.className='auth-overlay';
+  overlay.innerHTML=`<div class="auth-card">
+    <button type="button" id="auth-close" style="float:right;border:none;background:transparent;cursor:pointer;color:var(--text-secondary);font-size:1.2rem">×</button>
+    <h2>${mode==='signup'?'Sign up':'Log in'}</h2>
+    <p>Sign in with Google to sync this workspace profile on this device. More providers coming soon.</p>
+    <button type="button" class="google-btn" id="auth-google">${SVG.google} Continue with Google</button>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#auth-close').onclick=()=>overlay.remove();
+  overlay.onclick=e=>{if(e.target===overlay)overlay.remove()};
+  overlay.querySelector('#auth-google').onclick=()=>this.loginWithGoogle(overlay);
+}
+loginWithGoogle(overlay){
+  // Prefer runtime config injected by host (Firebase/GitHub secrets → window.__THINK_DEEPER_CONFIG)
+  const cfg=(typeof window!=='undefined'&&window.__THINK_DEEPER_CONFIG)||{};
+  const clientId=cfg.googleClientId||this.app.storage.get('googleClientId','')||this.app.provider.config.googleClientId||'';
+  if(!clientId){
+    toast('Google Client ID not configured by the app host. See project README for FIREBASE/GOOGLE secrets.','error');
+    return;
+  }
+  const loadGis=()=>new Promise((res,rej)=>{
+    if(window.google?.accounts?.id)return res();
+    const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.onload=res;s.onerror=()=>rej(new Error('Google Identity script failed'));document.head.appendChild(s);
+  });
+  loadGis().then(()=>{
+    window.google.accounts.id.initialize({
+      client_id:clientId,
+      callback:(resp)=>{
+        try{
+          const payload=JSON.parse(atob(resp.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+          const user={id:payload.sub,name:payload.name,email:payload.email,picture:payload.picture};
+          this.app.storage.set('googleUser',user);
+          this.renderAuth();
+          if(overlay)overlay.remove();
+          toast('Signed in as '+(user.name||user.email),'success');
+        }catch(e){toast('Could not parse Google login','error')}
+      }
+    });
+    window.google.accounts.id.prompt((n)=>{
+      if(n&&n.isNotDisplayed)toast('Google prompt blocked — check Client ID & authorized origins','error');
+    });
+  }).catch(e=>toast(e.message||String(e),'error'));
+}
+logoutGoogle(){this.app.storage.set('googleUser',null);this.renderAuth();toast('Signed out','success')}
+filterConversations(q){this._convQuery=(q||'').trim().toLowerCase();this.renderConversations()}
+branchFromMessage(msgId){
+  const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
+  const idx=conv.messages.findIndex(m=>m.id===msgId);if(idx<0)return;
+  const slice=conv.messages.slice(0,idx+1).map(m=>({...JSON.parse(JSON.stringify(m)),id:uid()}));
+  const c=this.app.conversations.create('Branch: '+String(conv.title||'chat').slice(0,40));
+  c.messages=slice;c.projectId=conv.projectId;this.app.conversations.persist();
+  if(c.projectId)this.attachChatToProject(c.id);
+  this.loadConversation(c.id);toast('Branched to new chat','success');
+}
+deleteMessage(msgId){
+  const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
+  if(!confirm('Delete this message?'))return;
+  conv.messages=conv.messages.filter(m=>m.id!==msgId);
+  this.app.conversations.persist();this.loadConversation(conv.id);toast('Deleted','success');
+}
+setupMessageSelection(aiEl){
+  if(!aiEl||aiEl._selBound)return;aiEl._selBound=true;
+  aiEl.addEventListener('mouseup',()=>{
+    const sel=window.getSelection();const text=(sel&&String(sel.toString())||'').trim();
+    if(text.length<2){this.hideSelToolbar();return}
+    try{const rect=sel.getRangeAt(0).getBoundingClientRect();this.showSelToolbar(rect,text,aiEl)}catch(e){}
+  });
+}
+showSelToolbar(rect,text,aiEl){
+  this.hideSelToolbar();
+  const tip=document.createElement('div');tip.className='selection-toolbar';tip.id='sel-toolbar';
+  tip.style.left=(rect.left+window.scrollX)+'px';tip.style.top=(rect.top+window.scrollY-40)+'px';
+  tip.innerHTML='<button type="button" data-act="refer">Refer</button><button type="button" data-act="pin">Pin</button>';
+  document.body.appendChild(tip);
+  tip.querySelector('[data-act=refer]').onclick=()=>{this.hideSelToolbar();this.setReferQuote(text)};
+  tip.querySelector('[data-act=pin]').onclick=()=>{this.hideSelToolbar();this.pinText(text)};
+}
+hideSelToolbar(){const t=document.getElementById('sel-toolbar');if(t)t.remove()}
+setReferQuote(text){
+  this._referQuote=text;
+  let bar=document.getElementById('refer-bar');
+  if(!bar){bar=document.createElement('div');bar.id='refer-bar';bar.className='refer-banner';
+    const area=document.querySelector('.input-area');if(area)area.parentElement.insertBefore(bar,area)}
+  bar.innerHTML='<strong>Referring:</strong> '+escapeHtml(text.slice(0,180))+' <button type="button" id="refer-close" style="float:right;border:none;background:transparent;cursor:pointer">×</button>';
+  const cl=document.getElementById('refer-close');if(cl)cl.onclick=()=>{this._referQuote=null;bar.remove()};
+}
+pinText(text){
+  const pins=this.app.storage.get('pins',[])||[];
+  pins.unshift({id:uid(),text,ts:now(),convId:this.app.conversations.currentId});
+  this.app.storage.set('pins',pins.slice(0,40));toast('Pinned','success');
+}
+createAutomation(){
+  const name=prompt('Automation name');if(!name)return;
+  const time=prompt('Time HH:MM (24h local)','17:00')||'17:00';
+  const days=prompt('Days (mon,tue,...)','mon,tue,wed,thu,fri')||'mon,tue,wed,thu,fri';
+  const promptText=prompt('Silent instruction for the AI')||'';
+  const list=this.app.storage.get('automations',[])||[];
+  list.push({id:uid(),name:name.trim(),time,days:days.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean),prompt:promptText,enabled:true});
+  this.app.storage.set('automations',list);this.renderAutomations();this.scheduleAutomations();toast('Automation saved','success');
+}
+renderAutomations(){
+  const el=$('#auto-list');if(!el)return;
+  const list=this.app.storage.get('automations',[])||[];
+  el.innerHTML=list.map(a=>'<div class="auto-rule"><strong>'+escapeHtml(a.name)+'</strong><div style="opacity:.7;margin-top:4px">'+escapeHtml(a.time)+' · '+escapeHtml((a.days||[]).join(', '))+'</div><div style="margin-top:6px">'+escapeHtml((a.prompt||'').slice(0,140))+'</div><button type="button" data-id="'+a.id+'" class="auto-del" style="margin-top:6px;font-size:.75rem">Delete</button></div>').join('')||'<div style="opacity:.5;padding:8px">No automations yet</div>';
+  el.querySelectorAll('.auto-del').forEach(b=>b.onclick=()=>{
+    const list=(this.app.storage.get('automations',[])||[]).filter(x=>x.id!==b.dataset.id);
+    this.app.storage.set('automations',list);this.renderAutomations();
+  });
+}
+scheduleAutomations(){
+  if(this._autoTimer)clearInterval(this._autoTimer);
+  this._autoTimer=setInterval(()=>this.tickAutomations(),20000);
+  this.tickAutomations();
+}
+tickAutomations(){
+  const list=this.app.storage.get('automations',[])||[];if(!list.length)return;
+  const now=new Date();
+  const day=['sun','mon','tue','wed','thu','fri','sat'][now.getDay()];
+  const key=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  let fired=this.app.storage.get('autoFiredMap',{})||{};
+  for(const a of list){
+    if(!a.enabled)continue;
+    if(!(a.days||[]).includes(day))continue;
+    if((a.time||'')!==key)continue;
+    const stamp=now.toDateString()+' '+key;
+    if(fired[a.id]===stamp)continue;
+    fired[a.id]=stamp;this.app.storage.set('autoFiredMap',fired);
+    this.runSilentAutomation(a);
+  }
+}
+async runSilentAutomation(a){
+  try{
+    if(this.app.agent.running)return;
+    toast('Automation: '+a.name,'info');
+    const prev=$('#user-input').value;
+    $('#user-input').value='[AUTOMATION: '+a.name+']\\n'+a.prompt;
+    await this.send();
+    $('#user-input').value=prev||'';
+  }catch(e){console.warn('automation',e)}
+}
+
 scrollToBottom(){const area=$('#chat-area');requestAnimationFrame(()=>{area.scrollTop=area.scrollHeight})}}
 
 class App{constructor(){this.storage=new StorageManager();this.conversations=new ConversationManager(this.storage);this.provider=new ProviderManager(this.storage);this.vfs=new VirtualFS(this.storage);this.external=new ExternalFS();this.python=new PythonTool();this.tools=new ToolManager(this.vfs,this.external,this.python);this.plugins=new PluginManager(this.storage);
@@ -2152,7 +2314,16 @@ const agentSettings=this.storage.get('agentSettings',{maxIterations:12,maxTools:
     }
   }catch(e){console.warn('materializePlugin',e)}
 }
-start(){this.ui.init()}}
+start(){
+  // Optional host injection: window.__THINK_DEEPER_CONFIG = { googleClientId, firebaseConfig }
+  try{
+    const cfg=window.__THINK_DEEPER_CONFIG||{};
+    if(cfg.googleClientId){this.storage.set('googleClientId',cfg.googleClientId);const c=this.provider.config;c.googleClientId=cfg.googleClientId;this.provider.save(c)}
+    if(cfg.firebaseConfig)this.storage.set('firebaseConfig',cfg.firebaseConfig);
+  }catch(e){}
+  this.ui.init();
+  this.ui.scheduleAutomations&&this.ui.scheduleAutomations();
+}}
 const app=new App();app.start();
 </script>
 </body>
