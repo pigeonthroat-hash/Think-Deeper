@@ -649,7 +649,7 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 </div></div></div>
 
 <div class="toast-container" id="toasts"></div>
-<input type="file" id="file-input" multiple accept="image/*,.txt,.md,.py,.js,.ts,.json,.csv,.html,.css" style="display:none">
+<input type="file" id="file-input" multiple accept="image/*,.png,.jpg,.jpeg,.gif,.webp,.txt,.md,.py,.js,.ts,.json,.csv,.html,.css,.pdf" style="display:none">
 
 <!-- Option A: local secrets (gitignored). Copy from config.local.js.example -->
 <script src="./config.local.js" onerror="console.info('[Think Deeper] config.local.js not found — Google login needs Client ID in that file or Settings')"></script>
@@ -809,7 +809,7 @@ async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback}={}){
   console.log('model',body.model);
   console.log('tool_choice',body.tool_choice);
   console.log('tools',(body.tools||[]).map(t=>t.function?.name));
-  console.log('messages',normalized.map(m=>({role:m.role,content:(typeof m.content==='string'?m.content.slice(0,120):m.content),tool_calls:m.tool_calls?.map(t=>t.function?.name),tool_call_id:m.tool_call_id,name:m.name})));
+  console.log('messages',normalized.map(m=>({role:m.role,content:Array.isArray(m.content)?m.content.map(p=>p.type==='image_url'?'[image]':(p.text||'').slice(0,80)):(typeof m.content==='string'?m.content.slice(0,120):m.content),tool_calls:m.tool_calls?.map(t=>t.function?.name),tool_call_id:m.tool_call_id,name:m.name})));
   console.groupEnd();
   let fetchSignal=signal;
   try{
@@ -1173,7 +1173,12 @@ ${personality?'Personality:\n'+personality+'\n':''}${pluginInj?'Plugins:\n'+plug
 User can expand tool cards to see full code and outputs. Finish when the answer is solid unless Deep Think is on.`
 }
 async run(userMessage,history,attachments,onEvent,{deepThink=false}={}){this.running=true;this.abortController=new AbortController();const signal=this.abortController.signal;const maxIter=deepThink?Math.max(this.settings.maxIterations||12,20):(this.settings.maxIterations||12);const maxTools=deepThink?Math.max(this.settings.maxTools||20,40):(this.settings.maxTools||20);const start=Date.now();const maxMs=(this.settings.maxTime||180)*1000;
-if(attachments?.length){for(const a of attachments){if(a.content&&!a.dataUrl){try{this.tools.vfs.write(`uploads/${a.name}`,a.content,{archiveOld:false})}catch{}}}}
+if(attachments?.length){for(const a of attachments){
+  try{
+    if(a.content&&!a.dataUrl)this.tools.vfs.write('uploads/'+a.name,a.content,{archiveOld:false});
+    else if(a.dataUrl)this.tools.vfs.write('uploads/'+a.name+'.dataurl.txt',String(a.dataUrl).slice(0,500)+'…[data-url stored for session]',{archiveOld:false});
+  }catch(e){}
+}}
 let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE: prefer paths under code/ for project files. You may use image_search and github_* tools. Link folders as [[folder:code/...]] and HTML as [[preview:code/.../index.html]]. Persist files only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 const hardMax=Math.min(Math.max(maxIter,1),deepThink?25:20);
@@ -1327,7 +1332,33 @@ console.error('[Agent] fatal',e);
 onEvent({type:'error',message:e.message||String(e)});onEvent({type:'status',text:'Error'});onEvent({type:'done'});throw e}
 finally{this.running=false}}
 
-_buildUserContent(text,attachments){if(!attachments?.length)return text;let parts=[text];for(const a of attachments){if(a.type?.startsWith('image/'))parts.push(`[Image: ${a.name}]`);else parts.push(`[File: ${a.name} → uploads/${a.name}]\n\`\`\`\n${(a.content||'').slice(0,8000)}\n\`\`\``)}return parts.join('\n\n')}
+_buildUserContent(text,attachments){
+  if(!attachments||!attachments.length)return text||'';
+  const imgs=attachments.filter(a=>a&&a.type&&String(a.type).startsWith('image/')&&a.dataUrl);
+  const files=attachments.filter(a=>a&&!(a.type&&String(a.type).startsWith('image/')&&a.dataUrl));
+  if(imgs.length){
+    const parts=[];
+    let caption=text||'';
+    if(files.length){
+      caption+=(caption?'\n\n':'')+files.map(a=>{
+        if(a.content)return '[File: '+a.name+' → uploads/'+a.name+']\n```\n'+String(a.content).slice(0,8000)+'\n```';
+        return '[File: '+(a.name||'file')+']';
+      }).join('\n\n');
+    }
+    if(!caption)caption='Please analyze the attached image(s).';
+    parts.push({type:'text',text:caption});
+    for(const a of imgs){
+      parts.push({type:'text',text:'[Attached image: '+(a.name||'image')+']'});
+      parts.push({type:'image_url',image_url:{url:a.dataUrl}});
+    }
+    return parts;
+  }
+  let out=text||'';
+  for(const a of files){
+    out+='\n\n[File: '+(a.name||'file')+' → uploads/'+(a.name||'file')+']\n```\n'+String(a.content||'').slice(0,8000)+'\n```';
+  }
+  return out;
+}
 async _streamWriteFile(args,actId,onEvent){
   const path=args.path||'untitled';
   const content=args.content==null?'':String(args.content);
@@ -2145,44 +2176,76 @@ openAuthModal(mode){
   overlay.innerHTML=`<div class="auth-card">
     <button type="button" id="auth-close" style="float:right;border:none;background:transparent;cursor:pointer;color:var(--text-secondary);font-size:1.2rem">×</button>
     <h2>${mode==='signup'?'Sign up':'Log in'}</h2>
-    <p>Sign in with Google to sync this workspace profile on this device. More providers coming soon.</p>
-    <button type="button" class="google-btn" id="auth-google">${SVG.google} Continue with Google</button>
+    <p>Sign in with Google to save your profile on this device. More providers coming soon.</p>
+    <div id="google-btn-host" style="display:flex;justify-content:center;min-height:44px;margin:12px 0"></div>
+    <p id="auth-status" style="font-size:.78rem;color:var(--text-tertiary);margin:8px 0 0;text-align:center"></p>
   </div>`;
   document.body.appendChild(overlay);
   overlay.querySelector('#auth-close').onclick=()=>overlay.remove();
   overlay.onclick=e=>{if(e.target===overlay)overlay.remove()};
-  overlay.querySelector('#auth-google').onclick=()=>this.loginWithGoogle(overlay);
+  this.mountGoogleButton(overlay.querySelector('#google-btn-host'),overlay);
 }
-loginWithGoogle(overlay){
-  // Prefer runtime config injected by host (Firebase/GitHub secrets → window.__THINK_DEEPER_CONFIG)
+mountGoogleButton(host,overlay){
   const cfg=(typeof window!=='undefined'&&window.__THINK_DEEPER_CONFIG)||{};
   const clientId=cfg.googleClientId||this.app.storage.get('googleClientId','')||this.app.provider.config.googleClientId||'';
+  const status=overlay&&overlay.querySelector('#auth-status');
   if(!clientId){
-    toast('Google Client ID not configured by the app host. See project README for FIREBASE/GOOGLE secrets.','error');
+    if(status)status.textContent='Missing googleClientId in config.local.js';
+    toast('Add googleClientId to config.local.js','error');
     return;
   }
+  const onCredential=(resp)=>{
+    try{
+      const payload=JSON.parse(atob(resp.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      const user={id:payload.sub,name:payload.name,email:payload.email,picture:payload.picture};
+      this.app.storage.set('googleUser',user);
+      this.renderAuth();
+      if(overlay)overlay.remove();
+      toast('Signed in as '+(user.name||user.email||'Google user'),'success');
+    }catch(e){toast('Could not parse Google login','error')}
+  };
   const loadGis=()=>new Promise((res,rej)=>{
     if(window.google?.accounts?.id)return res();
-    const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.onload=res;s.onerror=()=>rej(new Error('Google Identity script failed'));document.head.appendChild(s);
+    const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=res;s.onerror=()=>rej(new Error('Google Identity script failed'));document.head.appendChild(s);
   });
   loadGis().then(()=>{
-    window.google.accounts.id.initialize({
-      client_id:clientId,
-      callback:(resp)=>{
-        try{
-          const payload=JSON.parse(atob(resp.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
-          const user={id:payload.sub,name:payload.name,email:payload.email,picture:payload.picture};
-          this.app.storage.set('googleUser',user);
-          this.renderAuth();
-          if(overlay)overlay.remove();
-          toast('Signed in as '+(user.name||user.email),'success');
-        }catch(e){toast('Could not parse Google login','error')}
+    try{
+      window.google.accounts.id.initialize({
+        client_id:clientId,
+        callback:onCredential,
+        auto_select:false,
+        cancel_on_tap_outside:true,
+        use_fedcm_for_prompt:false
+      });
+      if(host){
+        host.innerHTML='';
+        window.google.accounts.id.renderButton(host,{
+          type:'standard',
+          theme:'outline',
+          size:'large',
+          text:'continue_with',
+          shape:'rectangular',
+          logo_alignment:'left',
+          width:320
+        });
       }
-    });
-    window.google.accounts.id.prompt((n)=>{
-      if(n&&n.isNotDisplayed)toast('Google prompt blocked — check Client ID & authorized origins','error');
-    });
-  }).catch(e=>toast(e.message||String(e),'error'));
+      if(status)status.textContent='Click the Google button above';
+    }catch(e){
+      if(status)status.textContent=e.message||String(e);
+      toast(e.message||'Google button failed','error');
+    }
+  }).catch(e=>{
+    if(status)status.textContent=e.message||String(e);
+    toast(e.message||String(e),'error');
+  });
+}
+loginWithGoogle(overlay){
+  // Back-compat: open modal button flow
+  if(overlay){
+    const host=overlay.querySelector('#google-btn-host');
+    if(host)return this.mountGoogleButton(host,overlay);
+  }
+  this.openAuthModal('login');
 }
 logoutGoogle(){this.app.storage.set('googleUser',null);this.renderAuth();toast('Signed out','success')}
 filterConversations(q){this._convQuery=(q||'').trim().toLowerCase();this.renderConversations()}
