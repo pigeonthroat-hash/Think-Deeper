@@ -712,7 +712,7 @@ function countLines(t){return t?t.split('\n').length:0}
 class CloudSync{
   constructor(){
     this.ready=false;this.uid=null;this.db=null;this.auth=null;
-    this._saveTimer=null;
+    this._saveTimer=null;this._pushing=false;
   }
   init(){
     const cfg=(window.__THINK_DEEPER_CONFIG||{}).firebaseConfig;
@@ -723,8 +723,18 @@ class CloudSync{
       this.auth=firebase.auth();
       this.db=firebase.firestore();
       this.ready=true;
+      this.auth.onAuthStateChanged((user)=>{
+        if(user){this.uid=user.uid;console.log('[CloudSync] auth session',user.uid)}
+        else this.uid=null;
+      });
+      if(this.auth.currentUser)this.uid=this.auth.currentUser.uid;
       return true;
     }catch(e){console.error('[CloudSync] init',e);return false}
+  }
+  ensureUid(){
+    if(this.uid)return this.uid;
+    if(this.auth&&this.auth.currentUser){this.uid=this.auth.currentUser.uid;return this.uid}
+    return null;
   }
   async signInWithGoogle(){
     if(!this.ready&&!this.init())throw new Error('Firebase not configured (firebaseConfig in config.local.js)');
@@ -740,8 +750,9 @@ class CloudSync{
     this.uid=null;
   }
   async pullAll(){
-    if(!this.ready||!this.uid||!this.db)return null;
-    const base=this.db.collection('users').doc(this.uid);
+    const uid=this.ensureUid();
+    if(!this.ready||!uid||!this.db)return null;
+    const base=this.db.collection('users').doc(uid);
     const out={conversations:[],currentConvId:null,apiConfig:null,agentSettings:null,plugins:null,vfs:null,projects:null,automations:null,theme:null,personality:null,pins:null};
     try{
       const meta=await base.get();
@@ -752,69 +763,97 @@ class CloudSync{
         out.personality=d.personality||null;
       }
       const convSnap=await base.collection('conversations').get();
-      out.conversations=convSnap.docs.map(doc=>({id:doc.id,...doc.data()}));
+      out.conversations=convSnap.docs.map(doc=>({id:doc.id,...(doc.data()||{})}));
       const setDoc=await base.collection('settings').doc('app').get();
       if(setDoc.exists){
         const s=setDoc.data()||{};
-        if(s.apiConfig)out.apiConfig=s.apiConfig;
-        if(s.agentSettings)out.agentSettings=s.agentSettings;
-        if(s.plugins)out.plugins=s.plugins;
-        if(s.vfs)out.vfs=s.vfs;
-        if(s.projects)out.projects=s.projects;
-        if(s.automations)out.automations=s.automations;
-        if(s.pins)out.pins=s.pins;
-        if(s.modelRoles)out.modelRoles=s.modelRoles;
-        if(s.forceTemp!=null)out.forceTemp=s.forceTemp;
-        if(s.toolChoice)out.toolChoice=s.toolChoice;
+        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
       }
     }catch(e){console.error('[CloudSync] pull',e);throw e}
     return out;
   }
   schedulePush(app){
-    if(!this.ready||!this.uid)return;
+    if(!this.ready){console.warn('[CloudSync] schedule skipped: not ready');return}
+    if(!this.ensureUid()){console.warn('[CloudSync] schedule skipped: no uid');return}
     clearTimeout(this._saveTimer);
-    this._saveTimer=setTimeout(()=>this.pushAll(app).catch(e=>console.warn('[CloudSync] push',e)),800);
+    this._saveTimer=setTimeout(()=>{
+      this.pushAll(app).catch(e=>console.warn('[CloudSync] push',e));
+    },600);
+  }
+  _sanitizeConv(c){
+    try{
+      const copy=JSON.parse(JSON.stringify(c));
+      if(Array.isArray(copy.messages)){
+        copy.messages=copy.messages.map(m=>{
+          const msg={role:m.role,content:m.content,ts:m.ts,id:m.id};
+          if(typeof msg.content==='string'&&msg.content.length>50000)msg.content=msg.content.slice(0,50000)+'\n…[truncated]';
+          if(Array.isArray(m.attachments)){
+            msg.attachments=m.attachments.map(a=>({
+              name:a.name,type:a.type,
+              dataUrl:a.dataUrl?'[omitted-image]':undefined,
+              content:a.content?String(a.content).slice(0,20000):undefined
+            }));
+          }
+          return msg;
+        });
+      }
+      return copy;
+    }catch{return{id:c&&c.id,title:(c&&c.title)||'chat',messages:[],updated:Date.now()}}
   }
   async pushAll(app){
-    if(!this.ready||!this.uid||!this.db||!app)return;
-    const base=this.db.collection('users').doc(this.uid);
-    const s=app.storage;
-    await base.set({
-      email:(s.getActiveUser()||{}).email||null,
-      name:(s.getActiveUser()||{}).name||null,
-      picture:(s.getActiveUser()||{}).picture||null,
-      currentConvId:s.get('currentConvId',null),
-      theme:s.get('theme','dark'),
-      personality:s.get('personality',''),
-      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    },{merge:true});
-    // conversations: write each
-    const convs=s.get('conversations',[])||[];
-    const batch=this.db.batch();
-    let n=0;
-    for(const c of convs){
-      const ref=base.collection('conversations').doc(c.id);
-      // strip huge binary if any
-      const copy=JSON.parse(JSON.stringify(c));
-      batch.set(ref,copy,{merge:true});
-      n++;
-      if(n>=400)break; // safety
-    }
-    await batch.commit();
-    await base.collection('settings').doc('app').set({
-      apiConfig:s.get('apiConfig',null),
-      agentSettings:s.get('agentSettings',null),
-      plugins:s.get('plugins',[]),
-      vfs:s.get('vfs',{}),
-      projects:s.get('projects',[]),
-      automations:s.get('automations',[]),
-      pins:s.get('pins',[]),
-      modelRoles:s.get('modelRoles',{}),
-      forceTemp:s.get('forceTemp',null),
-      toolChoice:s.get('toolChoice','auto'),
-      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    },{merge:true});
-    console.log('[CloudSync] pushed',convs.length,'conversations');
+    const uid=this.ensureUid();
+    if(!this.ready||!uid||!this.db||!app)return;
+    if(this._pushing)return;
+    this._pushing=true;
+    try{
+      const base=this.db.collection('users').doc(uid);
+      const s=app.storage;
+      const user=s.getActiveUser()||{};
+      await base.set({
+        email:user.email||null,
+        name:user.name||null,
+        picture:user.picture||null,
+        currentConvId:s.get('currentConvId',null),
+        theme:s.get('theme','dark'),
+        personality:s.get('personality','')||'',
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+      let convs=(app.conversations&&app.conversations.conversations)||s.get('conversations',[])||[];
+      let ok=0;
+      for(const c of convs){
+        if(!c||!c.id)continue;
+        try{
+          await base.collection('conversations').doc(String(c.id)).set(this._sanitizeConv(c),{merge:true});
+          ok++;
+        }catch(e){
+          console.warn('[CloudSync] conv',c.id,e.message||e);
+          try{
+            await base.collection('conversations').doc(String(c.id)).set({
+              id:c.id,title:c.title||'chat',updated:c.updated||Date.now(),
+              messages:(c.messages||[]).slice(-15).map(m=>({role:m.role,content:String(m.content||'').slice(0,6000),ts:m.ts||null}))
+            },{merge:true});
+            ok++;
+          }catch(e2){console.warn('[CloudSync] conv retry',e2)}
+        }
+      }
+      await base.collection('settings').doc('app').set({
+        apiConfig:s.get('apiConfig',null),
+        agentSettings:s.get('agentSettings',null),
+        plugins:s.get('plugins',[]),
+        vfs:s.get('vfs',{}),
+        projects:s.get('projects',[]),
+        automations:s.get('automations',[]),
+        pins:s.get('pins',[]),
+        modelRoles:s.get('modelRoles',{}),
+        forceTemp:s.get('forceTemp',null),
+        toolChoice:s.get('toolChoice','auto'),
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+      console.log('[CloudSync] pushed',ok,'/',convs.length,'conversations');
+    }catch(e){
+      console.error('[CloudSync] pushAll error',e);
+      throw e;
+    }finally{this._pushing=false}
   }
   applyPulled(app,data){
     if(!data||!app)return;
@@ -835,6 +874,7 @@ class CloudSync{
     if(data.toolChoice)s.set('toolChoice',data.toolChoice);
   }
 }
+
 
 class StorageManager{
   constructor(){
@@ -935,7 +975,7 @@ draftTitle(text){const t=String(text||'').replace(/\s+/g,' ').trim();if(!t)retur
 setTitle(id,title){const c=this.get(id);if(!c||!title)return;c.title=String(title).replace(/[\n\r]/g,' ').trim().slice(0,60);c.updated=now();this.persist()}
 delete(id){this.conversations=this.conversations.filter(c=>c.id!==id);if(this.currentId===id)this.currentId=this.conversations[0]?.id||null;this.persist()}
 rename(id,t){this.update(id,{title:t})}
-setCurrent(id){this.currentId=id;this.storage.set('currentConvId',id)}
+setCurrent(id){this.currentId=id;this.storage.set('currentConvId',id);try{if(window.__app&&window.__app.cloud)window.__app.cloud.schedulePush(window.__app)}catch{}}
 persist(){this.storage.set('conversations',this.conversations);this.storage.set('currentConvId',this.currentId);try{if(window.__app&&window.__app.cloud)window.__app.cloud.schedulePush(window.__app)}catch{}}}
 
 class ProviderManager{constructor(s){this.storage=s;this.config=s.get('apiConfig',{baseUrl:'https://api.openai.com/v1',apiKey:'',model:'',org:'',project:'',rememberKey:false,fallbackBaseUrl:'',fallbackApiKey:'',fallbackModel:''});this.models=s.get('discoveredModels',[])}
@@ -2462,8 +2502,9 @@ mountGoogleButton(host,overlay){
         const data=await this.app.cloud.pullAll();
         if(data)this.app.cloud.applyPulled(this.app,data);
       }catch(e){console.warn('pull',e);toast('Signed in, but cloud load failed (check Firestore rules)','error')}
+      if(this.app.cloud)this.app.cloud.uid=user.id;
       this.reloadWorkspaceForAccount();
-      try{await this.app.cloud.pushAll(this.app)}catch(e){console.warn('initial push',e)}
+      try{await this.app.cloud.pushAll(this.app);toast('Cloud sync on','success')}catch(e){console.warn('initial push',e);toast('Cloud push failed: '+(e.message||e),'error')}
       this.renderAuth();
       if(overlay)overlay.remove();
       toast('Signed in — chats sync to Firebase','success');
@@ -2654,15 +2695,37 @@ const agentSettings=this.storage.get('agentSettings',{maxIterations:12,maxTools:
   }catch(e){console.warn('materializePlugin',e)}
 }
 start(){
-  // Optional host injection: window.__THINK_DEEPER_CONFIG = { googleClientId, firebaseConfig }
   try{
     const cfg=window.__THINK_DEEPER_CONFIG||{};
     if(cfg.googleClientId){this.storage.set('googleClientId',cfg.googleClientId);const c=this.provider.config;c.googleClientId=cfg.googleClientId;this.provider.save(c)}
     if(cfg.firebaseConfig)this.storage.set('firebaseConfig',cfg.firebaseConfig);
   }catch(e){}
+  if(!this.cloud)this.cloud=new CloudSync();
+  this.cloud.init();
   this.ui.init();
   this.ui.scheduleAutomations&&this.ui.scheduleAutomations();
-}}
+  // Restore Firebase Auth session after refresh
+  this._restoreCloudSession();
+}
+async _restoreCloudSession(){
+  try{
+    if(!this.cloud||!this.cloud.ready)return;
+    await new Promise(r=>setTimeout(r,300));
+    const fu=this.cloud.auth&&this.cloud.auth.currentUser;
+    if(!fu)return;
+    this.cloud.uid=fu.uid;
+    const user={id:fu.uid,name:fu.displayName,email:fu.email,picture:fu.photoURL};
+    this.storage.setActiveUser(user);
+    try{
+      const data=await this.cloud.pullAll();
+      if(data)this.cloud.applyPulled(this,data);
+    }catch(e){console.warn('[CloudSync] restore pull',e)}
+    if(this.ui&&this.ui.reloadWorkspaceForAccount)this.ui.reloadWorkspaceForAccount();
+    else if(this.ui&&this.ui.renderAuth)this.ui.renderAuth();
+    console.log('[CloudSync] session restored',fu.uid);
+  }catch(e){console.warn('[CloudSync] restore',e)}
+}
+}
 const app=new App();app.start();
 </script>
 </body>
