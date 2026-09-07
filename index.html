@@ -712,9 +712,7 @@ function countLines(t){return t?t.split('\n').length:0}
 class CloudSync{
   constructor(){
     this.ready=false;this.uid=null;this.db=null;this.auth=null;
-    this._saveTimer=null;this._pushing=false;this._dirty=false;
-    this._unsubConv=null;this._unsubMeta=null;this._app=null;
-    this._applyingRemote=false;this._authReady=null;
+    this._saveTimer=null;this._pushing=false;
   }
   init(){
     const cfg=(window.__THINK_DEEPER_CONFIG||{}).firebaseConfig;
@@ -724,24 +722,14 @@ class CloudSync{
       if(!firebase.apps.length)firebase.initializeApp(cfg);
       this.auth=firebase.auth();
       this.db=firebase.firestore();
-      try{this.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)}catch{}
       this.ready=true;
-      this._authReady=new Promise((resolve)=>{
-        const unsub=this.auth.onAuthStateChanged((user)=>{
-          if(user){this.uid=user.uid;console.log('[CloudSync] auth session',user.uid)}
-          else this.uid=null;
-          resolve(user||null);
-          // keep listening for future changes
-        });
+      this.auth.onAuthStateChanged((user)=>{
+        if(user){this.uid=user.uid;console.log('[CloudSync] auth session',user.uid)}
+        else this.uid=null;
       });
       if(this.auth.currentUser)this.uid=this.auth.currentUser.uid;
       return true;
     }catch(e){console.error('[CloudSync] init',e);return false}
-  }
-  whenAuthReady(){
-    if(!this.ready&&!this.init())return Promise.resolve(null);
-    if(this.auth&&this.auth.currentUser){this.uid=this.auth.currentUser.uid;return Promise.resolve(this.auth.currentUser)}
-    return this._authReady||Promise.resolve(null);
   }
   ensureUid(){
     if(this.uid)return this.uid;
@@ -758,66 +746,14 @@ class CloudSync{
     return{id:u.uid,name:u.displayName,email:u.email,picture:u.photoURL};
   }
   async signOut(){
-    this.stopListening();
     if(this.auth)await this.auth.signOut();
     this.uid=null;
-  }
-  stopListening(){
-    try{if(this._unsubConv)this._unsubConv()}catch{}
-    try{if(this._unsubMeta)this._unsubMeta()}catch{}
-    this._unsubConv=null;this._unsubMeta=null;
-  }
-  startListening(app){
-    this._app=app;
-    const uid=this.ensureUid();
-    if(!this.ready||!uid||!this.db)return;
-    this.stopListening();
-    const base=this.db.collection('users').doc(uid);
-    this._unsubConv=base.collection('conversations').onSnapshot((snap)=>{
-      if(this._pushing||this._applyingRemote)return;
-      if(!app||!app.storage||app.storage.isGuest())return;
-      try{
-        this._applyingRemote=true;
-        const remote=snap.docs.map(d=>({id:d.id,...(d.data()||{})}));
-        // Merge by id; prefer newer updated
-        const local=app.conversations?app.conversations.conversations.slice():(app.storage.get('conversations',[])||[]);
-        const map=new Map();
-        local.forEach(c=>{if(c&&c.id)map.set(String(c.id),c)});
-        let changed=false;
-        remote.forEach(r=>{
-          if(!r||!r.id)return;
-          const id=String(r.id);
-          const L=map.get(id);
-          if(!L){map.set(id,r);changed=true;return}
-          const lu=Number(L.updated||0),ru=Number(r.updated||0);
-          const lm=(L.messages&&L.messages.length)||0,rm=(r.messages&&r.messages.length)||0;
-          if(ru>lu||(ru===lu&&rm>lm)){map.set(id,r);changed=true}
-        });
-        if(changed){
-          const merged=[...map.values()].sort((a,b)=>(b.updated||0)-(a.updated||0));
-          app.storage.set('conversations',merged);
-          if(app.conversations){
-            app.conversations.conversations=merged;
-            if(app.ui){
-              app.ui.renderConversations&&app.ui.renderConversations();
-              const cur=app.conversations.currentId;
-              if(cur&&app.ui.loadConversation){
-                // refresh open chat if it changed
-                app.ui.loadConversation(cur);
-              }
-            }
-          }
-          console.log('[CloudSync] live update',merged.length,'chats');
-        }
-      }catch(e){console.warn('[CloudSync] snapshot',e)}
-      finally{this._applyingRemote=false}
-    },(err)=>console.warn('[CloudSync] listen',err));
   }
   async pullAll(){
     const uid=this.ensureUid();
     if(!this.ready||!uid||!this.db)return null;
     const base=this.db.collection('users').doc(uid);
-    const out={conversations:[],currentConvId:null};
+    const out={conversations:[],currentConvId:null,apiConfig:null,agentSettings:null,plugins:null,vfs:null,projects:null,automations:null,theme:null,personality:null,pins:null};
     try{
       const meta=await base.get();
       if(meta.exists){
@@ -831,68 +767,76 @@ class CloudSync{
       const setDoc=await base.collection('settings').doc('app').get();
       if(setDoc.exists){
         const s=setDoc.data()||{};
-        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','googleClientId','thinkingGif'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
+        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
       }
     }catch(e){console.error('[CloudSync] pull',e);throw e}
     return out;
   }
   schedulePush(app){
-    if(!this.ready){return}
-    if(!this.ensureUid()){return}
-    this._app=app||this._app;
-    this._dirty=true;
+    if(!this.ready){console.warn('[CloudSync] schedule skipped: not ready');return}
+    if(!this.ensureUid()){console.warn('[CloudSync] schedule skipped: no uid');return}
     clearTimeout(this._saveTimer);
     this._saveTimer=setTimeout(()=>{
-      this.pushAll(this._app).catch(e=>console.warn('[CloudSync] push',e));
-    },500);
+      this.pushAll(app).catch(e=>console.warn('[CloudSync] push',e));
+    },600);
   }
   _sanitizeConv(c){
     try{
-      const copy={
-        id:c.id,
-        title:c.title||'New conversation',
-        created:c.created||null,
-        updated:c.updated||Date.now(),
-        projectId:c.projectId||null,
-        needsAiTitle:!!c.needsAiTitle,
-        messages:[]
-      };
-      const msgs=Array.isArray(c.messages)?c.messages:[];
-      copy.messages=msgs.map(m=>{
-        const msg={
-          id:m.id||null,
-          role:m.role||'user',
-          content:typeof m.content==='string'?m.content:(m.content==null?'':JSON.stringify(m.content)),
-          ts:m.ts||null
-        };
-        if(msg.content.length>100000)msg.content=msg.content.slice(0,100000)+'\n…[truncated]';
-        if(Array.isArray(m.attachments)&&m.attachments.length){
-          msg.attachments=m.attachments.map(a=>({
-            name:a.name||'file',
-            type:a.type||'',
-            content:a.content?String(a.content).slice(0,30000):null
-            // dataUrls omitted (too large for Firestore)
-          }));
-        }
-        return msg;
-      });
+      const copy=JSON.parse(JSON.stringify(c));
+      if(Array.isArray(copy.messages)){
+        copy.messages=copy.messages.map(m=>{
+          const msg={role:m.role,content:m.content,ts:m.ts,id:m.id};
+          if(typeof msg.content==='string'&&msg.content.length>50000)msg.content=msg.content.slice(0,50000)+'\n…[truncated]';
+          if(Array.isArray(m.attachments)){
+            msg.attachments=m.attachments.map(a=>({
+              name:a.name,type:a.type,
+              dataUrl:a.dataUrl?'[omitted-image]':undefined,
+              content:a.content?String(a.content).slice(0,20000):undefined
+            }));
+          }
+          return msg;
+        });
+      }
       return copy;
-    }catch(e){
-      return{id:c&&c.id,title:(c&&c.title)||'chat',messages:[],updated:Date.now()};
-    }
+    }catch{return{id:c&&c.id,title:(c&&c.title)||'chat',messages:[],updated:Date.now()}}
   }
   async pushAll(app){
     const uid=this.ensureUid();
     if(!this.ready||!uid||!this.db||!app)return;
-    if(this._pushing){this._dirty=true;return}
+    if(this._pushing)return;
     this._pushing=true;
-    this._dirty=false;
     try{
       const base=this.db.collection('users').doc(uid);
       const s=app.storage;
       const user=s.getActiveUser()||{};
-      // Full settings mirror (everything account-local used to store)
-      const settingsPayload={
+      await base.set({
+        email:user.email||null,
+        name:user.name||null,
+        picture:user.picture||null,
+        currentConvId:s.get('currentConvId',null),
+        theme:s.get('theme','dark'),
+        personality:s.get('personality','')||'',
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+      let convs=(app.conversations&&app.conversations.conversations)||s.get('conversations',[])||[];
+      let ok=0;
+      for(const c of convs){
+        if(!c||!c.id)continue;
+        try{
+          await base.collection('conversations').doc(String(c.id)).set(this._sanitizeConv(c),{merge:true});
+          ok++;
+        }catch(e){
+          console.warn('[CloudSync] conv',c.id,e.message||e);
+          try{
+            await base.collection('conversations').doc(String(c.id)).set({
+              id:c.id,title:c.title||'chat',updated:c.updated||Date.now(),
+              messages:(c.messages||[]).slice(-15).map(m=>({role:m.role,content:String(m.content||'').slice(0,6000),ts:m.ts||null}))
+            },{merge:true});
+            ok++;
+          }catch(e2){console.warn('[CloudSync] conv retry',e2)}
+        }
+      }
+      await base.collection('settings').doc('app').set({
         apiConfig:s.get('apiConfig',null),
         agentSettings:s.get('agentSettings',null),
         plugins:s.get('plugins',[]),
@@ -903,70 +847,31 @@ class CloudSync{
         modelRoles:s.get('modelRoles',{}),
         forceTemp:s.get('forceTemp',null),
         toolChoice:s.get('toolChoice','auto'),
-        intensity:s.get('intensity','medium'),
-        githubToken:s.get('githubToken',''),
-        githubOwner:s.get('githubOwner',''),
-        thinkingGif:s.get('thinkingGif',''),
-        personality:s.get('personality',''),
-        theme:s.get('theme','dark'),
-        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-      };
-      await base.set({
-        email:user.email||null,
-        name:user.name||null,
-        picture:user.picture||null,
-        currentConvId:s.get('currentConvId',null),
-        theme:settingsPayload.theme,
-        personality:settingsPayload.personality,
         updatedAt:firebase.firestore.FieldValue.serverTimestamp()
       },{merge:true});
-      await base.collection('settings').doc('app').set(settingsPayload,{merge:true});
-
-      let convs=(app.conversations&&app.conversations.conversations)||s.get('conversations',[])||[];
-      // Always re-read from memory right before write
-      if(app.conversations&&app.conversations.conversations)convs=app.conversations.conversations;
-      let ok=0;
-      for(const c of convs){
-        if(!c||!c.id)continue;
-        const clean=this._sanitizeConv(c);
-        try{
-          await base.collection('conversations').doc(String(c.id)).set(clean,{merge:false});
-          ok++;
-        }catch(e){
-          console.warn('[CloudSync] conv write',c.id,e.message||e);
-          try{
-            await base.collection('conversations').doc(String(c.id)).set({
-              id:c.id,title:c.title||'chat',updated:c.updated||Date.now(),
-              messages:(c.messages||[]).map(m=>({
-                id:m.id||null,role:m.role,ts:m.ts||null,
-                content:String(m.content||'').slice(0,20000)
-              }))
-            },{merge:false});
-            ok++;
-          }catch(e2){console.warn('[CloudSync] conv retry failed',e2)}
-        }
-      }
-      console.log('[CloudSync] pushed',ok,'/',convs.length,'conversations',convs.map(c=>(c.messages||[]).length));
+      console.log('[CloudSync] pushed',ok,'/',convs.length,'conversations');
     }catch(e){
       console.error('[CloudSync] pushAll error',e);
-      this._dirty=true;
       throw e;
-    }finally{
-      this._pushing=false;
-      if(this._dirty){
-        clearTimeout(this._saveTimer);
-        this._saveTimer=setTimeout(()=>this.pushAll(app).catch(err=>console.warn('[CloudSync] push',err)),400);
-      }
-    }
+    }finally{this._pushing=false}
   }
   applyPulled(app,data){
     if(!data||!app)return;
     const s=app.storage;
     if(data.conversations)s.set('conversations',data.conversations);
     if(data.currentConvId!==undefined)s.set('currentConvId',data.currentConvId);
-    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','thinkingGif','theme','personality'].forEach(k=>{
-      if(data[k]!==undefined)s.set(k,data[k]);
-    });
+    if(data.apiConfig)s.set('apiConfig',data.apiConfig);
+    if(data.agentSettings)s.set('agentSettings',data.agentSettings);
+    if(data.plugins)s.set('plugins',data.plugins);
+    if(data.vfs)s.set('vfs',data.vfs);
+    if(data.projects)s.set('projects',data.projects);
+    if(data.automations)s.set('automations',data.automations);
+    if(data.pins)s.set('pins',data.pins);
+    if(data.theme)s.set('theme',data.theme);
+    if(data.personality!=null)s.set('personality',data.personality);
+    if(data.modelRoles)s.set('modelRoles',data.modelRoles);
+    if(data.forceTemp!==undefined)s.set('forceTemp',data.forceTemp);
+    if(data.toolChoice)s.set('toolChoice',data.toolChoice);
   }
 }
 
@@ -2291,8 +2196,6 @@ else if(ev.type==='activity-update'){
   this.scrollToBottom();
 }
 else if(ev.type==='final'){aiMsg.content=ev.content;
-  try{this.app.conversations.persist()}catch{}
-
   try{
     const conv=this.app.conversations.get(this.app.conversations.currentId);
     if(conv&&(conv.needsAiTitle||conv.title==='New conversation'||(conv.title&&conv.title.endsWith('…')))){
@@ -2353,7 +2256,7 @@ const br=actions.querySelector('[data-act=branch]');if(br)br.onclick=()=>this.br
 const del=actions.querySelector('[data-act=delete]');if(del)del.onclick=()=>this.deleteMessage(aiMsg.id);
 this.setupMessageSelection(aiEl);
 this.scrollToBottom()}
-else if(ev.type==='done'){$('#agent-status').textContent='Ready';$('#iteration-info').textContent='';const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();try{this.app.conversations.persist()}catch{}}
+else if(ev.type==='done'){$('#agent-status').textContent='Ready';$('#iteration-info').textContent='';const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove()}
 else if(ev.type==='error')toast(ev.message,'error')}
 renderMessage(msg,isStreaming=false){const container=$('#messages');const div=document.createElement('div');div.className=`message ${msg.role}`;div.dataset.id=msg.id;const roleLabel=msg.role==='user'?'You':'Think Deeper';const avatarText=msg.role==='user'?'U':'TD';let attachHtml='';if(msg.attachments?.length){attachHtml='<div class="attachments">';msg.attachments.forEach(a=>{if(a.dataUrl)attachHtml+=`<div class="attachment"><img src="${a.dataUrl}" alt=""></div>`;else attachHtml+=`<div class="attachment"><div class="file-chip">📄 ${escapeHtml(a.name)}</div></div>`});attachHtml+='</div>'}
 const bodyContent=msg.role==='user'?escapeHtml(msg.content).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
@@ -2601,11 +2504,7 @@ mountGoogleButton(host,overlay){
       }catch(e){console.warn('pull',e);toast('Signed in, but cloud load failed (check Firestore rules)','error')}
       if(this.app.cloud)this.app.cloud.uid=user.id;
       this.reloadWorkspaceForAccount();
-      try{
-        await this.app.cloud.pushAll(this.app);
-        this.app.cloud.startListening(this.app);
-        toast('Cloud sync on','success');
-      }catch(e){console.warn('initial push',e);toast('Cloud push failed: '+(e.message||e),'error')}
+      try{await this.app.cloud.pushAll(this.app);toast('Cloud sync on','success')}catch(e){console.warn('initial push',e);toast('Cloud push failed: '+(e.message||e),'error')}
       this.renderAuth();
       if(overlay)overlay.remove();
       toast('Signed in — chats sync to Firebase','success');
@@ -2810,10 +2709,10 @@ start(){
 }
 async _restoreCloudSession(){
   try{
-    if(!this.cloud)return;
-    if(!this.cloud.ready)this.cloud.init();
-    const fu=await this.cloud.whenAuthReady();
-    if(!fu){console.log('[CloudSync] no saved session');return}
+    if(!this.cloud||!this.cloud.ready)return;
+    await new Promise(r=>setTimeout(r,300));
+    const fu=this.cloud.auth&&this.cloud.auth.currentUser;
+    if(!fu)return;
     this.cloud.uid=fu.uid;
     const user={id:fu.uid,name:fu.displayName,email:fu.email,picture:fu.photoURL};
     this.storage.setActiveUser(user);
@@ -2823,7 +2722,6 @@ async _restoreCloudSession(){
     }catch(e){console.warn('[CloudSync] restore pull',e)}
     if(this.ui&&this.ui.reloadWorkspaceForAccount)this.ui.reloadWorkspaceForAccount();
     else if(this.ui&&this.ui.renderAuth)this.ui.renderAuth();
-    this.cloud.startListening(this);
     console.log('[CloudSync] session restored',fu.uid);
   }catch(e){console.warn('[CloudSync] restore',e)}
 }
