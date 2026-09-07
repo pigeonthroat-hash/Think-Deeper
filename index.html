@@ -447,6 +447,7 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 .automations-panel{padding:12px;font-size:.82rem}
 .auto-rule{padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--bg-elevated)}
 
+.auth-hint{font-size:.72rem;color:var(--text-tertiary);max-width:120px;line-height:1.2;margin-right:4px}
 </style>
 </head>
 <body>
@@ -606,8 +607,13 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 <div class="btn-row"><button class="btn-secondary" id="discover-models">Discover Models</button><button class="btn-primary" id="save-api">Save</button></div>
 </div>
 <div id="tab-agent" style="display:none">
-<div class="form-row"><div class="form-group"><label>Max iterations</label><input type="number" id="max-iterations" value="12" min="1" max="30"></div><div class="form-group"><label>Max tool calls</label><input type="number" id="max-tools" value="30" min="1" max="50"></div></div>
-<div class="form-group"><label>Max time (seconds)</label><input type="number" id="max-time" value="180" min="30" max="600"></div>
+<div class="form-row"><div class="form-group"><label>Max iterations</label><input type="number" id="max-iterations" value="12" min="1" max="40"></div><div class="form-group"><label>Max tool calls</label><input type="number" id="max-tools" value="30" min="1" max="80"></div></div>
+<div class="form-group"><label>Max time (seconds)</label><input type="number" id="max-time" value="180" min="30" max="3600"></div>
+<div class="form-group"><label>Force temperature (0.0–1.2, blank = auto by mode)</label>
+<input type="number" id="force-temp" min="0" max="1.2" step="0.05" placeholder="e.g. 0.4">
+<div class="hint">Clamped to 0–1.2. Overrides intensity temperature when set. Code mode ignores iteration/time caps.</div></div>
+<div class="form-group"><label>Tool choice</label>
+<select id="tool-choice"><option value="auto">auto</option><option value="any">any (force tools)</option><option value="none">none</option></select></div>
 <div class="btn-row"><button class="btn-primary" id="save-agent">Save Agent Settings</button></div>
 </div>
 <div id="tab-personality" style="display:none">
@@ -695,7 +701,59 @@ function toast(msg,type='info'){const el=document.createElement('div');el.classN
 function escapeHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function countLines(t){return t?t.split('\n').length:0}
 
-class StorageManager{constructor(){this.prefix='thinkdeeper_v2_'}get(k,f=null){try{const v=localStorage.getItem(this.prefix+k);return v===null?f:JSON.parse(v)}catch{return f}}set(k,v){try{localStorage.setItem(this.prefix+k,JSON.stringify(v))}catch(e){}}remove(k){localStorage.removeItem(this.prefix+k)}}
+class StorageManager{
+  constructor(){
+    this.root='thinkdeeper_v2_';
+    this.guestMem={};
+    // Restore session account if previously logged in
+    let uid=null;
+    try{uid=JSON.parse(localStorage.getItem(this.root+'activeUser')||'null')}catch{}
+    this.userId=(uid&&uid.id)?uid.id:null; // null = guest
+  }
+  isGuest(){return!this.userId}
+  _key(k){return this.userId?(this.root+'u_'+this.userId+'_'+k):(this.root+'guest_'+k)}
+  get(k,f=null){
+    try{
+      if(this.isGuest()){
+        if(Object.prototype.hasOwnProperty.call(this.guestMem,k))return this.guestMem[k];
+        // guests: no durable localStorage for app data
+        return f;
+      }
+      const v=localStorage.getItem(this._key(k));
+      return v===null?f:JSON.parse(v);
+    }catch{return f}
+  }
+  set(k,v){
+    try{
+      if(this.isGuest()){
+        this.guestMem[k]=v;
+        return; // do not persist chats/settings/keys while signed out
+      }
+      localStorage.setItem(this._key(k),JSON.stringify(v));
+    }catch(e){}
+  }
+  remove(k){
+    if(this.isGuest()){delete this.guestMem[k];return}
+    try{localStorage.removeItem(this._key(k))}catch{}
+  }
+  setActiveUser(user){
+    // user: {id,name,email,picture} or null for guest
+    if(user&&user.id){
+      this.userId=user.id;
+      try{localStorage.setItem(this.root+'activeUser',JSON.stringify({id:user.id,name:user.name,email:user.email,picture:user.picture}))}catch{}
+      try{localStorage.setItem(this.root+'googleUser_'+user.id,JSON.stringify(user))}catch{}
+    }else{
+      this.userId=null;
+      this.guestMem={};
+      try{localStorage.removeItem(this.root+'activeUser')}catch{}
+    }
+  }
+  getActiveUser(){
+    if(!this.userId)return null;
+    try{return JSON.parse(localStorage.getItem(this.root+'googleUser_'+this.userId)||'null')}catch{return null}
+  }
+}
+
 
 class VirtualFS{constructor(s){this.storage=s;this.files=s.get('vfs',{})}
 list(p=''){return Object.keys(this.files).filter(x=>!p||x.startsWith(p)).sort()}
@@ -1181,7 +1239,7 @@ if(attachments?.length){for(const a of attachments){
 }}
 let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE: prefer paths under code/ for project files. You may use image_search and github_* tools. Link folders as [[folder:code/...]] and HTML as [[preview:code/.../index.html]]. Persist files only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
-const hardMax=Math.min(Math.max(maxIter,1),deepThink?25:20);
+const hardMax=(maxIter>=500)?maxIter:Math.min(Math.max(maxIter,1),deepThink?25:20);
 try{while(iteration<hardMax&&this.running){if(Date.now()-start>maxMs){onEvent({type:'status',text:'Time limit reached'});break}
 iteration++;
 console.log('[Agent] iteration',iteration,'/',hardMax,'toolCalls so far',toolCalls);
@@ -1709,8 +1767,10 @@ ${skillText}
 User task:
 ${text}`;
   const prev={...this.app.agent.settings};
-  this.app.agent.settings.maxIterations=inten.maxIterations;
-  this.app.agent.settings.maxTools=inten.maxTools;
+  // Code mode: no iteration / tool / time caps
+  this.app.agent.settings.maxIterations=999;
+  this.app.agent.settings.maxTools=999;
+  this.app.agent.settings.maxTime=86400;
   this.app.agent.temperature=inten.temperature;
   this.app.agent.projectCtx=this.projectContext();this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: maximum verification and tools.':'');
   this.app.mode='code';
@@ -2159,14 +2219,43 @@ enhanceCodeBlocks(container){
 copyMessage(text){navigator.clipboard.writeText(text||'');toast('Copied','success')}
 editMessage(msgId,el){const body=el.querySelector('.final-content')||el.querySelector('.message-body');if(!body)return;const cur=body.innerText;const next=prompt('Edit response',cur);if(next===null)return;body.innerHTML=this.renderMarkdown(next);this.enhanceCodeBlocks(body);this._renderMath(body);const conv=this.app.conversations.get(this.app.conversations.currentId);if(conv){const m=conv.messages.find(x=>x.id===msgId);if(m){m.content=next;this.app.conversations.persist()}}toast('Updated','success')}
 
+
+reloadWorkspaceForAccount(){
+  // Rebuild managers from current storage namespace (account vs guest)
+  const s=this.app.storage;
+  this.app.conversations=new ConversationManager(s);
+  this.app.provider=new ProviderManager(s);
+  this.app.vfs=new VirtualFS(s);
+  this.app.external=this.app.external||new ExternalFS();
+  this.app.python=this.app.python||new PythonTool();
+  this.app.tools=new ToolManager(this.app.vfs,this.app.external,this.app.python);
+  this.app.plugins=new PluginManager(s);
+  this.app.plugins.onSave=(p)=>this.app.materializePlugin&&this.app.materializePlugin(p);
+  try{(this.app.plugins.list()||[]).forEach(p=>this.app.materializePlugin&&this.app.materializePlugin(p))}catch{}
+  const agentSettings=s.get('agentSettings',{maxIterations:12,maxTools:30,maxTime:180});
+  this.app.agent=new Agent(this.app.provider,this.app.tools,agentSettings,this.app.plugins,s);
+  // UI refresh
+  $('#messages')&&($('#messages').innerHTML='');
+  this.renderConversations();
+  this.renderProjects&&this.renderProjects();
+  this.renderAutomations&&this.renderAutomations();
+  this.renderModelLabel&&this.renderModelLabel();
+  this.renderCodeFiles&&this.renderCodeFiles();
+  if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);
+  else this.showEmpty&&this.showEmpty();
+  this.renderAuth();
+}
+
 renderAuth(){
   const area=$('#auth-area');if(!area)return;
-  const user=this.app.storage.get('googleUser',null);
+  const user=this.app.storage.getActiveUser();
   if(user&&user.picture){
     area.innerHTML=`<img class="auth-avatar" src="${escapeHtml(user.picture)}" alt=""><button type="button" class="auth-btn" id="btn-logout">Log out</button>`;
     const b=$('#btn-logout');if(b)b.onclick=()=>this.logoutGoogle();
   } else {
-    area.innerHTML=`<button type="button" class="auth-btn" id="btn-login">Log in</button><button type="button" class="auth-btn" id="btn-signup">Sign up</button>`;
+    area.innerHTML=`<span class="auth-hint">Save chats by making an account</span>
+      <button type="button" class="auth-btn" id="btn-login">Log in</button>
+      <button type="button" class="auth-btn" id="btn-signup">Sign up</button>`;
     const li=$('#btn-login');if(li)li.onclick=()=>this.openAuthModal('login');
     const su=$('#btn-signup');if(su)su.onclick=()=>this.openAuthModal('signup');
   }
@@ -2198,7 +2287,8 @@ mountGoogleButton(host,overlay){
     try{
       const payload=JSON.parse(atob(resp.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
       const user={id:payload.sub,name:payload.name,email:payload.email,picture:payload.picture};
-      this.app.storage.set('googleUser',user);
+      this.app.storage.setActiveUser(user);
+      this.reloadWorkspaceForAccount();
       this.renderAuth();
       if(overlay)overlay.remove();
       toast('Signed in as '+(user.name||user.email||'Google user'),'success');
@@ -2247,7 +2337,7 @@ loginWithGoogle(overlay){
   }
   this.openAuthModal('login');
 }
-logoutGoogle(){this.app.storage.set('googleUser',null);this.renderAuth();toast('Signed out','success')}
+logoutGoogle(){this.app.storage.setActiveUser(null);this.reloadWorkspaceForAccount();this.renderAuth();toast('Signed out — guest mode (nothing is saved)','success')}
 filterConversations(q){this._convQuery=(q||'').trim().toLowerCase();this.renderConversations()}
 branchFromMessage(msgId){
   const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
