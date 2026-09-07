@@ -2197,7 +2197,7 @@ if(!actions){
   const host=aiEl.querySelector('.message-content')||aiEl.querySelector('.message-body')||aiEl;
   host.appendChild(actions);
 }
-const tokEst=Math.max(1,Math.round(String(ev.content||'').length/4));
+const tokEst=Math.max(1,Math.round(String((typeof ev!=='undefined'&&ev.content)||(aiMsg&&aiMsg.content)||(msg&&msg.content)||'').length/4));
 actions.innerHTML=`<span class="token-badge">~${tokEst} tokens</span><button type="button" data-act="copy" title="Copy">${SVG.copy}</button><button type="button" data-act="edit" title="Edit">${SVG.edit}</button><button type="button" data-act="branch" title="Branch chat">${SVG.branch}</button><button type="button" data-act="regen" title="Regenerate">↻</button><button type="button" data-act="continue" title="Continue">→</button><button type="button" data-act="delete" title="Delete">${SVG.trash}</button>`;
 actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(ev.content);
 actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(aiMsg.id,aiEl);
@@ -2211,7 +2211,7 @@ else if(ev.type==='done'){$('#agent-status').textContent='Ready';$('#iteration-i
 else if(ev.type==='error')toast(ev.message,'error')}
 renderMessage(msg,isStreaming=false){const container=$('#messages');const div=document.createElement('div');div.className=`message ${msg.role}`;div.dataset.id=msg.id;const roleLabel=msg.role==='user'?'You':'Think Deeper';const avatarText=msg.role==='user'?'U':'TD';let attachHtml='';if(msg.attachments?.length){attachHtml='<div class="attachments">';msg.attachments.forEach(a=>{if(a.dataUrl)attachHtml+=`<div class="attachment"><img src="${a.dataUrl}" alt=""></div>`;else attachHtml+=`<div class="attachment"><div class="file-chip">📄 ${escapeHtml(a.name)}</div></div>`});attachHtml+='</div>'}
 const bodyContent=msg.role==='user'?escapeHtml(msg.content).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
-div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}">${avatarText}</div><span class="message-role">${roleLabel}</span><span class="message-time">${fmtTime(msg.ts)}</span></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);const actions=document.createElement('div');actions.className='message-actions';const tokEst=Math.max(1,Math.round(String(ev.content||'').length/4));
+div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}">${avatarText}</div><span class="message-role">${roleLabel}</span><span class="message-time">${fmtTime(msg.ts)}</span></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);const actions=document.createElement('div');actions.className='message-actions';const tokEst=Math.max(1,Math.round(String((typeof ev!=='undefined'&&ev.content)||(aiMsg&&aiMsg.content)||(msg&&msg.content)||'').length/4));
 actions.innerHTML=`<span class="token-badge">~${tokEst} tokens</span><button type="button" data-act="copy" title="Copy">${SVG.copy}</button><button type="button" data-act="edit" title="Edit">${SVG.edit}</button><button type="button" data-act="branch" title="Branch chat">${SVG.branch}</button><button type="button" data-act="regen" title="Regenerate">↻</button><button type="button" data-act="continue" title="Continue">→</button><button type="button" data-act="delete" title="Delete">${SVG.trash}</button>`;actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(msg.content);actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(msg.id,div);const rg=actions.querySelector('[data-act=regen]');if(rg)rg.onclick=()=>this.regenerateLast();const ct=actions.querySelector('[data-act=continue]');if(ct)ct.onclick=()=>this.continueLast();div.querySelector('.message-content').appendChild(actions)}this.scrollToBottom();return div}
 renderMarkdown(text){
   if(!text)return '';
@@ -2366,22 +2366,26 @@ reloadWorkspaceForAccount(){
   const agentSettings=s.get('agentSettings',{maxIterations:12,maxTools:30,maxTime:180});
   this.app.agent=new Agent(this.app.provider,this.app.tools,agentSettings,this.app.plugins,s);
   // UI refresh
+  this.renderAuth();
   $('#messages')&&($('#messages').innerHTML='');
   this.renderConversations();
   this.renderProjects&&this.renderProjects();
   this.renderAutomations&&this.renderAutomations();
   this.renderModelLabel&&this.renderModelLabel();
   this.renderCodeFiles&&this.renderCodeFiles();
-  if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);
-  else this.showEmpty&&this.showEmpty();
+  try{
+    if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);
+    else this.showEmpty&&this.showEmpty();
+  }catch(e){console.error('load after login',e);this.showEmpty&&this.showEmpty()}
   this.renderAuth();
 }
 
 renderAuth(){
   const area=$('#auth-area');if(!area)return;
   const user=this.app.storage.getActiveUser();
-  if(user&&user.picture){
-    area.innerHTML=`<img class="auth-avatar" src="${escapeHtml(user.picture)}" alt=""><button type="button" class="auth-btn" id="btn-logout">Log out</button>`;
+  if(user&&user.id){
+    const avatar=user.picture?`<img class="auth-avatar" src="${escapeHtml(user.picture)}" alt="">`:`<span class="auth-avatar" style="display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-size:.7rem">${escapeHtml((user.name||user.email||'?')[0]||'?')}</span>`;
+    area.innerHTML=`${avatar}<span style="font-size:.75rem;color:var(--text-secondary);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(user.name||user.email||'Account')}</span><button type="button" class="auth-btn" id="btn-logout">Log out</button>`;
     const b=$('#btn-logout');if(b)b.onclick=()=>this.logoutGoogle();
   } else {
     area.innerHTML=`<span class="auth-hint">Save chats by making an account</span>
