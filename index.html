@@ -6,6 +6,9 @@
 <title>Think Deeper — Agentic AI</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" onload="window.__katexReady=1"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
@@ -701,6 +704,134 @@ function toast(msg,type='info'){const el=document.createElement('div');el.classN
 function escapeHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function countLines(t){return t?t.split('\n').length:0}
 
+
+class CloudSync{
+  constructor(){
+    this.ready=false;this.uid=null;this.db=null;this.auth=null;
+    this._saveTimer=null;
+  }
+  init(){
+    const cfg=(window.__THINK_DEEPER_CONFIG||{}).firebaseConfig;
+    if(!cfg||!cfg.apiKey){console.info('[CloudSync] no firebaseConfig');return false}
+    if(typeof firebase==='undefined'){console.warn('[CloudSync] Firebase SDK missing');return false}
+    try{
+      if(!firebase.apps.length)firebase.initializeApp(cfg);
+      this.auth=firebase.auth();
+      this.db=firebase.firestore();
+      this.ready=true;
+      return true;
+    }catch(e){console.error('[CloudSync] init',e);return false}
+  }
+  async signInWithGoogle(){
+    if(!this.ready&&!this.init())throw new Error('Firebase not configured (firebaseConfig in config.local.js)');
+    const provider=new firebase.auth.GoogleAuthProvider();
+    provider.addScope('profile');provider.addScope('email');
+    const result=await this.auth.signInWithPopup(provider);
+    const u=result.user;
+    this.uid=u.uid;
+    return{id:u.uid,name:u.displayName,email:u.email,picture:u.photoURL};
+  }
+  async signOut(){
+    if(this.auth)await this.auth.signOut();
+    this.uid=null;
+  }
+  async pullAll(){
+    if(!this.ready||!this.uid||!this.db)return null;
+    const base=this.db.collection('users').doc(this.uid);
+    const out={conversations:[],currentConvId:null,apiConfig:null,agentSettings:null,plugins:null,vfs:null,projects:null,automations:null,theme:null,personality:null,pins:null};
+    try{
+      const meta=await base.get();
+      if(meta.exists){
+        const d=meta.data()||{};
+        out.currentConvId=d.currentConvId||null;
+        out.theme=d.theme||null;
+        out.personality=d.personality||null;
+      }
+      const convSnap=await base.collection('conversations').get();
+      out.conversations=convSnap.docs.map(doc=>({id:doc.id,...doc.data()}));
+      const setDoc=await base.collection('settings').doc('app').get();
+      if(setDoc.exists){
+        const s=setDoc.data()||{};
+        if(s.apiConfig)out.apiConfig=s.apiConfig;
+        if(s.agentSettings)out.agentSettings=s.agentSettings;
+        if(s.plugins)out.plugins=s.plugins;
+        if(s.vfs)out.vfs=s.vfs;
+        if(s.projects)out.projects=s.projects;
+        if(s.automations)out.automations=s.automations;
+        if(s.pins)out.pins=s.pins;
+        if(s.modelRoles)out.modelRoles=s.modelRoles;
+        if(s.forceTemp!=null)out.forceTemp=s.forceTemp;
+        if(s.toolChoice)out.toolChoice=s.toolChoice;
+      }
+    }catch(e){console.error('[CloudSync] pull',e);throw e}
+    return out;
+  }
+  schedulePush(app){
+    if(!this.ready||!this.uid)return;
+    clearTimeout(this._saveTimer);
+    this._saveTimer=setTimeout(()=>this.pushAll(app).catch(e=>console.warn('[CloudSync] push',e)),800);
+  }
+  async pushAll(app){
+    if(!this.ready||!this.uid||!this.db||!app)return;
+    const base=this.db.collection('users').doc(this.uid);
+    const s=app.storage;
+    await base.set({
+      email:(s.getActiveUser()||{}).email||null,
+      name:(s.getActiveUser()||{}).name||null,
+      picture:(s.getActiveUser()||{}).picture||null,
+      currentConvId:s.get('currentConvId',null),
+      theme:s.get('theme','dark'),
+      personality:s.get('personality',''),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    },{merge:true});
+    // conversations: write each
+    const convs=s.get('conversations',[])||[];
+    const batch=this.db.batch();
+    let n=0;
+    for(const c of convs){
+      const ref=base.collection('conversations').doc(c.id);
+      // strip huge binary if any
+      const copy=JSON.parse(JSON.stringify(c));
+      batch.set(ref,copy,{merge:true});
+      n++;
+      if(n>=400)break; // safety
+    }
+    await batch.commit();
+    await base.collection('settings').doc('app').set({
+      apiConfig:s.get('apiConfig',null),
+      agentSettings:s.get('agentSettings',null),
+      plugins:s.get('plugins',[]),
+      vfs:s.get('vfs',{}),
+      projects:s.get('projects',[]),
+      automations:s.get('automations',[]),
+      pins:s.get('pins',[]),
+      modelRoles:s.get('modelRoles',{}),
+      forceTemp:s.get('forceTemp',null),
+      toolChoice:s.get('toolChoice','auto'),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    },{merge:true});
+    console.log('[CloudSync] pushed',convs.length,'conversations');
+  }
+  applyPulled(app,data){
+    if(!data||!app)return;
+    const s=app.storage;
+    if(data.conversations)s.set('conversations',data.conversations);
+    if(data.currentConvId!==undefined)s.set('currentConvId',data.currentConvId);
+    if(data.apiConfig)s.set('apiConfig',data.apiConfig);
+    if(data.agentSettings)s.set('agentSettings',data.agentSettings);
+    if(data.plugins)s.set('plugins',data.plugins);
+    if(data.vfs)s.set('vfs',data.vfs);
+    if(data.projects)s.set('projects',data.projects);
+    if(data.automations)s.set('automations',data.automations);
+    if(data.pins)s.set('pins',data.pins);
+    if(data.theme)s.set('theme',data.theme);
+    if(data.personality!=null)s.set('personality',data.personality);
+    if(data.modelRoles)s.set('modelRoles',data.modelRoles);
+    if(data.forceTemp!==undefined)s.set('forceTemp',data.forceTemp);
+    if(data.toolChoice)s.set('toolChoice',data.toolChoice);
+  }
+}
+
 class StorageManager{
   constructor(){
     this.root='thinkdeeper_v2_';
@@ -801,7 +932,7 @@ setTitle(id,title){const c=this.get(id);if(!c||!title)return;c.title=String(titl
 delete(id){this.conversations=this.conversations.filter(c=>c.id!==id);if(this.currentId===id)this.currentId=this.conversations[0]?.id||null;this.persist()}
 rename(id,t){this.update(id,{title:t})}
 setCurrent(id){this.currentId=id;this.storage.set('currentConvId',id)}
-persist(){this.storage.set('conversations',this.conversations);this.storage.set('currentConvId',this.currentId)}}
+persist(){this.storage.set('conversations',this.conversations);this.storage.set('currentConvId',this.currentId);try{if(window.__app&&window.__app.cloud)window.__app.cloud.schedulePush(window.__app)}catch{}}}
 
 class ProviderManager{constructor(s){this.storage=s;this.config=s.get('apiConfig',{baseUrl:'https://api.openai.com/v1',apiKey:'',model:'',org:'',project:'',rememberKey:false,fallbackBaseUrl:'',fallbackApiKey:'',fallbackModel:''});this.models=s.get('discoveredModels',[])}
 save(c){this.config={...this.config,...c};const t={...this.config};if(!t.rememberKey)t.apiKey='';this.storage.set('apiConfig',t)}
@@ -1804,7 +1935,7 @@ if($('#model-talk')){$('#model-talk').value=roles.talk||'';$('#model-code').valu
 const s=this.app.storage.get('agentSettings',{});$('#max-iterations').value=s.maxIterations||12;$('#max-tools').value=s.maxTools||30;$('#max-time').value=s.maxTime||180;if($('#tool-choice'))$('#tool-choice').value=this.app.storage.get('toolChoice','auto')||'auto';const ft=$('#force-temp');if(ft){const v=this.app.storage.get('forceTemp',null);ft.value=v==null||v===''?'':v}$('#personality').value=this.app.storage.get('personality','')||'';$('#thinking-gif').value=this.app.storage.get('thinkingGif','')||'';$('#settings-overlay').classList.add('open')}
 closeSettings(){$('#settings-overlay').classList.remove('open')}
 applyPreset(n){const p={openai:{baseUrl:'https://api.openai.com/v1',model:'gpt-4o-mini'},groq:{baseUrl:'https://api.groq.com/openai/v1',model:'llama-3.3-70b-versatile'},openrouter:{baseUrl:'https://openrouter.ai/api/v1',model:'openai/gpt-4o-mini'},custom:{baseUrl:'',model:''}}[n];if(p){$('#api-base').value=p.baseUrl;$('#api-model').value=p.model}}
-saveApi(){const config={baseUrl:$('#api-base').value.trim(),apiKey:$('#api-key').value.trim(),model:$('#api-model').value.trim(),org:$('#api-org').value.trim(),project:$('#api-project').value.trim(),rememberKey:$('#remember-key').checked,fallbackBaseUrl:$('#fallback-base')?.value.trim()||'',fallbackApiKey:$('#fallback-key')?.value.trim()||'',fallbackModel:$('#fallback-model')?.value.trim()||'',googleClientId:$('#google-client-id')?.value.trim()||''};this.app.provider.save(config);this.app.storage.set('googleClientId',config.googleClientId||'');
+saveApi(){const config={baseUrl:$('#api-base').value.trim(),apiKey:$('#api-key').value.trim(),model:$('#api-model').value.trim(),org:$('#api-org').value.trim(),project:$('#api-project').value.trim(),rememberKey:$('#remember-key').checked,fallbackBaseUrl:$('#fallback-base')?.value.trim()||'',fallbackApiKey:$('#fallback-key')?.value.trim()||'',fallbackModel:$('#fallback-model')?.value.trim()||'',googleClientId:$('#google-client-id')?.value.trim()||''};this.app.provider.save(config);try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch{}this.app.storage.set('googleClientId',config.googleClientId||'');
 const roles={talk:$('#model-talk')?.value.trim()||'',code:$('#model-code')?.value.trim()||'',deep:$('#model-deep')?.value.trim()||''};this.app.storage.set('modelRoles',roles);
 this.app.storage.set('pluginsGlobal',!!$('#plugins-global')?.checked);
 this.renderModelLabel();toast('API settings saved','success')}
@@ -2275,12 +2406,48 @@ openAuthModal(mode){
   this.mountGoogleButton(overlay.querySelector('#google-btn-host'),overlay);
 }
 mountGoogleButton(host,overlay){
-  const cfg=(typeof window!=='undefined'&&window.__THINK_DEEPER_CONFIG)||{};
-  const clientId=cfg.googleClientId||this.app.storage.get('googleClientId','')||this.app.provider.config.googleClientId||'';
   const status=overlay&&overlay.querySelector('#auth-status');
+  const cfg=window.__THINK_DEEPER_CONFIG||{};
+  const doFirebase=async()=>{
+    try{
+      if(status)status.textContent='Opening Google sign-in…';
+      if(!this.app.cloud)this.app.cloud=new CloudSync();
+      if(!this.app.cloud.ready)this.app.cloud.init();
+      const user=await this.app.cloud.signInWithGoogle();
+      this.app.storage.setActiveUser(user);
+      if(status)status.textContent='Loading your cloud data…';
+      try{
+        const data=await this.app.cloud.pullAll();
+        if(data)this.app.cloud.applyPulled(this.app,data);
+      }catch(e){console.warn('pull',e);toast('Signed in, but cloud load failed (check Firestore rules)','error')}
+      this.reloadWorkspaceForAccount();
+      try{await this.app.cloud.pushAll(this.app)}catch(e){console.warn('initial push',e)}
+      this.renderAuth();
+      if(overlay)overlay.remove();
+      toast('Signed in — chats sync to Firebase','success');
+    }catch(e){
+      console.error(e);
+      const msg=(e&&e.message)||String(e);
+      if(status)status.textContent=msg;
+      toast(msg,'error');
+    }
+  };
+  if(cfg.firebaseConfig&&cfg.firebaseConfig.apiKey&&typeof firebase!=='undefined'){
+    if(host){
+      host.innerHTML='';
+      const btn=document.createElement('button');
+      btn.type='button';btn.className='google-btn';
+      btn.innerHTML=(typeof SVG!=='undefined'?SVG.google:'')+' Continue with Google';
+      btn.onclick=()=>doFirebase();
+      host.appendChild(btn);
+    }
+    if(status)status.textContent='Firebase Auth enabled — click to sign in';
+    return;
+  }
+  // Fallback: Google Identity Services button (local-only account bucket)
+  const clientId=cfg.googleClientId||this.app.storage.get('googleClientId','')||'';
   if(!clientId){
-    if(status)status.textContent='Missing googleClientId in config.local.js';
-    toast('Add googleClientId to config.local.js','error');
+    if(status)status.textContent='Add firebaseConfig or googleClientId to config.local.js';
     return;
   }
   const onCredential=(resp)=>{
@@ -2291,43 +2458,17 @@ mountGoogleButton(host,overlay){
       this.reloadWorkspaceForAccount();
       this.renderAuth();
       if(overlay)overlay.remove();
-      toast('Signed in as '+(user.name||user.email||'Google user'),'success');
+      toast('Signed in (local only — add firebaseConfig for cloud sync)','success');
     }catch(e){toast('Could not parse Google login','error')}
   };
   const loadGis=()=>new Promise((res,rej)=>{
     if(window.google?.accounts?.id)return res();
-    const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=res;s.onerror=()=>rej(new Error('Google Identity script failed'));document.head.appendChild(s);
+    const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=res;s.onerror=()=>rej(new Error('GIS failed'));document.head.appendChild(s);
   });
   loadGis().then(()=>{
-    try{
-      window.google.accounts.id.initialize({
-        client_id:clientId,
-        callback:onCredential,
-        auto_select:false,
-        cancel_on_tap_outside:true,
-        use_fedcm_for_prompt:false
-      });
-      if(host){
-        host.innerHTML='';
-        window.google.accounts.id.renderButton(host,{
-          type:'standard',
-          theme:'outline',
-          size:'large',
-          text:'continue_with',
-          shape:'rectangular',
-          logo_alignment:'left',
-          width:320
-        });
-      }
-      if(status)status.textContent='Click the Google button above';
-    }catch(e){
-      if(status)status.textContent=e.message||String(e);
-      toast(e.message||'Google button failed','error');
-    }
-  }).catch(e=>{
-    if(status)status.textContent=e.message||String(e);
-    toast(e.message||String(e),'error');
-  });
+    window.google.accounts.id.initialize({client_id:clientId,callback:onCredential,auto_select:false,use_fedcm_for_prompt:false});
+    if(host){host.innerHTML='';window.google.accounts.id.renderButton(host,{type:'standard',theme:'outline',size:'large',text:'continue_with',width:320})}
+  }).catch(e=>{if(status)status.textContent=e.message;toast(e.message,'error')});
 }
 loginWithGoogle(overlay){
   // Back-compat: open modal button flow
@@ -2337,7 +2478,10 @@ loginWithGoogle(overlay){
   }
   this.openAuthModal('login');
 }
-logoutGoogle(){this.app.storage.setActiveUser(null);this.reloadWorkspaceForAccount();this.renderAuth();toast('Signed out — guest mode (nothing is saved)','success')}
+logoutGoogle(){
+  const fin=()=>{this.app.storage.setActiveUser(null);if(this.app.cloud)this.app.cloud.uid=null;this.reloadWorkspaceForAccount();this.renderAuth();toast('Signed out — guest mode (nothing is saved)','success')};
+  if(this.app.cloud&&this.app.cloud.ready)this.app.cloud.signOut().then(fin).catch(fin);else fin();
+}
 filterConversations(q){this._convQuery=(q||'').trim().toLowerCase();this.renderConversations()}
 branchFromMessage(msgId){
   const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
@@ -2437,7 +2581,7 @@ async runSilentAutomation(a){
 
 scrollToBottom(){const area=$('#chat-area');requestAnimationFrame(()=>{area.scrollTop=area.scrollHeight})}}
 
-class App{constructor(){this.storage=new StorageManager();this.conversations=new ConversationManager(this.storage);this.provider=new ProviderManager(this.storage);this.vfs=new VirtualFS(this.storage);this.external=new ExternalFS();this.python=new PythonTool();this.tools=new ToolManager(this.vfs,this.external,this.python);this.plugins=new PluginManager(this.storage);
+class App{constructor(){this.storage=new StorageManager();this.cloud=new CloudSync();this.cloud.init();this.conversations=new ConversationManager(this.storage);this.provider=new ProviderManager(this.storage);this.vfs=new VirtualFS(this.storage);this.external=new ExternalFS();this.python=new PythonTool();this.tools=new ToolManager(this.vfs,this.external,this.python);this.plugins=new PluginManager(this.storage);
 this.plugins.onSave=(p)=>this.materializePlugin(p);
 this.plugins.list().forEach(p=>this.materializePlugin(p));
 this.ensureDefaultPlugins=function(){
