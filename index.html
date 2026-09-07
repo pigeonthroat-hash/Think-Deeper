@@ -451,6 +451,10 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 .auto-rule{padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--bg-elevated)}
 
 .auth-hint{font-size:.72rem;color:var(--text-tertiary);max-width:120px;line-height:1.2;margin-right:4px}
+
+.math-plain{font-family:var(--font-body),Georgia,serif;color:var(--text-primary);font-size:1.02em}
+.math-plain.math-display,.math-display .math-plain{display:block;text-align:center;margin:.75em 0;font-size:1.1em}
+.katex-error{color:var(--text-primary)!important;background:transparent!important}
 </style>
 </head>
 <body>
@@ -1346,7 +1350,7 @@ AGENT / TOOL LOOP:
 
 FORMATTING RULES (critical — follow exactly):
 - Use clean GitHub-flavored Markdown only.
-- Math: ALWAYS use KaTeX. Inline: $x^2$, $\nabla f$, $\mathbf{x}$. Display on own lines: $$\nabla f(\\mathbf{x})=\\lambda\\nabla g(\\mathbf{x})$$. Never wrap equations in single brackets [ ]. Always use $$...$$ for display math and $...$ for inline. Example: $$\\begin{aligned} 2b+1&=1.10 \\\\ b&=0.05 \\end{aligned}$$ Long formulas go in $$ blocks, not table cells.
+- Math: Prefer clear readable equations. Simple algebra can be plain: x + (x + 1) = 1.10. For complex math use KaTeX with $...$ or $$...$$. Inline: $x^2$. Display: $$\nabla f(\\mathbf{x})=\\lambda\\nabla g(\\mathbf{x})$$. Never wrap equations in single brackets [ ]. Always use $$...$$ for display math and $...$ for inline. Example: $$\\begin{aligned} 2b+1&=1.10 \\\\ b&=0.05 \\end{aligned}$$ Long formulas go in $$ blocks, not table cells.
 - Tables: use proper GFM pipe tables with a header separator line (| --- | --- |). Keep cells short; put long formulas in a $$ block ABOVE or BELOW the table, not inside a cell.
 - Lists: start lines with "- " or "1. " (space after marker).
 - Do not invent weird bracket notation for math.
@@ -2219,98 +2223,153 @@ renderMarkdown(text){
   const fences=[];
   t=t.replace(/```[\s\S]*?```/g,(m)=>{fences.push(m);return '\u0000FENCE'+(fences.length-1)+'\u0000'});
   t=t.replace(/`[^`\n]+`/g,(m)=>{fences.push(m);return '\u0000FENCE'+(fences.length-1)+'\u0000'});
-  // API double-escapes
+
+  // Normalize escapes & unicode
   t=t.replace(/\\\\([a-zA-Z]+)/g,'\\$1');
-  // Common model typos / unicode mixups
   t=t.replace(/λλ/g,'\\lambda').replace(/λ/g,'\\lambda');
   t=t.replace(/α/g,'\\alpha').replace(/β/g,'\\beta').replace(/θ/g,'\\theta').replace(/π/g,'\\pi');
-  t=t.replace(/×/g,'\\times').replace(/∈/g,'\\in').replace(/∞/g,'\\infty');
-  // n\timesn → n \times n (KaTeX needs spaces/operands)
+  t=t.replace(/×/g,'\\times').replace(/∈/g,'\\in').replace(/∞/g,'\\infty').replace(/±/g,'\\pm');
+  t=t.replace(/n\\timesn/g,'n \\times n');
   t=t.replace(/\\times(?=[a-zA-Z])/g,'\\times ');
-  t=t.replace(/([a-zA-Z0-9])\\times/g,'$1\\times ');
-  t=t.replace(/n\\timesn/g,'n \\times n').replace(/\\timesn/g,'\\times n');
-  // \mathbb{R} needs ams fonts - KaTeX supports via \mathbb
-  // Wrap bare latex-heavy segments that lack $ delimiters
-  t=t.replace(/(^|[^$\\])(\\[a-zA-Z]+\{[^}]*\}(?:\s*\\[a-zA-Z]+(?:\{[^}]*\})?)*)/g,function(m,pre,expr){
-    if(/\\(mathbf|mathbb|mathrm|text|frac|sqrt|sum|int|det|in|times|lambda|alpha|beta)/.test(expr)&&expr.length<220)
-      return pre+'$'+expr+'$';
-    return m;
-  });
-  // Lines that are mostly latex commands → display math
-  t=t.replace(/^(?![|\s]*$)((?:.*\\(?:mathbf|mathbb|frac|sqrt|sum|det|in|times|lambda)[^\n]*)+)$/gm,function(m){
-    if(m.includes('$$')||m.trim().startsWith('$'))return m;
-    if((m.match(/\\[a-zA-Z]+/g)||[]).length>=2)return '$$\n'+m.trim()+'\n$$';
-    return m;
-  });
-  t=t.replace(/\\\[([\s\S]*?)\\\]/g,'$$$$\n$1\n$$$$');
+  t=t.replace(/([a-zA-Z0-9])\\times(?![a-zA-Z])/g,'$1 \\times');
+
+  // Standard delimiters
+  t=t.replace(/\\\[([\s\S]*?)\\\]/g,'\n$$\n$1\n$$\n');
   t=t.replace(/\\\(([\s\S]*?)\\\)/g,'$$$1$$');
-  t=t.replace(/\[\s*(\\begin\{[\s\S]*?\\end\{[^}]+\})\s*\]/g,'$$$$\n$1\n$$$$');
-  t=t.replace(/(^|[^$])(\\begin\{(?:aligned|align\*?|equation\*?|gather\*?|eqnarray|matrix|bmatrix|pmatrix|vmatrix|Vmatrix|cases|array)\}[\s\S]*?\\end\{[^}]+\})/g,(m,pre,body)=>pre+'\n$$\n'+body+'\n$$\n');
+  t=t.replace(/\[\s*(\\begin\{[\s\S]*?\\end\{[^}]+\})\s*\]/g,'\n$$\n$1\n$$\n');
+
+  // Bare environments
+  t=t.replace(/(^|[^$\n])(\\begin\{(?:aligned|align\*?|equation\*?|gather\*?|eqnarray|matrix|bmatrix|pmatrix|vmatrix|Vmatrix|cases|array)\}[\s\S]*?\\end\{[^}]+\})/g,
+    (m,pre,body)=>pre+'\n$$\n'+body+'\n$$\n');
+
+  // Whole line of TeX (common model style)
+  t=t.replace(/(^|\n)([ \t]*)((?:\\[a-zA-Z]+|[_^{}=]|[0-9a-zA-Z\s+\-*/(),.|\\])+\\[a-zA-Z]+[^`\n]{0,400})/g,(m,br,sp,expr)=>{
+    if(/\$\$|^\s*\$/.test(expr))return m;
+    if(!/\\(frac|sqrt|sum|int|begin|mathbf|mathbb|pm|cdot|quad|qquad|log|sin|cos|tan|left|right|times|div|pi|theta|lambda|alpha|beta)/.test(expr))return m;
+    return br+sp+'$$\n'+expr.trim()+'\n$$';
+  });
+
+  // Inline TeX fragments still bare: \frac{...}{...}, \sqrt{...}, \pm, etc.
+  const inlineCmd=/\\(frac|dfrac|tfrac|sqrt|sum|prod|int|oint|lim|log|ln|sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|mathbf|mathrm|mathbb|mathcal|pm|mp|cdot|times|div|leq|geq|neq|approx|equiv|infty|partial|nabla|cdot|quad|qquad|left|right|overline|underline|hat|bar|vec|dot|ddot)(?![a-zA-Z])/g;
+  // Wrap runs that start with a latex cmd and continue with latex-ish chars
+  t=t.replace(/(^|[^$\\])((?:\\[a-zA-Z]+(?:\*?\{[^{}]*\})?(?:\[[^\]]*\])?|[0-9a-zA-Z+\-*/=()_^.\s]|\{[^{}]*\}){3,})/g,(m,pre,expr)=>{
+    if(pre.endsWith('$'))return m;
+    if(!inlineCmd.test(expr)&&!/\\[a-zA-Z]+\{/.test(expr))return m;
+    inlineCmd.lastIndex=0;
+    if(expr.includes('$$'))return m;
+    // Don't wrap plain English sentences
+    const cmdCount=(expr.match(/\\[a-zA-Z]+/g)||[]).length;
+    if(cmdCount<1)return m;
+    if(cmdCount===1&&expr.length>120&&/\s{2,}|[.!?]\s/.test(expr))return m;
+    return pre+'$'+expr.trim()+'$';
+  });
+
+  // Extract math to placeholders
   const maths=[];
-  const pushMath=(tex,display)=>{
+  const push=(tex,display)=>{
     let s=String(tex||'').trim();
     s=s.replace(/λλ/g,'\\lambda').replace(/λ/g,'\\lambda');
     s=s.replace(/n\\timesn/g,'n \\times n');
-    s=s.replace(/\\times(?=[a-zA-Z])/g,'\\times ');
     maths.push({tex:s,display:!!display});
     return '\u0000MATH'+(maths.length-1)+'\u0000';
   };
-  t=t.replace(/\$\$([\s\S]*?)\$\$/g,(_,m)=>pushMath(m,true));
-  t=t.replace(/\$([^\n$]+?)\$/g,(_,m)=>pushMath(m,false));
+  t=t.replace(/\$\$([\s\S]*?)\$\$/g,(_,m)=>push(m,true));
+  t=t.replace(/\$([^\$\n]+?)\$/g,(_,m)=>push(m,false));
+
+  // Bracket callouts
   t=t.replace(/\[\n([\s\S]*?)\n\]/g,(m,inner)=>{
     const s=inner.trim();
-    if(/\\frac|\\sqrt|\\sum|\\int|\\begin|\\mathbf|\\mathbb/.test(s))return pushMath(s,true);
+    if(/\\(frac|sqrt|sum|begin|mathbf|mathbb)/.test(s))return push(s,true);
     if(s.length&&s.length<2000)return '\n<div class="bracket-box">'+s+'</div>\n';
     return m;
   });
+
   t=t.replace(/\u0000FENCE(\d+)\u0000/g,(_,i)=>fences[Number(i)]);
-  const injectMath=(out)=>{
+
+  const inject=(out)=>{
     out=out.replace(/\u0000MATH(\d+)\u0000/g,(_,i)=>this._katexHTML(maths[Number(i)]));
+    // Catch any leftover visible TeX in HTML text (model forgot $)
+    out=this._rescueBareTeX(out);
     return out;
   };
-  if(!window.marked)return injectMath(escapeHtml(t).replace(/\n/g,'<br>'));
+
+  if(!window.marked)return inject(escapeHtml(t).replace(/\n/g,'<br>'));
   marked.setOptions({breaks:true,gfm:true});
   let out=marked.parse(t);
   out=out.replace(/&lt;div class="bracket-box"&gt;/g,'<div class="bracket-box">').replace(/&lt;\/div&gt;/g,'</div>');
-  return injectMath(out);
+  return inject(out);
 }
 _katexHTML(item){
   if(!item)return '';
   let tex=item.tex||'';
   tex=tex.replace(/λλ/g,'\\lambda').replace(/λ/g,'\\lambda');
-  tex=tex.replace(/n\\timesn/g,'n \\times n').replace(/\\times(?=[a-zA-Z])/g,'\\times ');
+  tex=tex.replace(/n\\timesn/g,'n \\times n');
   try{
     if(window.katex){
       return katex.renderToString(tex,{
         displayMode:!!item.display,
         throwOnError:false,
         strict:false,
-        trust:false,
         output:'html',
-        macros:{
-          '\\R':'\\mathbb{R}',
-          '\\N':'\\mathbb{N}',
-          '\\Z':'\\mathbb{Z}',
-          '\\C':'\\mathbb{C}'
-        }
+        macros:{'\\R':'\\mathbb{R}','\\N':'\\mathbb{N}','\\Z':'\\mathbb{Z}','\\C':'\\mathbb{C}'}
       });
     }
   }catch(e){console.warn('katex',e)}
-  return '<span class="math-fallback">'+(item.display?'<div class="math-display">':'')+escapeHtml(tex)+(item.display?'</div>':'')+'</span>';
+  // Readable plain fallback (no red KaTeX errors)
+  return '<span class="math-plain">'+(item.display?'<span class="math-display">':'')+escapeHtml(this._texToPlain(tex))+(item.display?'</span>':'')+'</span>';
+}
+_texToPlain(tex){
+  let s=String(tex||'');
+  s=s.replace(/\\begin\{[^}]+\}/g,'').replace(/\\end\{[^}]+\}/g,'');
+  s=s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g,'($1)/($2)');
+  s=s.replace(/\\sqrt\[([^\]]+)\]\{([^{}]+)\}/g,'($2)^(1/$1)');
+  s=s.replace(/\\sqrt\{([^{}]+)\}/g,'√($1)');
+  s=s.replace(/\\left|\\right/g,'');
+  s=s.replace(/\\cdot/g,'·').replace(/\\times/g,'×').replace(/\\div/g,'÷');
+  s=s.replace(/\\pm/g,'±').replace(/\\mp/g,'∓');
+  s=s.replace(/\\leq/g,'≤').replace(/\\geq/g,'≥').replace(/\\neq/g,'≠').replace(/\\approx/g,'≈');
+  s=s.replace(/\\infty/g,'∞').replace(/\\pi/g,'π').replace(/\\theta/g,'θ').replace(/\\lambda/g,'λ');
+  s=s.replace(/\\alpha/g,'α').replace(/\\beta/g,'β').replace(/\\gamma/g,'γ').replace(/\\delta/g,'δ');
+  s=s.replace(/\\mathbf\{([^{}]+)\}/g,'$1').replace(/\\mathrm\{([^{}]+)\}/g,'$1');
+  s=s.replace(/\\mathbb\{([^{}]+)\}/g,'$1').replace(/\\text\{([^{}]+)\}/g,'$1');
+  s=s.replace(/\\quad/g,' ').replace(/\\qquad/g,'  ').replace(/\\,/g,' ').replace(/\\;/g,' ');
+  s=s.replace(/\\log/g,'log').replace(/\\ln/g,'ln').replace(/\\sin/g,'sin').replace(/\\cos/g,'cos').replace(/\\tan/g,'tan');
+  s=s.replace(/\^\{([^{}]+)\}/g,'^($1)').replace(/_\{([^{}]+)\}/g,'_($1)');
+  s=s.replace(/\\([a-zA-Z]+)/g,'$1');
+  s=s.replace(/[{}]/g,'').replace(/\s+/g,' ').trim();
+  return s;
+}
+_rescueBareTeX(htmlOut){
+  if(!htmlOut||!window.katex)return htmlOut;
+  // Replace KaTeX error spans with plain readable math
+  htmlOut=htmlOut.replace(/<span class="katex-error"[^>]*title="[^"]*"[^>]*>([\s\S]*?)<\/span>/g,(m,inner)=>{
+    const raw=inner.replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
+    return '<span class="math-plain">'+escapeHtml(this._texToPlain(raw))+'</span>';
+  });
+  return htmlOut;
 }
 _renderMath(el){
-  if(!el||!window.renderMathInElement)return;
+  if(!el)return;
   try{
-    renderMathInElement(el,{
-      delimiters:[
-        {left:'$$',right:'$$',display:true},
-        {left:'\\[',right:'\\]',display:true},
-        {left:'$',right:'$',display:false},
-        {left:'\\(',right:'\\)',display:false}
-      ],
-      throwOnError:false,strict:false,
-      ignoredTags:['script','noscript','style','textarea','pre','code'],
-      ignoredClasses:['katex','math-fallback','canvas-doc']
+    if(window.renderMathInElement){
+      renderMathInElement(el,{
+        delimiters:[
+          {left:'$$',right:'$$',display:true},
+          {left:'\\[',right:'\\]',display:true},
+          {left:'$',right:'$',display:false},
+          {left:'\\(',right:'\\)',display:false}
+        ],
+        throwOnError:false,strict:false,
+        ignoredTags:['script','noscript','style','textarea','pre','code'],
+        ignoredClasses:['katex','math-plain','math-fallback','canvas-doc']
+      });
+    }
+    // Convert any remaining katex-error to plain
+    el.querySelectorAll('.katex-error').forEach(node=>{
+      const raw=node.getAttribute('title')||node.textContent||'';
+      const tex=raw.replace(/^[\s\S]*?: /,''); // sometimes title has error: tex
+      node.className='math-plain';
+      node.textContent=this._texToPlain(node.textContent||tex);
     });
   }catch(e){}
 }
