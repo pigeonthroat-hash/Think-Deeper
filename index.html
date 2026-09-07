@@ -352,6 +352,101 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 .proj-count{margin-left:auto;opacity:.5;font-size:.7rem}
 #code-view .code-toolbar{backdrop-filter:blur(8px)}
 #code-view .code-msg.agent{border-color:#243044;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+
+/* Code mode — same theme as chat (Claude-like) */
+#code-view{display:none;flex:1;flex-direction:column;min-height:0;background:var(--bg-primary);color:var(--text-primary)}
+#code-view.active{display:flex}
+#code-view .code-toolbar{
+  display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);
+  align-items:center;flex-wrap:wrap;background:var(--bg-secondary)
+}
+#code-view .code-toolbar strong{font-size:.85rem;font-weight:600;color:var(--text-primary)}
+#code-view .code-toolbar button,#code-view .code-toolbar input,#code-view .code-toolbar select{
+  background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-primary);
+  border-radius:10px;padding:7px 12px;font-size:.78rem
+}
+#code-view .code-toolbar button:hover{border-color:var(--accent);background:var(--accent-soft)}
+#code-view .code-layout{display:flex;flex:1;min-height:0}
+#code-view .code-sidebar{
+  width:250px;border-right:1px solid var(--border);background:var(--bg-sidebar);
+  display:flex;flex-direction:column
+}
+#code-view .code-sidebar h3{
+  font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary);
+  padding:14px 14px 6px;margin:0;font-weight:600
+}
+#code-view .code-main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg-primary)}
+#code-view .code-messages{flex:1;overflow:auto;padding:20px 22px}
+#code-view .code-input-area{padding:14px 16px 18px;border-top:1px solid var(--border);background:var(--bg-secondary)}
+#code-view .code-input-area .input-box{
+  background:var(--bg-elevated)!important;border:1px solid var(--border)!important;border-radius:16px!important
+}
+#code-view .code-input-area .input-box:focus-within{border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)!important}
+#code-view #code-user-input{color:var(--text-primary)!important}
+#code-view .code-file-tree .file{color:var(--text-secondary)}
+#code-view .code-file-tree .file:hover{background:var(--bg-hover);color:var(--text-primary)}
+#code-view .code-msg{border:1px solid var(--border);background:var(--bg-elevated);border-radius:14px}
+#code-view .code-msg .role{color:var(--text-tertiary)}
+#code-view .code-status-pill{background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-secondary)}
+#code-view .intensity-bar{background:var(--bg-secondary);border-color:var(--border)}
+#code-view .intensity-chip{background:var(--bg-elevated);border-color:var(--border);color:var(--text-secondary)}
+#code-view .intensity-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+#code-view .code-skills-list{color:var(--text-secondary)}
+#code-view .code-skills-list label:hover{background:var(--bg-hover)}
+
+
+.tp-ico{display:inline-flex;vertical-align:middle;margin-right:4px;opacity:.85}
+.tp-ico svg{display:block}
+.file-chip-dl,.preview-chip{
+  display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;
+  border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);
+  font-size:.82rem;text-decoration:none;margin:6px 4px 6px 0
+}
+.file-chip-dl:hover,.preview-chip:hover{border-color:var(--accent);background:var(--accent-soft)}
+.file-chip-dl .dl-btn{
+  display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;
+  background:var(--accent);color:#fff;border:none;cursor:pointer
+}
+.canvas-doc{
+  margin:12px 0;border:1px solid var(--border);border-radius:14px;background:var(--bg-elevated);overflow:hidden
+}
+.canvas-doc .cd-bar{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);
+  background:var(--bg-secondary);font-size:.78rem;color:var(--text-secondary)
+}
+.canvas-doc .cd-bar strong{color:var(--text-primary);font-weight:600;margin-right:auto}
+.canvas-doc .cd-bar button{
+  width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);
+  color:var(--text-secondary);cursor:pointer;display:inline-flex;align-items:center;justify-content:center
+}
+.canvas-doc .cd-bar button:hover{border-color:var(--accent);color:var(--text-primary)}
+.canvas-doc .cd-body{
+  padding:14px 16px;max-height:360px;overflow:auto;white-space:pre-wrap;font-family:var(--font-body);
+  font-size:.9rem;line-height:1.55;color:var(--text-primary)
+}
+.canvas-doc .cd-body[contenteditable="true"]{outline:2px solid var(--accent-soft);background:var(--bg-primary)}
+.auth-btn{
+  padding:7px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg-elevated);
+  color:var(--text-primary);font-size:.8rem;cursor:pointer;display:inline-flex;align-items:center;gap:6px
+}
+.auth-btn:hover{border-color:var(--accent)}
+.auth-avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid var(--border)}
+.auth-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10060;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px)}
+.auth-card{width:min(400px,100%);background:var(--bg-elevated);border:1px solid var(--border);border-radius:18px;padding:28px;box-shadow:0 24px 64px rgba(0,0,0,.3);animation:fadeUp .25s ease}
+.auth-card h2{margin:0 0 8px;font-size:1.25rem}
+.auth-card p{color:var(--text-secondary);font-size:.9rem;margin:0 0 20px}
+.google-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--bg-primary);cursor:pointer;font-size:.9rem;color:var(--text-primary)}
+.google-btn:hover{border-color:var(--accent);background:var(--accent-soft)}
+.conv-search{padding:8px 12px}
+.conv-search input{width:100%;padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:.82rem}
+.token-badge{font-size:.68rem;color:var(--text-tertiary);margin-left:8px}
+.refer-banner{font-size:.8rem;padding:8px 10px;margin-bottom:8px;border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0;color:var(--text-secondary)}
+.selection-toolbar{position:absolute;z-index:50;display:flex;gap:4px;padding:4px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15)}
+.selection-toolbar button{padding:6px 10px;border:none;background:transparent;border-radius:6px;cursor:pointer;font-size:.75rem;color:var(--text-primary)}
+.selection-toolbar button:hover{background:var(--bg-hover)}
+.automations-panel{padding:12px;font-size:.82rem}
+.auto-rule{padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--bg-elevated)}
+
 </style>
 </head>
 <body>
@@ -368,7 +463,13 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 <button type="button" class="btn-new-project" id="new-project-btn">＋ New project</button>
 <div class="project-list" id="project-list"></div>
 <div class="sidebar-section">Conversations</div>
+<div class="conv-search"><input type="search" id="conv-search" placeholder="Search chats & messages…"></div>
 <div class="conv-list" id="conv-list"></div>
+<div class="sidebar-section">Automations</div>
+<div class="automations-panel" id="automations-panel">
+  <button type="button" class="btn-new-project" id="new-auto-btn">＋ New automation</button>
+  <div id="auto-list"></div>
+</div>
 <div class="sidebar-footer">
 
 <button id="plugins-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg> Plugins</button>
@@ -553,6 +654,31 @@ const INTENSITY={
   ultra:{label:'Ultra',maxIterations:25,maxTools:40,temperature:0.3,extra:'Maximum rigor. Multi-step tools, exhaustive checks, check_code until clean, self_check, research when needed. Prefer correctness over speed.',ultraSkills:true}
 };
 const CODE_SKILLS=[{"id": "tdd", "name": "TDD", "description": "Tests first, then implement.", "body": "Red-green-refactor. Small tests. Keep green."}, {"id": "code-review", "name": "Code review", "description": "Correctness, security, clarity.", "body": "Edge cases, errors, secrets, tests."}, {"id": "refactor", "name": "Refactor", "description": "Structure without behavior change.", "body": "Small steps; keep tests green."}, {"id": "debug", "name": "Debug", "description": "Systematic diagnosis.", "body": "Reproduce, isolate, fix, verify."}, {"id": "architecture", "name": "Architecture", "description": "Module boundaries.", "body": "Clear interfaces; avoid cycles."}, {"id": "github-ship", "name": "GitHub ship", "description": "Repo, commit, Pages.", "body": "Use github_* tools; coherent commits."}, {"id": "web-research", "name": "Web research", "description": "web_search + image_search.", "body": "Verify APIs with search; note URLs."}, {"id": "frontend", "name": "Frontend", "description": "Clean UI implementation.", "body": "Semantic HTML, responsive, accessible."}, {"id": "migrate", "name": "Migration", "description": "Upgrades and ports.", "body": "Inventory APIs; incremental migration."}, {"id": "docs", "name": "Docs", "description": "README and guides.", "body": "Setup, run, architecture; concise."}];
+
+const SVG={
+  bulb:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12c.5.5 1 1.5 1 2h6c0-.5.5-1.5 1-2a7 7 0 00-4-12z"/></svg>',
+  spin:'<span class="tp-spin" aria-hidden="true"></span>',
+  write:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
+  read:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
+  search:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
+  code:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>',
+  check:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>',
+  branch:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="10" r="2"/><path d="M6 8v8M6 10c4 0 8-1 10-2"/></svg>',
+  dl:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>',
+  copy:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>',
+  edit:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
+  pin:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5M9 2l1 7H6l6 8 6-8h-4l1-7H9z"/></svg>',
+  trash:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
+  warn:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L12.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
+  google:'<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.5-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 12 24 12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.3 35.9 26.8 37 24 37c-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1.3 3.7-4.6 6.4-8.3 7.5l.1.1 6.3 5.3C35.8 42.2 44 36 44 24c0-1.3-.1-2.5-.4-3.5z"/></svg>'
+};
+function formatDuration(ms){
+  const s=Math.max(0,Math.round(ms/1000));
+  const m=Math.floor(s/60),r=s%60;
+  if(m<=0)return r+'s';
+  return m+'m '+r+'s';
+}
+
 const $= (s,el=document)=>el.querySelector(s);
 const $$= (s,el=document)=>[...el.querySelectorAll(s)];
 const uid=()=>Math.random().toString(36).slice(2,11);
@@ -997,6 +1123,20 @@ DEEP THINK MODE IS ON.
 return `You are an agentic problem-solving assistant in "Think Deeper".
 Goal: reliable answers via careful thinking, tools, testing, and self-correction.
 
+
+FILE CREATION RULES:
+- Do NOT create files for pure math, reasoning, Q&A, or short explanations.
+- Only use write_file when the user explicitly asks for a file, project, document download, code saved to disk, or multi-file app.
+- Prefer answering in chat. For long writeups you may use a single fenced code/document block in the reply instead of a file.
+
+DEEP REASONING (when thinking / Hard / Ultra / Deep Think):
+- Write longer internal plans in message content (8–20 sentences) when using tools.
+- Use backtracking: if a path fails, state why and try another.
+- Briefly compare 2–3 alternative strategies, then pick one.
+- Verify constraints against the user request before finalizing.
+- Optionally draft two response outlines and choose the stronger one.
+- Prefer self_check for important conclusions.
+
 AGENT / TOOL LOOP:
 - You may call tools when they help. For normal chat (e.g. greetings), answer directly with no tools.
 - When you need information from files, Python, or the web, call the appropriate tool(s).
@@ -1043,7 +1183,7 @@ const doChat=async(withTools)=>{
         signal,
         model:this._pickModel(deepThink),
         toolChoice:(withTools&&(this.storage.get('toolChoice','auto')||'auto')!=='none')?(this.storage.get('toolChoice','auto')||'auto'):undefined,
-        temperature:this.temperature!=null?this.temperature:0.4
+        temperature:(()=>{const f=this.storage.get('forceTemp',null);if(f!=null&&f!==''&&Number.isFinite(Number(f)))return Math.min(1.2,Math.max(0,Number(f)));return this.temperature!=null?this.temperature:0.4})()
       });
     }catch(e){
       if(e.name==='AbortError')throw e;
@@ -1060,10 +1200,10 @@ const doChat=async(withTools)=>{
 };
 // Always request with tools available; never invent assistant messages
 onEvent({type:'status',text:iteration===1?'Calling model…':`Waiting for model (step ${iteration})…`});
-const waitId=onEvent({type:'activity',name:deepThink?'Deep thinking':'Thinking',status:'running',detail:iteration===1?'Sending your message to the model…':'Reviewing tool results and deciding next steps…'});
+const waitId=onEvent({type:'activity',name:(deepThink?'Deep thinking':'Thinking'),status:'running',detail:''});
 try{
   response=await doChat(true);
-  onEvent({type:'activity-update',id:waitId,status:'done',detail:'Response received — processing…'});
+  onEvent({type:'activity-update',id:waitId,status:'done',detail:''});
 }catch(e){
   onEvent({type:'activity-update',id:waitId,status:'error',detail:e.message||String(e)});
   throw e;
@@ -1203,7 +1343,23 @@ async _streamWriteFile(args,actId,onEvent){
   onEvent({type:'activity-update',id:actId,status:'running',detail:`Saving ${path}…`,delta:{added:result.added,removed:result.removed},full:content.length>20000?content.slice(0,20000)+'\n…':content,stream:true,expand:true});
   return result;
 }
-_activityTitle(name,args){if(name==='write_file')return`Writing File ✏️  ${args.path||''}`;if(name==='read_file')return`Reading File 📖  ${args.path||''}`;if(name==='delete_file')return`Deleting File 🗑️  ${args.path||''}`;if(name==='list_files')return`Listing Files 📂  ${args.path||'(root)'}`;if(name==='run_python')return'Python execution 🐍';if(name==='self_check')return'Self-check ✓';if(name==='check_code')return'Runtime check 🔎';if(name==='web_search')return`Web search 🔍  ${(args.query||'').slice(0,40)}`;if(name==='image_search')return`Image search 🖼️  ${(args.query||'').slice(0,40)}`;if(name==='github_create_repo')return`GitHub create repo 📦  ${args.name||''}`;if(name==='github_commit_files')return`GitHub commit 📤  ${args.repo||''}`;if(name==='github_enable_pages')return`GitHub Pages 🌐  ${args.repo||''}`;return`Tool: ${name}`}
+_activityTitle(name,args,done=false){
+  const icon=name==='write_file'?SVG.write:name==='read_file'?SVG.read:name==='list_files'?SVG.read:name==='run_python'?SVG.code:name==='web_search'||name==='image_search'?SVG.search:name==='check_code'||name==='self_check'?SVG.check:SVG.code;
+  let label='Tool';
+  if(name==='write_file')label=done?'Wrote file':'Writing file';
+  else if(name==='read_file')label=done?'Read file':'Reading file';
+  else if(name==='list_files')label=done?'Listed files':'Listing files';
+  else if(name==='run_python')label=done?'Ran Python':'Running Python';
+  else if(name==='web_search')label=done?'Searched web':'Searching web';
+  else if(name==='image_search')label=done?'Searched images':'Searching images';
+  else if(name==='check_code')label=done?'Checked code':'Checking code';
+  else if(name==='self_check')label=done?'Self-checked':'Self-check';
+  else if(name==='github_create_repo')label=done?'Created repo':'Creating repo';
+  else if(name==='github_commit_files')label=done?'Committed':'Committing';
+  else label=done?('Finished '+name):(name);
+  const path=args&&(args.path||args.query||args.name||'');
+  return `<span class="tp-ico">${icon}</span> ${label}${path?' · '+escapeHtml(String(path).slice(0,40)):''}`;
+}
 _detailForArgs(name,args){if(name==='run_python')return args.code||'';if(name==='write_file')return args.content||'';if(name==='self_check')return args.observation||'';return JSON.stringify(args,null,2)}
 _summarizeResult(name,result){if(result?.error)return{detail:'Error: '+result.error,full:result.error};
 if(name==='run_python'){const parts=[];if(result.stdout)parts.push('stdout:\n'+result.stdout);if(result.stderr)parts.push('stderr:\n'+result.stderr);if(result.result!=null)parts.push('→ '+result.result);const full=parts.join('\n\n')||(result.ok?'(no output)':'Failed');return{detail:full.slice(0,300)+(full.length>300?'…':''),full}}
@@ -1217,7 +1373,7 @@ if(name==='web_search'){const n=(result.results||[]).length;return{detail:result
 return{detail:'Done',full:JSON.stringify(result)}}}
 
 class UIManager{constructor(app){this.app=app;this.pendingAttachments=[];this.activityMap=new Map()}
-init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderProjects();this.updateGitHubStatus();const np=$('#new-project-btn');if(np)np.onclick=()=>this.createProject();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
+init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);const na=$('#new-auto-btn');if(na)na.onclick=()=>this.createAutomation();this.renderAutomations();this.renderProjects();this.updateGitHubStatus();const np=$('#new-project-btn');if(np)np.onclick=()=>this.createProject();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
 initCodeMode(){
   this.mode='chat';this.thoughtRoots=new WeakMap();
   const chatTab=$('#mode-chat'),codeTab=$('#mode-code');
@@ -1250,45 +1406,27 @@ openHtmlPreview(path){
   try{
     let htmlContent=this.app.vfs.read(path);
     const dir=path.includes('/')?path.slice(0,path.lastIndexOf('/')+1):'';
+    const closeStyle='</sty'+'le>';
+    const closeScript='</scr'+'ipt>';
     htmlContent=htmlContent.replace(/<link[^>]+href=["']([^"']+)["'][^>]*>/gi,(m,href)=>{
       if(/^https?:|^\//i.test(href)||href.startsWith('data:'))return m;
       const rel=dir+href.replace(/^\.\//,'');
-      try{
-        const css=this.app.vfs.read(rel);
-        return '<style data-inlined="'+href+'">'+css+'</style>';
-      }catch(e){return m}
+      try{return '<style data-inlined="'+href+'">'+this.app.vfs.read(rel)+closeStyle}catch(e){return m}
     });
     htmlContent=htmlContent.replace(/<script([^>]*)src=["']([^"']+)["']([^>]*)>\s*<\/script>/gi,(m,a,src,b)=>{
       if(/^https?:|^\//i.test(src)||src.startsWith('data:'))return m;
       const rel=dir+src.replace(/^\.\//,'');
-      try{
-        const js=this.app.vfs.read(rel);
-        return '<script data-inlined="'+src+'"'+a+b+'>'+js+'</scr'+'ipt>';
-      }catch(e){return m}
-    });
-    const blobUrls=[];
-    htmlContent=htmlContent.replace(/(<img[^>]+src=["'])([^"']+)(["'])/gi,(m,pre,src,post)=>{
-      if(/^https?:|data:|^\//i.test(src))return m;
-      const rel=dir+src.replace(/^\.\//,'');
-      try{
-        const data=this.app.vfs.read(rel);
-        const b=new Blob([data],{type:'text/plain'});
-        const u=URL.createObjectURL(b);
-        blobUrls.push(u);
-        return pre+u+post;
-      }catch(e){return m}
+      try{return '<script data-inlined="'+src+'"'+a+b+'>'+this.app.vfs.read(rel)+closeScript}catch(e){return m}
     });
     const blob=new Blob([htmlContent],{type:'text/html'});
     const url=URL.createObjectURL(blob);
-    blobUrls.push(url);
     const wrap=document.createElement('div');
     wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
-    wrap.innerHTML='<div style="background:#0b0f14;border:1px solid #2a3340;border-radius:14px;width:min(960px,100%);max-height:90vh;display:flex;flex-direction:column;overflow:hidden"><div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #1e2630"><strong style="color:#e5e7eb;font-size:.9rem;margin-right:auto">Preview · '+escapeHtml(path)+'</strong><button type="button" id="pv-open" style="padding:6px 10px;border-radius:8px;border:1px solid #2a3340;background:#151b24;color:#e5e7eb;cursor:pointer">Open tab</button><button type="button" id="pv-close" style="padding:6px 10px;border-radius:8px;border:1px solid #2a3340;background:#151b24;color:#e5e7eb;cursor:pointer">Close</button></div><iframe style="flex:1;min-height:60vh;border:0;background:#fff;width:100%" sandbox="allow-scripts allow-forms"></iframe></div>';
+    wrap.innerHTML='<div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:14px;width:min(960px,100%);max-height:90vh;display:flex;flex-direction:column;overflow:hidden"><div style="display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);align-items:center"><strong style="margin-right:auto;font-size:.9rem">Preview · '+escapeHtml(path)+'</strong><button type="button" id="pv-close" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-secondary);cursor:pointer">Close</button></div><iframe style="flex:1;min-height:60vh;border:0;width:100%;background:#fff" sandbox="allow-scripts allow-forms"></iframe></div>';
     document.body.appendChild(wrap);
     wrap.querySelector('iframe').src=url;
-    const cleanup=()=>{blobUrls.forEach(u=>URL.revokeObjectURL(u));wrap.remove()};
+    const cleanup=()=>{URL.revokeObjectURL(url);wrap.remove()};
     wrap.querySelector('#pv-close').onclick=cleanup;
-    wrap.querySelector('#pv-open').onclick=()=>window.open(url,'_blank');
     wrap.onclick=e=>{if(e.target===wrap)cleanup()};
   }catch(err){toast(err.message||String(err),'error')}
 }
@@ -1562,18 +1700,18 @@ $$('#settings-tabs .tab').forEach(tab=>{tab.onclick=()=>{$$('#settings-tabs .tab
 toggleSidebar(c){const sb=$('#sidebar');if(c){sb.classList.add('collapsed');$('#open-sidebar').style.display='flex'}else{sb.classList.remove('collapsed');sb.classList.add('open');$('#open-sidebar').style.display='none'}}
 applyTheme(t){t=t==='light'?'light':'dark';document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;this.app.storage.set('theme',t);const d=$('#hljs-dark'),l=$('#hljs-light');if(d)d.disabled=t!=='dark';if(l)l.disabled=t==='dark';const btn=$('#theme-btn');if(btn)btn.title=t==='dark'?'Switch to light':'Switch to dark'}
 toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')||'dark';this.applyTheme(cur==='dark'?'light':'dark')}
-openSettings(){const c=this.app.provider.config;$('#api-base').value=c.baseUrl||'';$('#api-key').value=c.apiKey||'';$('#api-model').value=c.model||'';$('#api-org').value=c.org||'';$('#api-project').value=c.project||'';$('#remember-key').checked=!!c.rememberKey;if($('#fallback-base')){$('#fallback-base').value=c.fallbackBaseUrl||'';$('#fallback-key').value=c.fallbackApiKey||'';$('#fallback-model').value=c.fallbackModel||''}
+openSettings(){const c=this.app.provider.config;$('#api-base').value=c.baseUrl||'';$('#api-key').value=c.apiKey||'';$('#api-model').value=c.model||'';$('#api-org').value=c.org||'';$('#api-project').value=c.project||'';$('#remember-key').checked=!!c.rememberKey;if($('#fallback-base')){$('#fallback-base').value=c.fallbackBaseUrl||'';$('#fallback-key').value=c.fallbackApiKey||'';$('#fallback-model').value=c.fallbackModel||''}if($('#google-client-id'))$('#google-client-id').value=c.googleClientId||this.app.storage.get('googleClientId','')||'';
 const roles=this.app.storage.get('modelRoles',{})||{};
 if($('#model-talk')){$('#model-talk').value=roles.talk||'';$('#model-code').value=roles.code||'';$('#model-deep').value=roles.deep||'';$('#plugins-global').checked=this.app.storage.get('pluginsGlobal',true)!==false;}
-const s=this.app.storage.get('agentSettings',{});$('#max-iterations').value=s.maxIterations||12;$('#max-tools').value=s.maxTools||30;$('#max-time').value=s.maxTime||180;if($('#tool-choice'))$('#tool-choice').value=this.app.storage.get('toolChoice','auto')||'auto';$('#personality').value=this.app.storage.get('personality','')||'';$('#thinking-gif').value=this.app.storage.get('thinkingGif','')||'';$('#settings-overlay').classList.add('open')}
+const s=this.app.storage.get('agentSettings',{});$('#max-iterations').value=s.maxIterations||12;$('#max-tools').value=s.maxTools||30;$('#max-time').value=s.maxTime||180;if($('#tool-choice'))$('#tool-choice').value=this.app.storage.get('toolChoice','auto')||'auto';const ft=$('#force-temp');if(ft){const v=this.app.storage.get('forceTemp',null);ft.value=v==null||v===''?'':v}$('#personality').value=this.app.storage.get('personality','')||'';$('#thinking-gif').value=this.app.storage.get('thinkingGif','')||'';$('#settings-overlay').classList.add('open')}
 closeSettings(){$('#settings-overlay').classList.remove('open')}
 applyPreset(n){const p={openai:{baseUrl:'https://api.openai.com/v1',model:'gpt-4o-mini'},groq:{baseUrl:'https://api.groq.com/openai/v1',model:'llama-3.3-70b-versatile'},openrouter:{baseUrl:'https://openrouter.ai/api/v1',model:'openai/gpt-4o-mini'},custom:{baseUrl:'',model:''}}[n];if(p){$('#api-base').value=p.baseUrl;$('#api-model').value=p.model}}
-saveApi(){const config={baseUrl:$('#api-base').value.trim(),apiKey:$('#api-key').value.trim(),model:$('#api-model').value.trim(),org:$('#api-org').value.trim(),project:$('#api-project').value.trim(),rememberKey:$('#remember-key').checked,fallbackBaseUrl:$('#fallback-base')?.value.trim()||'',fallbackApiKey:$('#fallback-key')?.value.trim()||'',fallbackModel:$('#fallback-model')?.value.trim()||''};this.app.provider.save(config);
+saveApi(){const config={baseUrl:$('#api-base').value.trim(),apiKey:$('#api-key').value.trim(),model:$('#api-model').value.trim(),org:$('#api-org').value.trim(),project:$('#api-project').value.trim(),rememberKey:$('#remember-key').checked,fallbackBaseUrl:$('#fallback-base')?.value.trim()||'',fallbackApiKey:$('#fallback-key')?.value.trim()||'',fallbackModel:$('#fallback-model')?.value.trim()||'',googleClientId:$('#google-client-id')?.value.trim()||''};this.app.provider.save(config);this.app.storage.set('googleClientId',config.googleClientId||'');
 const roles={talk:$('#model-talk')?.value.trim()||'',code:$('#model-code')?.value.trim()||'',deep:$('#model-deep')?.value.trim()||''};this.app.storage.set('modelRoles',roles);
 this.app.storage.set('pluginsGlobal',!!$('#plugins-global')?.checked);
 this.renderModelLabel();toast('API settings saved','success')}
 async discoverModels(){try{this.saveApi();toast('Discovering…');const models=await this.app.provider.discoverModels();toast(`Found ${models.length} models`,'success');this.renderModelList()}catch(e){toast(e.message,'error')}}
-saveAgentSettings(){const s={maxIterations:parseInt($('#max-iterations').value,10)||12,maxTools:parseInt($('#max-tools').value,10)||30,maxTime:parseInt($('#max-time').value,10)||180};this.app.storage.set('agentSettings',s);this.app.agent.settings=s;if($('#tool-choice'))this.app.storage.set('toolChoice',$('#tool-choice').value||'auto');toast('Agent settings saved','success')}
+saveAgentSettings(){const s={maxIterations:parseInt($('#max-iterations').value,10)||12,maxTools:parseInt($('#max-tools').value,10)||30,maxTime:parseInt($('#max-time').value,10)||180};this.app.storage.set('agentSettings',s);this.app.agent.settings=s;if($('#tool-choice'))this.app.storage.set('toolChoice',$('#tool-choice').value||'auto');const ft=$('#force-temp');if(ft){let v=parseFloat(ft.value);if(Number.isFinite(v)){v=Math.min(1.2,Math.max(0,v));this.app.storage.set('forceTemp',v)}else this.app.storage.set('forceTemp',null)}toast('Agent settings saved','success')}
 toggleModelDropdown(){const dd=$('#model-dropdown');dd.classList.toggle('open');if(dd.classList.contains('open')){this.renderModelList();$('#model-search').focus()}}
 closeModelDropdown(){$('#model-dropdown').classList.remove('open')}
 renderModelList(filter=''){const list=$('#model-list');list.innerHTML='';let models=this.app.provider.models;if(!models.length&&this.app.provider.config.model)models=[{id:this.app.provider.config.model,name:this.app.provider.config.model}];const q=filter.toLowerCase();const filtered=models.filter(m=>m.id.toLowerCase().includes(q)||(m.name||'').toLowerCase().includes(q));if(!filtered.length){list.innerHTML='<div style="padding:12px;color:var(--text-tertiary);font-size:.85rem">No models. Enter ID in Settings or discover.</div>';return}filtered.forEach(m=>{const div=document.createElement('div');div.className='model-option'+(m.id===this.app.provider.config.model?' active':'');div.innerHTML=`<span>${escapeHtml(m.name||m.id)}</span><span class="id">${escapeHtml(m.id)}</span>`;div.onclick=()=>{this.app.provider.config.model=m.id;this.app.provider.save({model:m.id});this.renderModelLabel();this.closeModelDropdown()};list.appendChild(div)})}
@@ -1668,7 +1806,13 @@ savePlugin(){const p=this._editingPlugin||{id:uid()};p.name=$('#plugin-name').va
 async importPlugin(file){if(!file)return;try{const text=await file.text();let data;try{data=JSON.parse(text)}catch{data=null}const p=data?{id:uid(),name:data.name||file.name.replace(/\.\w+$/,''),description:data.description||'',instructions:data.instructions||data.prompt||'',knowledge:data.knowledge||'',icon:data.icon||'📦',enabled:true,training:!!data.training,folder:data.folder||'',files:data.files||null}:{id:uid(),name:file.name.replace(/\.\w+$/,''),description:'Imported text',instructions:text,knowledge:'',icon:'📄',enabled:true};this.app.plugins.save(p);this.renderPluginList();toast('Imported','success')}catch(e){toast('Import failed: '+e.message,'error')}$('#import-plugin-file').value=''}
 newChat(){const c=this.app.conversations.create();const pid=this.app.storage.get('currentProjectId',null);if(pid){c.projectId=pid;this.app.conversations.update(c.id,{projectId:pid});this.attachChatToProject(c.id)}this.app.conversations.setCurrent(c.id);this.renderConversations();this.showEmpty();$('#messages').innerHTML=''}
 loadConversation(id){this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();return}this.hideEmpty();c.messages.forEach(m=>this.renderMessage(m,false));this.scrollToBottom()}
-renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>p.id===pid):null;let chats=this.app.conversations.list();if(proj){const set=new Set(proj.chatIds||[]);chats=chats.filter(c=>set.has(c.id)||c.projectId===pid)}chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><div class="actions"><button data-act="rename">✎</button><button data-act="delete">×</button></div>`;div.onclick=e=>{if(e.target.dataset.act==='delete'){e.stopPropagation();this.app.conversations.delete(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}else if(e.target.dataset.act==='rename'){e.stopPropagation();const t=prompt('Rename',c.title);if(t){this.app.conversations.rename(c.id,t);this.renderConversations()}}else this.loadConversation(c.id)};list.appendChild(div)})}
+renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>p.id===pid):null;let chats=this.app.conversations.list();if(proj){const set=new Set(proj.chatIds||[]);chats=chats.filter(c=>set.has(c.id)||c.projectId===pid)}
+  const q=(this._convQuery||'').trim().toLowerCase();
+  if(q){chats=chats.filter(c=>{
+    if((c.title||'').toLowerCase().includes(q))return true;
+    return (c.messages||[]).some(m=>String(m.content||'').toLowerCase().includes(q));
+  })}
+  chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><div class="actions"><button data-act="rename">✎</button><button data-act="delete">×</button></div>`;div.onclick=e=>{if(e.target.dataset.act==='delete'){e.stopPropagation();this.app.conversations.delete(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}else if(e.target.dataset.act==='rename'){e.stopPropagation();const t=prompt('Rename',c.title);if(t){this.app.conversations.rename(c.id,t);this.renderConversations()}}else this.loadConversation(c.id)};list.appendChild(div)})}
 showEmpty(){$('#empty-state').style.display='flex'}hideEmpty(){$('#empty-state').style.display='none'}
 autoResizeInput(){const ta=$('#user-input');ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,200)+'px'}
 handleFiles(files){[...files].forEach(file=>{const reader=new FileReader();if(file.type.startsWith('image/')){reader.onload=()=>{this.pendingAttachments.push({name:file.name,type:file.type,dataUrl:reader.result});this.renderAttachments()};reader.readAsDataURL(file)}else{reader.onload=()=>{this.pendingAttachments.push({name:file.name,type:file.type,content:reader.result});this.renderAttachments()};reader.readAsText(file)}});$('#file-input').value=''}
@@ -1676,7 +1820,11 @@ renderAttachments(){const el=$('#attachments');el.innerHTML='';this.pendingAttac
 getThinkingHtml(){const gif=this.app.storage.get('thinkingGif','');if(gif)return`<div class="thinking-indicator"><img src="${escapeHtml(gif)}" alt="working"><span>Working…</span></div>`;return`<div class="thinking-indicator"><div class="dots"><span></span><span></span><span></span></div> Working…</div>`}
 async send(){const text=$('#user-input').value.trim();if(!text&&!this.pendingAttachments.length)return;if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');this.openSettings();return}if(!this.app.provider.config.model){toast('Select a model','error');this.openSettings();return}
 this.hideEmpty();let conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv){conv=this.app.conversations.create();this.app.conversations.setCurrent(conv.id)}
-const userMsg={id:uid(),role:'user',content:text,attachments:this.pendingAttachments.slice(),ts:now()};this.app.conversations.addMessage(conv.id,userMsg);this.attachChatToProject(conv.id);this.renderMessage(userMsg);this.renderConversations();
+let sendText=text;
+  if(this._referQuote){sendText='User referred to the following statement:\n"'+this._referQuote+'"\n\nUser response: '+text;const bar=$('#refer-bar');if(bar)bar.remove();this._referQuote=null}
+  const pins=(this.app.storage.get('pins',[])||[]).slice(0,5);
+  if(pins.length)sendText+='\n\n[Pinned context]\n'+pins.map(p=>'- '+p.text).join('\n');
+  const userMsg={id:uid(),role:'user',content:sendText,displayContent:text,attachments:this.pendingAttachments.slice(),ts:now()};this.app.conversations.addMessage(conv.id,userMsg);this.attachChatToProject(conv.id);this.renderMessage(userMsg);this.renderConversations();
 $('#user-input').value='';this.pendingAttachments=[];this.renderAttachments();this.autoResizeInput();$('#send-btn').disabled=true;$('#stop-btn').classList.add('visible');$('#send-btn').style.display='none';
 const aiMsg={id:uid(),role:'assistant',content:'',activities:[],ts:now()};this.app.conversations.addMessage(conv.id,aiMsg);const aiEl=this.renderMessage(aiMsg,true);
 const history=conv.messages.filter(m=>m.id!==aiMsg.id);
@@ -1702,8 +1850,9 @@ else if(ev.type==='activity'){
   if(!root){
     root=document.createElement('div');root.className='thought-process';
     const gif=this.app.storage.get('thinkingGif','')||'';
-    const media=gif?`<img class="tp-gif" src="${escapeHtml(gif)}" alt="">`:`<span class="tp-spin" aria-hidden="true"></span>`;
-    root.innerHTML=`<div class="tp-toggle">${media}<span class="tp-chevron">▸</span> <span class="tp-label">Thought process</span><span class="tp-meta" style="opacity:.7;margin-left:6px"></span></div><div class="tp-panel"></div>`;
+    const media=gif?`<img class="tp-gif" src="${escapeHtml(gif)}" alt="">`:SVG.spin;
+    root.dataset.thinkStart=String(Date.now());
+    root.innerHTML=`<div class="tp-toggle">${media}<span class="tp-chevron">▸</span> <span class="tp-label">Thinking</span><span class="tp-meta" style="opacity:.7;margin-left:6px"></span></div><div class="tp-panel"></div>`;
     root.querySelector('.tp-toggle').onclick=()=>{
       root.classList.toggle('open');
       root.querySelector('.tp-chevron').textContent=root.classList.contains('open')?'▾':'▸';
@@ -1722,10 +1871,13 @@ else if(ev.type==='activity'){
   const id=uid();
   const isNarration=/thinking|plan|deep/i.test(ev.name||'');
   const step=document.createElement('div');step.className='tp-step';step.dataset.id=id;
-  const title=escapeHtml(ev.name||'Step');
-  const preview=escapeHtml((ev.detail||'').slice(0,100));
-  step.innerHTML=`<div class="tp-step-head"><span style="opacity:.6">▸</span> <span class="tp-step-title">${title}</span> <span class="tp-step-status" style="margin-left:auto;opacity:.6">${ev.status==='running'?'…':''}</span></div><div class="tp-step-body"></div>`;
-  if(ev.detail){step.querySelector('.tp-step-body').textContent=ev.detail}
+  const title=ev.name||'Step';
+  step.innerHTML=`<div class="tp-step-head"><span style="opacity:.6">▸</span> <span class="tp-step-title"></span> <span class="tp-step-status" style="margin-left:auto;opacity:.6">${ev.status==='running'?'…':''}</span></div><div class="tp-step-body"></div>`;
+  step.querySelector('.tp-step-title').innerHTML=title;
+  if(ev.detail){
+    const b=step.querySelector('.tp-step-body');
+    try{b.innerHTML=this.renderMarkdown(String(ev.detail).slice(0,8000))}catch{b.textContent=ev.detail}
+  }
   if(/Writing File|Runtime check/i.test(ev.name||'')){step.classList.add('open');const ch=step.querySelector('.tp-step-head span');if(ch)ch.textContent='\u25BE'}
   step.querySelector('.tp-step-head').onclick=(e)=>{e.stopPropagation();step.classList.toggle('open');step.querySelector('.tp-step-head span').textContent=step.classList.contains('open')?'▾':'▸'};
   panel.appendChild(step);
@@ -1741,6 +1893,10 @@ else if(ev.type==='activity-update'){
   if(!step)return;
   const st=step.querySelector('.tp-step-status');
   if(st)st.textContent=ev.status==='done'?'✓':ev.status==='error'?'!':ev.status==='running'?'…':'';
+  if(ev.status==='done'){
+    const t=step.querySelector('.tp-step-title');
+    if(t){t.innerHTML=t.innerHTML.replace(/Writing/g,'Wrote').replace(/Reading/g,'Read').replace(/Running/g,'Ran').replace(/Searching/g,'Searched').replace(/Checking/g,'Checked').replace(/Listing/g,'Listed').replace(/Creating/g,'Created').replace(/Committing/g,'Committed').replace(/Thinking/g,'Thought')}
+  }
   // Live delta on title
   if(ev.delta){
     const t=step.querySelector('.tp-step-title');
@@ -1772,15 +1928,39 @@ else if(ev.type==='final'){aiMsg.content=ev.content;
 let body=aiEl.querySelector('.message-body');
 if(!body){body=document.createElement('div');body.className='message-body';aiEl.appendChild(body)}
 const thinking=body.querySelector('.thinking-indicator');if(thinking)thinking.remove();
+const tp=aiEl.querySelector('.thought-process');
+if(tp){
+  const start=Number(tp.dataset.thinkStart||Date.now());
+  const media=tp.querySelector('.tp-toggle');
+  if(media){
+    const spin=media.querySelector('.tp-spin');if(spin)spin.outerHTML=SVG.bulb;
+    const gif=media.querySelector('.tp-gif');if(gif)gif.style.opacity='.7';
+  }
+  const lab=tp.querySelector('.tp-label');if(lab)lab.textContent='Worked for '+formatDuration(Date.now()-start);
+  const meta=tp.querySelector('.tp-meta');if(meta)meta.textContent='';
+  // past-tense running steps
+  tp.querySelectorAll('.tp-step').forEach(st=>{
+    const t=st.querySelector('.tp-step-title');
+    if(t&&/Writing|Reading|Running|Searching|Checking|Listing/i.test(t.textContent)){
+      t.innerHTML=t.innerHTML.replace('Writing','Wrote').replace('Reading','Read').replace('Running','Ran').replace('Searching','Searched').replace('Checking','Checked').replace('Listing','Listed');
+    }
+    const stt=st.querySelector('.tp-step-status');if(stt)stt.textContent='✓';
+  });
+}
+
 let contentEl=body.querySelector('.final-content');
-if(!contentEl){contentEl=document.createElement('div');contentEl.className='final-content';body.appendChild(contentEl)}let md=ev.content||'';md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>`<a class="file-chip-dl folder-chip" href="#" data-folder="${p}"><span class="dl-icon">📦</span> ${p.split('/').pop()||p}.zip</a>`);
+if(!contentEl){contentEl=document.createElement('div');contentEl.className='final-content';body.appendChild(contentEl)}let md=ev.content||'';md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>`<span class="file-chip-dl folder-chip" data-folder="${p}"><span>${p.split('/').pop()||p}.zip</span><button type="button" class="dl-btn" aria-label="Download zip">${SVG.dl}</button></span>`);
 md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>`<button type="button" class="preview-chip" data-preview="${p}">👁 Preview ${p.split('/').pop()||p}</button>`);
-md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>`<a class="file-chip-dl" href="#" data-path="${p}"><span class="dl-icon">⬇</span> ${p.split('/').pop()}</a>`);
+md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>`<span class="file-chip-dl" data-path="${p}"><span>${p.split('/').pop()}</span><button type="button" class="dl-btn" aria-label="Download">${SVG.dl}</button></span>`);
 contentEl.innerHTML=this.renderMarkdown(md);this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
-contentEl.querySelectorAll('.file-chip-dl').forEach(a=>{a.onclick=e=>{e.preventDefault();
-  if(a.dataset.folder){this.downloadFolderZip(a.dataset.folder);return}
-  const p=a.dataset.path;try{const c=this.app.vfs.read(p);const blob=new Blob([c],{type:'text/plain'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=p.split('/').pop();link.click();URL.revokeObjectURL(url)}catch(err){toast(err.message,'error')}
-}});
+contentEl.querySelectorAll('.file-chip-dl').forEach(a=>{
+  const go=e=>{e.preventDefault();e.stopPropagation();
+    if(a.dataset.folder){this.downloadFolderZip(a.dataset.folder);return}
+    const p=a.dataset.path;try{const c=this.app.vfs.read(p);const blob=new Blob([c],{type:'text/plain'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=p.split('/').pop();link.click();URL.revokeObjectURL(url)}catch(err){toast(err.message,'error')}
+  };
+  a.querySelector('.dl-btn')?.addEventListener('click',go);
+  a.addEventListener('click',go);
+});
 contentEl.querySelectorAll('.preview-chip').forEach(btn=>{btn.onclick=e=>{e.preventDefault();this.openHtmlPreview(btn.dataset.preview)}});
 let actions=aiEl.querySelector('.message-actions');
 if(!actions){
@@ -1788,80 +1968,108 @@ if(!actions){
   const host=aiEl.querySelector('.message-content')||aiEl.querySelector('.message-body')||aiEl;
   host.appendChild(actions);
 }
-actions.innerHTML=`<button type="button" data-act="copy">Copy</button><button type="button" data-act="edit">Edit</button><button type="button" data-act="regen">Regenerate</button><button type="button" data-act="continue">Continue</button>`;
+const tokEst=Math.max(1,Math.round(String(ev.content||'').length/4));
+actions.innerHTML=`<span class="token-badge">~${tokEst} tokens</span><button type="button" data-act="copy" title="Copy">${SVG.copy}</button><button type="button" data-act="edit" title="Edit">${SVG.edit}</button><button type="button" data-act="branch" title="Branch chat">${SVG.branch}</button><button type="button" data-act="regen" title="Regenerate">↻</button><button type="button" data-act="continue" title="Continue">→</button><button type="button" data-act="delete" title="Delete">${SVG.trash}</button>`;
 actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(ev.content);
 actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(aiMsg.id,aiEl);
 const regen=actions.querySelector('[data-act=regen]');if(regen)regen.onclick=()=>this.regenerateLast();
 const cont=actions.querySelector('[data-act=continue]');if(cont)cont.onclick=()=>this.continueLast();
+const br=actions.querySelector('[data-act=branch]');if(br)br.onclick=()=>this.branchFromMessage(aiMsg.id);
+const del=actions.querySelector('[data-act=delete]');if(del)del.onclick=()=>this.deleteMessage(aiMsg.id);
+this.setupMessageSelection(aiEl);
 this.scrollToBottom()}
 else if(ev.type==='done'){$('#agent-status').textContent='Ready';$('#iteration-info').textContent='';const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove()}
 else if(ev.type==='error')toast(ev.message,'error')}
 renderMessage(msg,isStreaming=false){const container=$('#messages');const div=document.createElement('div');div.className=`message ${msg.role}`;div.dataset.id=msg.id;const roleLabel=msg.role==='user'?'You':'Think Deeper';const avatarText=msg.role==='user'?'U':'TD';let attachHtml='';if(msg.attachments?.length){attachHtml='<div class="attachments">';msg.attachments.forEach(a=>{if(a.dataUrl)attachHtml+=`<div class="attachment"><img src="${a.dataUrl}" alt=""></div>`;else attachHtml+=`<div class="attachment"><div class="file-chip">📄 ${escapeHtml(a.name)}</div></div>`});attachHtml+='</div>'}
 const bodyContent=msg.role==='user'?escapeHtml(msg.content).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
-div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}">${avatarText}</div><span class="message-role">${roleLabel}</span><span class="message-time">${fmtTime(msg.ts)}</span></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);const actions=document.createElement('div');actions.className='message-actions';actions.innerHTML=`<button type="button" data-act="copy">Copy</button><button type="button" data-act="edit">Edit</button><button type="button" data-act="regen">Regenerate</button><button type="button" data-act="continue">Continue</button>`;actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(msg.content);actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(msg.id,div);const rg=actions.querySelector('[data-act=regen]');if(rg)rg.onclick=()=>this.regenerateLast();const ct=actions.querySelector('[data-act=continue]');if(ct)ct.onclick=()=>this.continueLast();div.querySelector('.message-content').appendChild(actions)}this.scrollToBottom();return div}
+div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}">${avatarText}</div><span class="message-role">${roleLabel}</span><span class="message-time">${fmtTime(msg.ts)}</span></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);const actions=document.createElement('div');actions.className='message-actions';const tokEst=Math.max(1,Math.round(String(ev.content||'').length/4));
+actions.innerHTML=`<span class="token-badge">~${tokEst} tokens</span><button type="button" data-act="copy" title="Copy">${SVG.copy}</button><button type="button" data-act="edit" title="Edit">${SVG.edit}</button><button type="button" data-act="branch" title="Branch chat">${SVG.branch}</button><button type="button" data-act="regen" title="Regenerate">↻</button><button type="button" data-act="continue" title="Continue">→</button><button type="button" data-act="delete" title="Delete">${SVG.trash}</button>`;actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(msg.content);actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(msg.id,div);const rg=actions.querySelector('[data-act=regen]');if(rg)rg.onclick=()=>this.regenerateLast();const ct=actions.querySelector('[data-act=continue]');if(ct)ct.onclick=()=>this.continueLast();div.querySelector('.message-content').appendChild(actions)}this.scrollToBottom();return div}
 renderMarkdown(text){
   if(!text)return '';
   let t=String(text);
-  // Fix common double-escaping from JSON/API (\\frac → \frac) but not in code
   const fences=[];
   t=t.replace(/```[\s\S]*?```/g,(m)=>{fences.push(m);return '\u0000FENCE'+(fences.length-1)+'\u0000'});
   t=t.replace(/`[^`\n]+`/g,(m)=>{fences.push(m);return '\u0000FENCE'+(fences.length-1)+'\u0000'});
-  // Normalize backslash commands that were double-escaped
+  // API double-escapes
   t=t.replace(/\\\\([a-zA-Z]+)/g,'\\$1');
-  // Convert \[ \] and \( \)
+  // Common model typos / unicode mixups
+  t=t.replace(/λλ/g,'\\lambda').replace(/λ/g,'\\lambda');
+  t=t.replace(/α/g,'\\alpha').replace(/β/g,'\\beta').replace(/θ/g,'\\theta').replace(/π/g,'\\pi');
+  t=t.replace(/×/g,'\\times').replace(/∈/g,'\\in').replace(/∞/g,'\\infty');
+  // n\timesn → n \times n (KaTeX needs spaces/operands)
+  t=t.replace(/\\times(?=[a-zA-Z])/g,'\\times ');
+  t=t.replace(/([a-zA-Z0-9])\\times/g,'$1\\times ');
+  t=t.replace(/n\\timesn/g,'n \\times n').replace(/\\timesn/g,'\\times n');
+  // \mathbb{R} needs ams fonts - KaTeX supports via \mathbb
+  // Wrap bare latex-heavy segments that lack $ delimiters
+  t=t.replace(/(^|[^$\\])(\\[a-zA-Z]+\{[^}]*\}(?:\s*\\[a-zA-Z]+(?:\{[^}]*\})?)*)/g,function(m,pre,expr){
+    if(/\\(mathbf|mathbb|mathrm|text|frac|sqrt|sum|int|det|in|times|lambda|alpha|beta)/.test(expr)&&expr.length<220)
+      return pre+'$'+expr+'$';
+    return m;
+  });
+  // Lines that are mostly latex commands → display math
+  t=t.replace(/^(?![|\s]*$)((?:.*\\(?:mathbf|mathbb|frac|sqrt|sum|det|in|times|lambda)[^\n]*)+)$/gm,function(m){
+    if(m.includes('$$')||m.trim().startsWith('$'))return m;
+    if((m.match(/\\[a-zA-Z]+/g)||[]).length>=2)return '$$\n'+m.trim()+'\n$$';
+    return m;
+  });
   t=t.replace(/\\\[([\s\S]*?)\\\]/g,'$$$$\n$1\n$$$$');
   t=t.replace(/\\\(([\s\S]*?)\\\)/g,'$$$1$$');
-  // [ \begin{...} ]
   t=t.replace(/\[\s*(\\begin\{[\s\S]*?\\end\{[^}]+\})\s*\]/g,'$$$$\n$1\n$$$$');
-  // Bare environments
   t=t.replace(/(^|[^$])(\\begin\{(?:aligned|align\*?|equation\*?|gather\*?|eqnarray|matrix|bmatrix|pmatrix|vmatrix|Vmatrix|cases|array)\}[\s\S]*?\\end\{[^}]+\})/g,(m,pre,body)=>pre+'\n$$\n'+body+'\n$$\n');
-  // Isolated greek/symbols outside math
-  t=t.replace(/(^|[^\\$a-zA-Z0-9])\\(pi|theta|alpha|beta|gamma|delta|epsilon|lambda|mu|sigma|omega|infty|times|div|pm|cdot|leq|geq|neq|approx|rightarrow|leftarrow)(?![a-zA-Z])/g,'$1$\\$2$');
-  // Extract math to placeholders BEFORE markdown (so _ and * don't break)
   const maths=[];
   const pushMath=(tex,display)=>{
     let s=String(tex||'').trim();
-    s=s.replace(/^\n+|\n+$/g,'');
+    s=s.replace(/λλ/g,'\\lambda').replace(/λ/g,'\\lambda');
+    s=s.replace(/n\\timesn/g,'n \\times n');
+    s=s.replace(/\\times(?=[a-zA-Z])/g,'\\times ');
     maths.push({tex:s,display:!!display});
     return '\u0000MATH'+(maths.length-1)+'\u0000';
   };
   t=t.replace(/\$\$([\s\S]*?)\$\$/g,(_,m)=>pushMath(m,true));
   t=t.replace(/\$([^\n$]+?)\$/g,(_,m)=>pushMath(m,false));
-  // Bracket notes
   t=t.replace(/\[\n([\s\S]*?)\n\]/g,(m,inner)=>{
     const s=inner.trim();
-    if(/\\frac|\\sqrt|\\sum|\\int|\\begin/.test(s))return pushMath(s,true);
+    if(/\\frac|\\sqrt|\\sum|\\int|\\begin|\\mathbf|\\mathbb/.test(s))return pushMath(s,true);
     if(s.length&&s.length<2000)return '\n<div class="bracket-box">'+s+'</div>\n';
     return m;
   });
-  // Restore code fences
   t=t.replace(/\u0000FENCE(\d+)\u0000/g,(_,i)=>fences[Number(i)]);
-  if(!window.marked){
-    let out=escapeHtml(t).replace(/\n/g,'<br>');
+  const injectMath=(out)=>{
     out=out.replace(/\u0000MATH(\d+)\u0000/g,(_,i)=>this._katexHTML(maths[Number(i)]));
     return out;
-  }
+  };
+  if(!window.marked)return injectMath(escapeHtml(t).replace(/\n/g,'<br>'));
   marked.setOptions({breaks:true,gfm:true});
   let out=marked.parse(t);
   out=out.replace(/&lt;div class="bracket-box"&gt;/g,'<div class="bracket-box">').replace(/&lt;\/div&gt;/g,'</div>');
-  // marked may escape null placeholders — handle both
-  out=out.replace(/\u0000MATH(\d+)\u0000/g,(_,i)=>this._katexHTML(maths[Number(i)]));
-  out=out.replace(/\\u0000MATH(\d+)\\u0000/g,(_,i)=>this._katexHTML(maths[Number(i)]));
-  return out;
+  return injectMath(out);
 }
 _katexHTML(item){
   if(!item)return '';
-  const tex=item.tex||'';
+  let tex=item.tex||'';
+  tex=tex.replace(/λλ/g,'\\lambda').replace(/λ/g,'\\lambda');
+  tex=tex.replace(/n\\timesn/g,'n \\times n').replace(/\\times(?=[a-zA-Z])/g,'\\times ');
   try{
     if(window.katex){
-      return katex.renderToString(tex,{displayMode:!!item.display,throwOnError:false,strict:false,output:'html'});
+      return katex.renderToString(tex,{
+        displayMode:!!item.display,
+        throwOnError:false,
+        strict:false,
+        trust:false,
+        output:'html',
+        macros:{
+          '\\R':'\\mathbb{R}',
+          '\\N':'\\mathbb{N}',
+          '\\Z':'\\mathbb{Z}',
+          '\\C':'\\mathbb{C}'
+        }
+      });
     }
   }catch(e){console.warn('katex',e)}
-  // Fallback readable-ish
-  return '<span class="math-fallback">'+(item.display?'<span class="math-display">':'')+escapeHtml(tex)+(item.display?'</span>':'')+'</span>';
+  return '<span class="math-fallback">'+(item.display?'<div class="math-display">':'')+escapeHtml(tex)+(item.display?'</div>':'')+'</span>';
 }
 _renderMath(el){
-  // Math already rendered via _katexHTML in renderMarkdown; only catch stragglers
   if(!el||!window.renderMathInElement)return;
   try{
     renderMathInElement(el,{
@@ -1871,14 +2079,44 @@ _renderMath(el){
         {left:'$',right:'$',display:false},
         {left:'\\(',right:'\\)',display:false}
       ],
-      throwOnError:false,
-      strict:false,
-      ignoredTags:['script','noscript','style','textarea','pre','code','katex'],
-      ignoredClasses:['katex','math-fallback']
+      throwOnError:false,strict:false,
+      ignoredTags:['script','noscript','style','textarea','pre','code'],
+      ignoredClasses:['katex','math-fallback','canvas-doc']
     });
-  }catch(e){console.warn('math',e)}
+  }catch(e){}
 }
-enhanceCodeBlocks(container){container.querySelectorAll('pre code').forEach(block=>{const pre=block.parentElement;if(pre.previousElementSibling?.classList?.contains('code-header'))return;const lang=[...block.classList].find(c=>c.startsWith('language-'))?.replace('language-','')||'';const header=document.createElement('div');header.className='code-header';header.innerHTML=`<span>${lang||'code'}</span><button class="copy-btn">Copy</button>`;header.querySelector('.copy-btn').onclick=()=>{navigator.clipboard.writeText(block.textContent);header.querySelector('.copy-btn').textContent='Copied';setTimeout(()=>header.querySelector('.copy-btn').textContent='Copy',1500)};pre.parentElement.insertBefore(header,pre);if(window.hljs)hljs.highlightElement(block)})}
+enhanceCodeBlocks(container){
+  container.querySelectorAll('pre code').forEach(block=>{
+    const pre=block.parentElement;
+    if(pre.closest('.canvas-doc')||pre.previousElementSibling?.classList?.contains('code-header'))return;
+    const lang=([...block.classList].find(c=>c.startsWith('language-'))||'').replace('language-','')||'';
+    const text=block.textContent||'';
+    const isDoc=/^(text|markdown|md|txt|story|document|json)$/i.test(lang)||(!lang&&text.length>400&&!/^(import |function |const |def |class |<\/)/m.test(text));
+    if(isDoc){
+      const wrap=document.createElement('div');wrap.className='canvas-doc';
+      const bar=document.createElement('div');bar.className='cd-bar';
+      const title=lang||'document';
+      bar.innerHTML='<strong>'+escapeHtml(title)+'</strong>';
+      const mkBtn=(svg,title,fn)=>{const b=document.createElement('button');b.type='button';b.title=title;b.innerHTML=svg;b.onclick=fn;return b};
+      const body=document.createElement('div');body.className='cd-body';body.textContent=text;
+      bar.appendChild(mkBtn(SVG.copy,'Copy',()=>{navigator.clipboard.writeText(body.textContent);toast('Copied','success')}));
+      bar.appendChild(mkBtn(SVG.edit,'Edit',()=>{body.contentEditable=body.contentEditable==='true'?'false':'true';if(body.contentEditable==='true')body.focus()}));
+      bar.appendChild(mkBtn(SVG.dl,'Download',()=>{
+        const ext=lang==='json'?'json':(/md|markdown/.test(lang)?'md':'txt');
+        const blob=new Blob([body.textContent],{type:'text/plain'});
+        const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='document.'+ext;a.click();
+      }));
+      wrap.appendChild(bar);wrap.appendChild(body);
+      pre.replaceWith(wrap);
+      return;
+    }
+    const header=document.createElement('div');header.className='code-header';
+    header.innerHTML='<span>'+escapeHtml(lang||'code')+'</span><button type="button" class="copy-btn">Copy</button>';
+    header.querySelector('.copy-btn').onclick=()=>{navigator.clipboard.writeText(block.textContent);header.querySelector('.copy-btn').textContent='Copied';setTimeout(()=>header.querySelector('.copy-btn').textContent='Copy',1500)};
+    pre.parentElement.insertBefore(header,pre);
+    if(window.hljs)hljs.highlightElement(block);
+  });
+}
 
 copyMessage(text){navigator.clipboard.writeText(text||'');toast('Copied','success')}
 editMessage(msgId,el){const body=el.querySelector('.final-content')||el.querySelector('.message-body');if(!body)return;const cur=body.innerText;const next=prompt('Edit response',cur);if(next===null)return;body.innerHTML=this.renderMarkdown(next);this.enhanceCodeBlocks(body);this._renderMath(body);const conv=this.app.conversations.get(this.app.conversations.currentId);if(conv){const m=conv.messages.find(x=>x.id===msgId);if(m){m.content=next;this.app.conversations.persist()}}toast('Updated','success')}
