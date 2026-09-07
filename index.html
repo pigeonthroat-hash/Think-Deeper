@@ -1,11 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html data-theme="dark" lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Think Deeper — Agentic AI</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" onload="window.__katexReady=1"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="hljs-dark">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" id="hljs-light" disabled>
@@ -240,6 +243,115 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
   border:1px solid #3b82f6;background:rgba(59,130,246,.12);color:#93c5fd;cursor:pointer;font-size:.82rem;margin:6px 0
 }
 
+
+.bracket-box{
+  margin:10px 0;padding:12px 14px;border:1px solid var(--border);border-radius:10px;
+  background:var(--bg-secondary);font-size:.92rem;line-height:1.55;
+  border-left:3px solid var(--accent);
+}
+.thought-process .tp-toggle img.tp-gif{
+  width:18px;height:18px;object-fit:contain;border-radius:4px;flex-shrink:0
+}
+.thought-process .tp-toggle .tp-spin{
+  width:14px;height:14px;border:2px solid var(--border-strong);border-top-color:var(--accent);
+  border-radius:50%;animation:tpSpin .7s linear infinite;flex-shrink:0
+}
+@keyframes tpSpin{to{transform:rotate(360deg)}}
+
+
+/* Animations */
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.message{animation:fadeUp .28s ease both}
+.code-msg{animation:fadeUp .28s ease both}
+.toast{animation:fadeUp .25s ease}
+.intensity-chip{transition:background .2s,border-color .2s,transform .15s}
+.intensity-chip:active{transform:scale(.96)}
+.send-btn,.stop-btn,.stop-btn-code{transition:transform .15s,background .2s}
+.send-btn:hover{transform:scale(1.05)}
+
+/* Chat header files btn */
+.chat-topbar{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);min-height:44px}
+.chat-topbar .spacer{flex:1}
+.chat-topbar .icon-soft{
+  width:34px;height:34px;border-radius:10px;border:1px solid var(--border);
+  background:var(--bg-secondary);color:var(--text-secondary);display:inline-flex;align-items:center;justify-content:center;cursor:pointer
+}
+.chat-topbar .icon-soft:hover{background:var(--bg-hover);color:var(--text-primary)}
+
+/* Sleeker files overlay */
+#files-overlay .files-panel,#files-overlay .modal-card, .files-sheet{
+  border-radius:16px!important;box-shadow:0 20px 50px rgba(0,0,0,.25)!important;border:1px solid var(--border)!important;
+  animation:fadeUp .25s ease
+}
+
+/* Projects */
+.project-list{padding:0 8px 8px;max-height:140px;overflow:auto}
+.project-item{padding:8px 10px;border-radius:8px;cursor:pointer;font-size:.82rem;color:var(--text-secondary);display:flex;align-items:center;gap:6px}
+.project-item:hover{background:var(--bg-hover)}
+.project-item.active{background:var(--bg-active);color:var(--text-primary);font-weight:600}
+.project-item .proj-count{margin-left:auto;font-size:.7rem;opacity:.6}
+.btn-new-project{width:100%;margin:4px 8px 8px;padding:8px;border-radius:8px;border:1px dashed var(--border);background:transparent;color:var(--text-secondary);font-size:.8rem;cursor:pointer}
+.btn-new-project:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Code section polish */
+#code-view{animation:fadeIn .3s ease}
+#code-view .code-toolbar{backdrop-filter:blur(8px)}
+#code-view .code-msg{box-shadow:0 1px 0 rgba(255,255,255,.03)}
+.gh-connected{display:inline-flex;align-items:center;gap:6px;font-size:.75rem;color:#3fb950;padding:4px 8px;border-radius:999px;background:rgba(63,185,80,.12)}
+.gh-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10050;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
+.gh-modal{background:var(--bg-elevated);border:1px solid var(--border);border-radius:16px;padding:20px;width:min(420px,100%);box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.gh-modal h3{margin:0 0 8px;font-size:1.1rem}
+.gh-modal p{font-size:.85rem;color:var(--text-secondary);line-height:1.45}
+.gh-modal input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);margin:8px 0 12px}
+.gh-modal .row{display:flex;gap:8px;flex-wrap:wrap}
+.gh-modal button{padding:8px 14px;border-radius:10px;border:1px solid var(--border);cursor:pointer;background:var(--bg-secondary);color:var(--text-primary)}
+.gh-modal button.primary{background:var(--accent);color:#fff;border-color:transparent}
+
+/* Writing step live */
+.tp-step.writing-live .tp-step-body{display:block;max-height:200px;overflow:auto;font-family:ui-monospace,monospace;font-size:.72rem}
+.tp-step .line-delta{color:#16a34a;font-weight:600;margin-left:6px}
+
+/* Math */
+.katex-display{margin:1em 0;overflow-x:auto;padding:.35em 0}
+.katex{font-size:1.05em}
+
+
+.katex{font-size:1.1em}
+.katex-display{margin:1em 0;overflow-x:auto;padding:.25rem 0}
+.math-fallback{font-family:Georgia,serif;color:var(--text-primary)}
+.math-display{display:block;text-align:center;margin:.75em 0}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes softPulse{0%,100%{opacity:.6}50%{opacity:1}}
+.message{animation:fadeUp .28s ease}
+.code-msg{animation:fadeUp .28s ease}
+.tp-step-body{max-height:220px;overflow:auto}
+.tp-step.open .tp-step-body{display:block}
+.files-fab{
+  margin-left:auto;width:34px;height:34px;border-radius:10px;border:1px solid var(--border);
+  background:var(--bg-elevated);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .15s
+}
+.files-fab:hover{color:var(--text-primary);border-color:var(--accent);background:var(--accent-soft)}
+#files-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:none;align-items:center;justify-content:center;padding:20px;
+  backdrop-filter:blur(6px)
+}
+#files-overlay.open{display:flex}
+#files-overlay .panel.wide{
+  width:min(720px,100%);max-height:85vh;overflow:auto;background:var(--bg-elevated);
+  border-radius:18px;border:1px solid var(--border);box-shadow:0 24px 64px rgba(0,0,0,.3);
+  animation:fadeUp .25s ease
+}
+.btn-new-project{
+  margin:0 12px 8px;padding:8px 12px;border-radius:10px;border:1px dashed var(--border);
+  background:transparent;color:var(--text-secondary);font-size:.8rem;cursor:pointer;width:calc(100% - 24px)
+}
+.btn-new-project:hover{border-color:var(--accent);color:var(--text-primary)}
+.project-item.active{background:var(--bg-active);color:var(--text-primary)}
+.proj-count{margin-left:auto;opacity:.5;font-size:.7rem}
+#code-view .code-toolbar{backdrop-filter:blur(8px)}
+#code-view .code-msg.agent{border-color:#243044;box-shadow:0 4px 20px rgba(0,0,0,.2)}
 </style>
 </head>
 <body>
@@ -252,10 +364,13 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 <button type="button" class="mode-tab" data-mode="code" id="mode-code">Code</button>
 </div>
 <button class="new-chat-btn" id="new-chat-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> New chat</button>
+<div class="sidebar-section">Projects</div>
+<button type="button" class="btn-new-project" id="new-project-btn">＋ New project</button>
+<div class="project-list" id="project-list"></div>
 <div class="sidebar-section">Conversations</div>
 <div class="conv-list" id="conv-list"></div>
 <div class="sidebar-footer">
-<button id="files-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg> AI Files</button>
+
 <button id="plugins-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg> Plugins</button>
 <button id="workspace-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> External Workspace</button>
 <button id="settings-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
@@ -271,7 +386,9 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 </div>
 <div class="header-right"><span class="workspace-badge" id="workspace-status">No external workspace</span></div>
 </header>
-<div class="chat-area" id="chat-area"><div class="chat-inner" id="chat-inner">
+<div class="chat-area" id="chat-area"><div class="chat-topbar"><span class="spacer"></span>
+<button type="button" class="icon-soft" id="chat-files-btn" title="Workspace files">📁</button>
+</div><div class="chat-inner" id="chat-inner">
 <div class="empty-state" id="empty-state"><h1>Think deeper.</h1><p>An agentic environment that gives ordinary models time, tools, and self-correction so they can solve harder problems reliably.</p>
 <div class="suggestion-grid">
 <button class="suggestion" data-prompt="Explain the difference between correlation and causation with a concrete example.">Correlation vs causation</button>
@@ -292,9 +409,10 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 </div>
 <div class="code-toolbar">
     <strong style="margin-right:auto;font-size:.9rem">Code workspace</strong>
-    <input type="password" id="gh-token" placeholder="GitHub token" style="width:160px" title="Personal access token with repo scope">
-    <input type="text" id="gh-owner" placeholder="owner/org" style="width:100px">
-    <button type="button" id="gh-save-token">Save GitHub</button>
+    <span id="gh-status" class="gh-connected" style="display:none"></span>
+    <button type="button" id="gh-connect-btn">Connect GitHub</button>
+    <input type="hidden" id="gh-token">
+    <input type="hidden" id="gh-owner">
     <button type="button" id="code-refresh-files">Refresh files</button>
   </div>
   <div class="code-layout">
@@ -486,7 +604,7 @@ list(){return this.conversations.slice().sort((a,b)=>b.updated-a.updated)}
 get(id){return this.conversations.find(c=>c.id===id)}
 create(t='New conversation'){const c={id:uid(),title:t,messages:[],created:now(),updated:now()};this.conversations.unshift(c);this.currentId=c.id;this.persist();return c}
 update(id,patch){const c=this.get(id);if(!c)return;Object.assign(c,patch,{updated:now()});this.persist()}
-addMessage(id,msg){const c=this.get(id);if(!c)return;c.messages.push(msg);c.updated=now();if((!c.title||c.title==='New conversation')&&msg.role==='user'){c.title=this.draftTitle(msg.content)}this.persist()}
+addMessage(id,msg){const c=this.get(id);if(!c)return;c.messages.push(msg);c.updated=now();if((!c.title||c.title==='New conversation')&&msg.role==='user'){c.title=this.draftTitle(msg.content);c.needsAiTitle=true}this.persist()}
 draftTitle(text){const t=String(text||'').replace(/\s+/g,' ').trim();if(!t)return'New conversation';const cut=t.slice(0,42);return cut+(t.length>42?'…':'')}
 setTitle(id,title){const c=this.get(id);if(!c||!title)return;c.title=String(title).replace(/[\n\r]/g,' ').trim().slice(0,60);c.updated=now();this.persist()}
 delete(id){this.conversations=this.conversations.filter(c=>c.id!==id);if(this.currentId===id)this.currentId=this.conversations[0]?.id||null;this.persist()}
@@ -660,31 +778,61 @@ default:throw new Error('Unknown tool: '+name)}}
 async webSearch(query){
   if(!query||!String(query).trim())return{ok:false,error:'Empty search query',results:[]};
   const q=String(query).trim();
-  const target='https://api.duckduckgo.com/?q='+encodeURIComponent(q)+'&format=json&no_html=1&skip_disambig=1';
-  const proxies=[
-    'https://api.allorigins.win/raw?url='+encodeURIComponent(target),
-    'https://corsproxy.io/?'+encodeURIComponent(target),
-    'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(target)
-  ];
-  let data=null,lastErr='';
-  for(const url of proxies){
-    try{
-      const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(12000):undefined;
-      const res=await fetch(url,{signal:ctrl,mode:'cors'});
-      if(!res.ok)throw new Error('HTTP '+res.status);
-      data=JSON.parse(await res.text());
-      break;
-    }catch(e){lastErr=(e&&e.message)||String(e)}
-  }
-  if(!data)return{ok:false,error:'Search fetch failed ('+lastErr+'). Continue with known knowledge and label uncertainty.',query:q,results:[]};
   const results=[];
-  if(data.AbstractText)results.push({title:data.Heading||'Summary',snippet:data.AbstractText,url:data.AbstractURL||''});
-  const related=(data.RelatedTopics||[]).flatMap(t=>t.Topics?t.Topics:[t]);
-  for(const t of related.slice(0,8)){
-    if(t.Text)results.push({title:(t.Text||'').split(' - ')[0].slice(0,80),snippet:t.Text,url:t.FirstURL||''});
+  const errors=[];
+  const fetchText=async(url,ms=14000)=>{
+    const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
+    const res=await fetch(url,{signal:ctrl,mode:'cors'});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    return await res.text();
+  };
+  // 1) Wikipedia OpenSearch (CORS-friendly)
+  try{
+    const wiki='https://en.wikipedia.org/w/api.php?action=opensearch&limit=5&namespace=0&format=json&origin=*&search='+encodeURIComponent(q);
+    const text=await fetchText(wiki,10000);
+    const data=JSON.parse(text);
+    const titles=data[1]||[], descs=data[2]||[], urls=data[3]||[];
+    for(let i=0;i<titles.length;i++)results.push({title:titles[i],snippet:descs[i]||'',url:urls[i]||'',source:'wikipedia'});
+  }catch(e){errors.push('wikipedia: '+(e.message||e))}
+  // 2) DuckDuckGo instant answer via proxies
+  if(results.length<3){
+    const target='https://api.duckduckgo.com/?q='+encodeURIComponent(q)+'&format=json&no_html=1&skip_disambig=1';
+    const proxies=[
+      'https://corsproxy.io/?'+encodeURIComponent(target),
+      'https://api.allorigins.win/raw?url='+encodeURIComponent(target),
+      'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(target)
+    ];
+    for(const url of proxies){
+      try{
+        const text=await fetchText(url,12000);
+        const data=JSON.parse(text);
+        if(data.AbstractText)results.push({title:data.Heading||'Summary',snippet:data.AbstractText,url:data.AbstractURL||'',source:'ddg'});
+        for(const t of (data.RelatedTopics||[]).flatMap(x=>x.Topics?x.Topics:[x]).slice(0,6)){
+          if(t.Text)results.push({title:(t.Text||'').split(' - ')[0].slice(0,90),snippet:t.Text,url:t.FirstURL||'',source:'ddg'});
+        }
+        if(data.Answer)results.push({title:'Answer',snippet:String(data.Answer),url:'',source:'ddg'});
+        if(results.length)break;
+      }catch(e){errors.push('ddg: '+(e.message||e))}
+    }
   }
-  if(data.Answer)results.push({title:'Answer',snippet:String(data.Answer),url:''});
-  return{ok:true,query:q,results:results.slice(0,10)};
+  // 3) Wikipedia summary fallback for short queries
+  if(!results.length){
+    try{
+      const slug=encodeURIComponent(q.replace(/ /g,'_'));
+      const sum='https://en.wikipedia.org/api/rest_v1/page/summary/'+slug;
+      const text=await fetchText(sum,10000);
+      const data=JSON.parse(text);
+      if(data.extract)results.push({title:data.title||q,snippet:data.extract,url:data.content_urls?.desktop?.page||'',source:'wikipedia-summary'});
+    }catch(e){errors.push('wiki-sum: '+(e.message||e))}
+  }
+  if(!results.length)return{ok:false,error:'No search results ('+errors.slice(0,3).join('; ')+'). Proceed with known knowledge and mark uncertainty.',query:q,results:[],errors};
+  // de-dupe by url/title
+  const seen=new Set();const unique=[];
+  for(const r of results){
+    const k=(r.url||r.title||'').toLowerCase();
+    if(seen.has(k))continue;seen.add(k);unique.push(r);
+  }
+  return{ok:true,query:q,results:unique.slice(0,10)};
 }
 
 async checkCode(path){
@@ -867,7 +1015,7 @@ FORMATTING RULES (critical — follow exactly):
 - Lists: start lines with "- " or "1. " (space after marker).
 - Do not invent weird bracket notation for math.
 - Prefer shorter complete answers over truncated long ones. If a topic is huge, write the plan to artifacts/ as a file and give a summary + [[file:...]] link.
-- When you create a file with write_file, do NOT paste the entire file in the final answer. Use: [[file:artifacts/foo.py]]. When you create a whole folder of files, link the folder for zip download: [[folder:artifacts/my-app]] (never invent fake .zip paths). HTML apps: [[preview:artifacts/app/index.html]]. Create files only via write_file tool (Python cannot write host files).
+- When you create a file with write_file, do NOT paste the entire file in the final answer. Use: [[file:artifacts/foo.py]]. When you create a whole folder of files, link the folder for zip download: [[folder:artifacts/my-app]] (never invent fake .zip paths). HTML apps: [[preview:artifacts/app/index.html]]. Create files only via write_file tool (Python cannot write host files). Use highly specific descriptive paths (e.g. artifacts/bat-ball-algebra-solution.md, code/todo-app-vanilla/js/todo-store.js) — never generic names like file1.txt, temp.js, or output.html.
 - Finish every response cleanly. Never stop mid-sentence or mid-table.
 
 Process: understand → plan (only when tools are needed) → use tools → verify → revise → final answer.
@@ -879,7 +1027,7 @@ User can expand tool cards to see full code and outputs. Finish when the answer 
 }
 async run(userMessage,history,attachments,onEvent,{deepThink=false}={}){this.running=true;this.abortController=new AbortController();const signal=this.abortController.signal;const maxIter=deepThink?Math.max(this.settings.maxIterations||12,20):(this.settings.maxIterations||12);const maxTools=deepThink?Math.max(this.settings.maxTools||20,40):(this.settings.maxTools||20);const start=Date.now();const maxMs=(this.settings.maxTime||180)*1000;
 if(attachments?.length){for(const a of attachments){if(a.content&&!a.dataUrl){try{this.tools.vfs.write(`uploads/${a.name}`,a.content,{archiveOld:false})}catch{}}}}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE: prefer paths under code/ for project files. You may use image_search and github_* tools. Link folders as [[folder:code/...]] and HTML as [[preview:code/.../index.html]]. Persist files only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE: prefer paths under code/ for project files. You may use image_search and github_* tools. Link folders as [[folder:code/...]] and HTML as [[preview:code/.../index.html]]. Persist files only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 const hardMax=Math.min(Math.max(maxIter,1),deepThink?25:20);
 try{while(iteration<hardMax&&this.running){if(Date.now()-start>maxMs){onEvent({type:'status',text:'Time limit reached'});break}
@@ -988,7 +1136,7 @@ if(hasTools){
       continue;
     }
     console.log('[Agent] tool call',name,args,'id',tc.id);
-    const actId=onEvent({type:'activity',name:this._activityTitle(name,args),status:'running',detail:name==='write_file'?'Preparing to write…':this._detailForArgs(name,args),expand:name==='write_file'});
+    const actId=onEvent({type:'activity',name:this._activityTitle(name,args),status:'running',detail:name==='write_file'?('Writing '+(args.path||'file')+'…'):this._detailForArgs(name,args),expand:name==='write_file'});
     let result;
     try{
       if(name==='write_file'){
@@ -1069,7 +1217,7 @@ if(name==='web_search'){const n=(result.results||[]).length;return{detail:result
 return{detail:'Done',full:JSON.stringify(result)}}}
 
 class UIManager{constructor(app){this.app=app;this.pendingAttachments=[];this.activityMap=new Map()}
-init(){this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
+init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderProjects();this.updateGitHubStatus();const np=$('#new-project-btn');if(np)np.onclick=()=>this.createProject();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
 initCodeMode(){
   this.mode='chat';this.thoughtRoots=new WeakMap();
   const chatTab=$('#mode-chat'),codeTab=$('#mode-code');
@@ -1085,7 +1233,7 @@ initCodeMode(){
     toast('GitHub credentials saved','success');
   };
   this.app.tools.githubToken=this.app.storage.get('githubToken','')||'';
-  window.__app=this.app;
+  window.__app=this.app;if(window.__app)window.__app.ui=this;
   const ref=$('#code-refresh-files');if(ref)ref.onclick=()=>this.renderCodeFiles();
   const send=$('#code-send-btn');if(send)send.onclick=()=>this.sendCode();
   const stopCode=$('#code-stop-btn');if(stopCode)stopCode.onclick=()=>{this.app.agent.stop();toast('Stopping…','info')};
@@ -1100,26 +1248,51 @@ initCodeMode(){
 
 openHtmlPreview(path){
   try{
-    const htmlContent=this.app.vfs.read(path);
+    let htmlContent=this.app.vfs.read(path);
+    const dir=path.includes('/')?path.slice(0,path.lastIndexOf('/')+1):'';
+    htmlContent=htmlContent.replace(/<link[^>]+href=["']([^"']+)["'][^>]*>/gi,(m,href)=>{
+      if(/^https?:|^\//i.test(href)||href.startsWith('data:'))return m;
+      const rel=dir+href.replace(/^\.\//,'');
+      try{
+        const css=this.app.vfs.read(rel);
+        return '<style data-inlined="'+href+'">'+css+'</style>';
+      }catch(e){return m}
+    });
+    htmlContent=htmlContent.replace(/<script([^>]*)src=["']([^"']+)["']([^>]*)>\s*<\/script>/gi,(m,a,src,b)=>{
+      if(/^https?:|^\//i.test(src)||src.startsWith('data:'))return m;
+      const rel=dir+src.replace(/^\.\//,'');
+      try{
+        const js=this.app.vfs.read(rel);
+        return '<script data-inlined="'+src+'"'+a+b+'>'+js+'</scr'+'ipt>';
+      }catch(e){return m}
+    });
+    const blobUrls=[];
+    htmlContent=htmlContent.replace(/(<img[^>]+src=["'])([^"']+)(["'])/gi,(m,pre,src,post)=>{
+      if(/^https?:|data:|^\//i.test(src))return m;
+      const rel=dir+src.replace(/^\.\//,'');
+      try{
+        const data=this.app.vfs.read(rel);
+        const b=new Blob([data],{type:'text/plain'});
+        const u=URL.createObjectURL(b);
+        blobUrls.push(u);
+        return pre+u+post;
+      }catch(e){return m}
+    });
     const blob=new Blob([htmlContent],{type:'text/html'});
     const url=URL.createObjectURL(blob);
+    blobUrls.push(url);
     const wrap=document.createElement('div');
     wrap.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
-    wrap.innerHTML=`<div style="background:#0b0f14;border:1px solid #2a3340;border-radius:14px;width:min(960px,100%);max-height:90vh;display:flex;flex-direction:column;overflow:hidden">
-      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #1e2630">
-        <strong style="color:#e5e7eb;font-size:.9rem;margin-right:auto">Preview · ${escapeHtml(path)}</strong>
-        <button type="button" id="pv-open" style="padding:6px 10px;border-radius:8px;border:1px solid #2a3340;background:#151b24;color:#e5e7eb;cursor:pointer">Open tab</button>
-        <button type="button" id="pv-close" style="padding:6px 10px;border-radius:8px;border:1px solid #2a3340;background:#151b24;color:#e5e7eb;cursor:pointer">Close</button>
-      </div>
-      <iframe style="flex:1;min-height:60vh;border:0;background:#fff;width:100%" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
-    </div>`;
+    wrap.innerHTML='<div style="background:#0b0f14;border:1px solid #2a3340;border-radius:14px;width:min(960px,100%);max-height:90vh;display:flex;flex-direction:column;overflow:hidden"><div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #1e2630"><strong style="color:#e5e7eb;font-size:.9rem;margin-right:auto">Preview · '+escapeHtml(path)+'</strong><button type="button" id="pv-open" style="padding:6px 10px;border-radius:8px;border:1px solid #2a3340;background:#151b24;color:#e5e7eb;cursor:pointer">Open tab</button><button type="button" id="pv-close" style="padding:6px 10px;border-radius:8px;border:1px solid #2a3340;background:#151b24;color:#e5e7eb;cursor:pointer">Close</button></div><iframe style="flex:1;min-height:60vh;border:0;background:#fff;width:100%" sandbox="allow-scripts allow-forms"></iframe></div>';
     document.body.appendChild(wrap);
     wrap.querySelector('iframe').src=url;
-    wrap.querySelector('#pv-close').onclick=()=>{URL.revokeObjectURL(url);wrap.remove()};
+    const cleanup=()=>{blobUrls.forEach(u=>URL.revokeObjectURL(u));wrap.remove()};
+    wrap.querySelector('#pv-close').onclick=cleanup;
     wrap.querySelector('#pv-open').onclick=()=>window.open(url,'_blank');
-    wrap.onclick=e=>{if(e.target===wrap){URL.revokeObjectURL(url);wrap.remove()}};
+    wrap.onclick=e=>{if(e.target===wrap)cleanup()};
   }catch(err){toast(err.message||String(err),'error')}
 }
+
 async regenerateLast(){
   const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
   if(this.app.agent.running){toast('Wait for the current run to finish or press Stop','error');return}
@@ -1154,6 +1327,104 @@ async continueLast(){
   await this.send();
 }
 
+
+renderProjects(){
+  const el=$('#project-list');if(!el)return;
+  const projects=this.app.storage.get('projects',[])||[];
+  const cur=this.app.storage.get('currentProjectId',null);
+  el.innerHTML=projects.map(p=>{
+    const n=(p.chatIds||[]).length;
+    return `<div class="project-item ${p.id===cur?'active':''}" data-id="${p.id}"><span>📂</span> ${escapeHtml(p.name)} <span class="proj-count">${n}</span></div>`;
+  }).join('')||'<div style="padding:8px;font-size:.75rem;color:var(--text-tertiary)">No projects yet</div>';
+  el.querySelectorAll('.project-item').forEach(n=>{
+    n.onclick=()=>this.selectProject(n.dataset.id);
+  });
+}
+selectProject(id){
+  const cur=this.app.storage.get('currentProjectId',null);
+  if(cur===id){this.app.storage.set('currentProjectId',null);toast('Showing all chats','success')}
+  else {this.app.storage.set('currentProjectId',id);const p=(this.app.storage.get('projects',[])||[]).find(x=>x.id===id);if(p)toast('Project: '+p.name,'success')}
+  this.renderProjects();this.renderConversations();
+}
+createProject(){
+  const name=prompt('Project name');
+  if(!name||!name.trim())return;
+  const projects=this.app.storage.get('projects',[])||[];
+  const p={id:uid(),name:name.trim(),chatIds:[],memory:'',created:now()};
+  projects.unshift(p);
+  this.app.storage.set('projects',projects);
+  this.app.storage.set('currentProjectId',p.id);
+  this.renderProjects();
+  toast('Project created','success');
+}
+attachChatToProject(chatId){
+  const pid=this.app.storage.get('currentProjectId',null);if(!pid)return;
+  const projects=this.app.storage.get('projects',[])||[];
+  const p=projects.find(x=>x.id===pid);if(!p)return;
+  p.chatIds=p.chatIds||[];
+  if(!p.chatIds.includes(chatId))p.chatIds.push(chatId);
+  this.app.storage.set('projects',projects);
+}
+projectContext(){
+  const pid=this.app.storage.get('currentProjectId',null);if(!pid)return'';
+  const projects=this.app.storage.get('projects',[])||[];
+  const p=projects.find(x=>x.id===pid);if(!p)return'';
+  const chats=(p.chatIds||[]).map(id=>this.app.conversations.get(id)).filter(Boolean);
+  const bits=chats.slice(0,6).map(c=>{
+    const sample=c.messages.slice(-4).map(m=>m.role+': '+String(m.content||'').slice(0,120)).join('\n');
+    return 'Chat "'+c.title+'":\n'+sample;
+  }).join('\n\n');
+  return '\n\nPROJECT "'+p.name+'" CONTEXT (shared across chats in this project):\n'+(p.memory||'')+'\n'+bits+'\n';
+}
+openGitHubConnect(){
+  const existing=this.app.storage.get('githubToken','');
+  const overlay=document.createElement('div');overlay.className='gh-modal-overlay';
+  overlay.innerHTML=`<div class="gh-modal">
+    <h3>Connect GitHub</h3>
+    <p>Create a Personal Access Token with <strong>repo</strong> scope, then paste it here. Browser apps cannot use full OAuth without a backend — tokens are stored only in your browser.</p>
+    <p><a href="https://github.com/settings/tokens/new?scopes=repo&description=Think%20Deeper" target="_blank" rel="noopener">Create token on GitHub ↗</a></p>
+    <label style="font-size:.8rem">Token</label>
+    <input type="password" id="gh-modal-token" placeholder="ghp_..." value="">
+    <div class="row">
+      <button type="button" class="primary" id="gh-modal-save">Connect</button>
+      <button type="button" id="gh-modal-cancel">Cancel</button>
+      ${existing?'<button type="button" id="gh-modal-disconnect">Disconnect</button>':''}
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#gh-modal-cancel').onclick=()=>overlay.remove();
+  overlay.onclick=e=>{if(e.target===overlay)overlay.remove()};
+  const disc=overlay.querySelector('#gh-modal-disconnect');
+  if(disc)disc.onclick=()=>{
+    this.app.storage.set('githubToken','');this.app.storage.set('githubUser','');this.app.tools.githubToken='';
+    this.updateGitHubStatus();overlay.remove();toast('Disconnected','success');
+  };
+  overlay.querySelector('#gh-modal-save').onclick=async()=>{
+    const token=overlay.querySelector('#gh-modal-token').value.trim();
+    if(!token){toast('Paste a token','error');return}
+    try{
+      const res=await fetch('https://api.github.com/user',{headers:{Authorization:'Bearer '+token,'Accept':'application/vnd.github+json'}});
+      const data=await res.json();
+      if(!res.ok)throw new Error(data.message||'Invalid token');
+      this.app.storage.set('githubToken',token);
+      this.app.storage.set('githubUser',data.login||'');
+      this.app.storage.set('githubOwner',data.login||'');
+      this.app.tools.githubToken=token;
+      this.updateGitHubStatus();
+      overlay.remove();
+      toast('Connected as @'+data.login,'success');
+    }catch(e){toast(e.message||String(e),'error')}
+  };
+}
+updateGitHubStatus(){
+  const st=$('#gh-status');const user=this.app.storage.get('githubUser','');
+  if(st){
+    if(user){st.style.display='inline-flex';st.textContent='● @'+user}
+    else{st.style.display='none';st.textContent=''}
+  }
+  const t=$('#gh-token');if(t)t.value=this.app.storage.get('githubToken','')||'';
+  const o=$('#gh-owner');if(o)o.value=this.app.storage.get('githubOwner','')||this.app.storage.get('githubUser','')||'';
+}
 bindIntensityBars(){
   const saved=this.app.storage.get('intensity','medium')||'medium';
   document.querySelectorAll('.intensity-chip').forEach(btn=>{
@@ -1172,12 +1443,21 @@ getIntensity(){
 }
 async generateChatTitle(convId,userText,assistantText){
   try{
-    const prompt='Create a short chat title (max 6 words, no quotes) for this conversation.\\nUser: '+(userText||'').slice(0,200)+'\\nAssistant: '+(assistantText||'').slice(0,200)+'\\nTitle:';
-    const data=await this.app.provider.chat([{role:'user',content:prompt}],{model:this.app.provider.config.model,temperature:0.2});
-    const title=(data.choices?.[0]?.message?.content||'').replace(/^\\s*[\"']|[\"']\\s*$/g,'').replace(/^Title:\\s*/i,'').trim().split('\\n')[0];
-    if(title&&title.length>2){this.app.conversations.setTitle(convId,title);this.renderConversations()}
+    const prompt='Reply with ONLY a short conversation title (3-6 words). No quotes, no punctuation at the end, no "Title:".\nTopic: '+(userText||'').slice(0,180);
+    const data=await this.app.provider.chat(
+      [{role:'system',content:'You name chat threads. Output only the title text.'},{role:'user',content:prompt}],
+      {model:this.app.provider.config.model,temperature:0.3,tools:undefined}
+    );
+    let title=(data.choices?.[0]?.message?.content||'').trim();
+    title=title.replace(/^["'“”]|["'“”]$/g,'').replace(/^Title:\s*/i,'').split('\n')[0].trim().slice(0,60);
+    if(title&&title.length>2&&!/^continue$/i.test(title)){
+      this.app.conversations.setTitle(convId,title);
+      const c=this.app.conversations.get(convId);if(c){c.needsAiTitle=false;this.app.conversations.persist()}
+      this.renderConversations();
+    }
   }catch(e){console.warn('title gen failed',e)}
 }
+
 setMode(mode){
   this.mode=mode;this.app.mode=mode;
   document.querySelectorAll('.mode-tab').forEach(t=>t.classList.toggle('active',t.dataset.mode===mode));
@@ -1256,7 +1536,7 @@ ${text}`;
   this.app.agent.settings.maxIterations=inten.maxIterations;
   this.app.agent.settings.maxTools=inten.maxTools;
   this.app.agent.temperature=inten.temperature;
-  this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: maximum verification and tools.':'');
+  this.app.agent.projectCtx=this.projectContext();this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: maximum verification and tools.':'');
   this.app.mode='code';
   this.app.storage.set('appMode','code');
 
@@ -1271,7 +1551,7 @@ handleCodeAgentEvent(ev,aiEl,aiMsg){
   // Reuse chat handler against code message element
   this.handleAgentEvent(ev,aiEl,aiMsg);
 }
-bindEvents(){$('#new-chat-btn').onclick=()=>this.newChat();$('#settings-btn').onclick=()=>this.openSettings();$('#close-settings').onclick=()=>this.closeSettings();$('#settings-overlay').onclick=e=>{if(e.target===$('#settings-overlay'))this.closeSettings()};$('#theme-btn').onclick=()=>this.toggleTheme();$('#collapse-sidebar').onclick=()=>this.toggleSidebar(true);$('#open-sidebar').onclick=()=>this.toggleSidebar(false);$('#workspace-btn').onclick=()=>this.selectWorkspace();$('#files-btn').onclick=()=>this.openFiles();$('#close-files').onclick=()=>$('#files-overlay').classList.remove('open');$('#files-overlay').onclick=e=>{if(e.target===$('#files-overlay'))$('#files-overlay').classList.remove('open')};$('#plugins-btn').onclick=()=>this.openPlugins();$('#close-plugins').onclick=()=>$('#plugins-overlay').classList.remove('open');$('#plugins-overlay').onclick=e=>{if(e.target===$('#plugins-overlay'))$('#plugins-overlay').classList.remove('open')};$('#new-plugin-btn').onclick=()=>this.editPlugin(null);$('#import-plugin-btn').onclick=()=>$('#import-plugin-file').click();$('#import-plugin-file').onchange=e=>this.importPlugin(e.target.files[0]);$('#save-plugin').onclick=()=>this.savePlugin();$('#cancel-plugin').onclick=()=>{$('#plugin-editor').style.display='none'};
+bindEvents(){$('#new-chat-btn').onclick=()=>this.newChat();$('#settings-btn').onclick=()=>this.openSettings();$('#close-settings').onclick=()=>this.closeSettings();$('#settings-overlay').onclick=e=>{if(e.target===$('#settings-overlay'))this.closeSettings()};$('#theme-btn').onclick=()=>this.toggleTheme();$('#collapse-sidebar').onclick=()=>this.toggleSidebar(true);$('#open-sidebar').onclick=()=>this.toggleSidebar(false);$('#workspace-btn').onclick=()=>this.selectWorkspace();const fb=$('#chat-files-btn');if(fb)fb.onclick=()=>this.openFiles();$('#files-fab')&&($('#files-fab').onclick=()=>this.openFiles());$('#close-files').onclick=()=>$('#files-overlay').classList.remove('open');$('#files-overlay').onclick=e=>{if(e.target===$('#files-overlay'))$('#files-overlay').classList.remove('open')};$('#plugins-btn').onclick=()=>this.openPlugins();$('#close-plugins').onclick=()=>$('#plugins-overlay').classList.remove('open');$('#plugins-overlay').onclick=e=>{if(e.target===$('#plugins-overlay'))$('#plugins-overlay').classList.remove('open')};$('#new-plugin-btn').onclick=()=>this.editPlugin(null);$('#import-plugin-btn').onclick=()=>$('#import-plugin-file').click();$('#import-plugin-file').onchange=e=>this.importPlugin(e.target.files[0]);$('#save-plugin').onclick=()=>this.savePlugin();$('#cancel-plugin').onclick=()=>{$('#plugin-editor').style.display='none'};
 $('#model-btn').onclick=e=>{e.stopPropagation();this.toggleModelDropdown()};document.addEventListener('click',()=>this.closeModelDropdown());$('#model-search').oninput=e=>this.filterModels(e.target.value);$('#send-btn').onclick=()=>this.send();$('#stop-btn').onclick=()=>this.app.agent.stop();$('#user-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.send()}};$('#user-input').oninput=()=>{this.autoResizeInput();$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length};$('#attach-btn').onclick=()=>$('#file-input').click();$('#file-input').onchange=e=>this.handleFiles(e.target.files);
 $$('.suggestion').forEach(btn=>{btn.onclick=()=>{$('#user-input').value=btn.dataset.prompt;$('#send-btn').disabled=false;this.autoResizeInput();this.send()}});
 $$('.preset-btn').forEach(btn=>{btn.onclick=()=>this.applyPreset(btn.dataset.preset)});
@@ -1280,7 +1560,7 @@ $('#save-personality').onclick=()=>{this.app.storage.set('personality',$('#perso
 $('#save-ui').onclick=()=>{this.app.storage.set('thinkingGif',$('#thinking-gif').value.trim());toast('UI settings saved','success')};
 $$('#settings-tabs .tab').forEach(tab=>{tab.onclick=()=>{$$('#settings-tabs .tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');['api','agent','personality','ui'].forEach(id=>{$(`#tab-${id}`).style.display=tab.dataset.tab===id?'block':'none'})}})}
 toggleSidebar(c){const sb=$('#sidebar');if(c){sb.classList.add('collapsed');$('#open-sidebar').style.display='flex'}else{sb.classList.remove('collapsed');sb.classList.add('open');$('#open-sidebar').style.display='none'}}
-applyTheme(t){document.documentElement.setAttribute('data-theme',t);this.app.storage.set('theme',t);$('#hljs-dark').disabled=t!=='dark';$('#hljs-light').disabled=t==='dark'}
+applyTheme(t){t=t==='light'?'light':'dark';document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;this.app.storage.set('theme',t);const d=$('#hljs-dark'),l=$('#hljs-light');if(d)d.disabled=t!=='dark';if(l)l.disabled=t==='dark';const btn=$('#theme-btn');if(btn)btn.title=t==='dark'?'Switch to light':'Switch to dark'}
 toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')||'dark';this.applyTheme(cur==='dark'?'light':'dark')}
 openSettings(){const c=this.app.provider.config;$('#api-base').value=c.baseUrl||'';$('#api-key').value=c.apiKey||'';$('#api-model').value=c.model||'';$('#api-org').value=c.org||'';$('#api-project').value=c.project||'';$('#remember-key').checked=!!c.rememberKey;if($('#fallback-base')){$('#fallback-base').value=c.fallbackBaseUrl||'';$('#fallback-key').value=c.fallbackApiKey||'';$('#fallback-model').value=c.fallbackModel||''}
 const roles=this.app.storage.get('modelRoles',{})||{};
@@ -1386,9 +1666,9 @@ renderPluginList(){const list=$('#plugin-list');list.innerHTML='';const plugins=
 editPlugin(id){const p=id?this.app.plugins.get(id):{id:uid(),name:'',description:'',instructions:'',knowledge:'',icon:'🧩',enabled:true};$('#plugin-name').value=p.name;$('#plugin-desc').value=p.description||'';$('#plugin-instructions').value=p.instructions||'';$('#plugin-knowledge').value=p.knowledge||'';$('#plugin-icon').value=p.icon||'';$('#plugin-enabled').checked=!!p.enabled;if($('#plugin-training'))$('#plugin-training').checked=!!p.training;$('#plugin-editor').style.display='block';this._editingPlugin=p}
 savePlugin(){const p=this._editingPlugin||{id:uid()};p.name=$('#plugin-name').value.trim()||'Untitled';p.description=$('#plugin-desc').value.trim();p.instructions=$('#plugin-instructions').value;p.knowledge=$('#plugin-knowledge').value;p.icon=$('#plugin-icon').value.trim()||'🧩';p.enabled=$('#plugin-enabled').checked;p.training=!!$('#plugin-training')?.checked;this.app.plugins.save(p);$('#plugin-editor').style.display='none';this.renderPluginList();toast('Plugin saved','success')}
 async importPlugin(file){if(!file)return;try{const text=await file.text();let data;try{data=JSON.parse(text)}catch{data=null}const p=data?{id:uid(),name:data.name||file.name.replace(/\.\w+$/,''),description:data.description||'',instructions:data.instructions||data.prompt||'',knowledge:data.knowledge||'',icon:data.icon||'📦',enabled:true,training:!!data.training,folder:data.folder||'',files:data.files||null}:{id:uid(),name:file.name.replace(/\.\w+$/,''),description:'Imported text',instructions:text,knowledge:'',icon:'📄',enabled:true};this.app.plugins.save(p);this.renderPluginList();toast('Imported','success')}catch(e){toast('Import failed: '+e.message,'error')}$('#import-plugin-file').value=''}
-newChat(){const c=this.app.conversations.create();this.app.conversations.setCurrent(c.id);this.renderConversations();this.showEmpty();$('#messages').innerHTML=''}
+newChat(){const c=this.app.conversations.create();const pid=this.app.storage.get('currentProjectId',null);if(pid){c.projectId=pid;this.app.conversations.update(c.id,{projectId:pid});this.attachChatToProject(c.id)}this.app.conversations.setCurrent(c.id);this.renderConversations();this.showEmpty();$('#messages').innerHTML=''}
 loadConversation(id){this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();return}this.hideEmpty();c.messages.forEach(m=>this.renderMessage(m,false));this.scrollToBottom()}
-renderConversations(){const list=$('#conv-list');list.innerHTML='';this.app.conversations.list().forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><div class="actions"><button data-act="rename">✎</button><button data-act="delete">×</button></div>`;div.onclick=e=>{if(e.target.dataset.act==='delete'){e.stopPropagation();this.app.conversations.delete(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}else if(e.target.dataset.act==='rename'){e.stopPropagation();const t=prompt('Rename',c.title);if(t){this.app.conversations.rename(c.id,t);this.renderConversations()}}else this.loadConversation(c.id)};list.appendChild(div)})}
+renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>p.id===pid):null;let chats=this.app.conversations.list();if(proj){const set=new Set(proj.chatIds||[]);chats=chats.filter(c=>set.has(c.id)||c.projectId===pid)}chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><div class="actions"><button data-act="rename">✎</button><button data-act="delete">×</button></div>`;div.onclick=e=>{if(e.target.dataset.act==='delete'){e.stopPropagation();this.app.conversations.delete(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}else if(e.target.dataset.act==='rename'){e.stopPropagation();const t=prompt('Rename',c.title);if(t){this.app.conversations.rename(c.id,t);this.renderConversations()}}else this.loadConversation(c.id)};list.appendChild(div)})}
 showEmpty(){$('#empty-state').style.display='flex'}hideEmpty(){$('#empty-state').style.display='none'}
 autoResizeInput(){const ta=$('#user-input');ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,200)+'px'}
 handleFiles(files){[...files].forEach(file=>{const reader=new FileReader();if(file.type.startsWith('image/')){reader.onload=()=>{this.pendingAttachments.push({name:file.name,type:file.type,dataUrl:reader.result});this.renderAttachments()};reader.readAsDataURL(file)}else{reader.onload=()=>{this.pendingAttachments.push({name:file.name,type:file.type,content:reader.result});this.renderAttachments()};reader.readAsText(file)}});$('#file-input').value=''}
@@ -1396,7 +1676,7 @@ renderAttachments(){const el=$('#attachments');el.innerHTML='';this.pendingAttac
 getThinkingHtml(){const gif=this.app.storage.get('thinkingGif','');if(gif)return`<div class="thinking-indicator"><img src="${escapeHtml(gif)}" alt="working"><span>Working…</span></div>`;return`<div class="thinking-indicator"><div class="dots"><span></span><span></span><span></span></div> Working…</div>`}
 async send(){const text=$('#user-input').value.trim();if(!text&&!this.pendingAttachments.length)return;if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');this.openSettings();return}if(!this.app.provider.config.model){toast('Select a model','error');this.openSettings();return}
 this.hideEmpty();let conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv){conv=this.app.conversations.create();this.app.conversations.setCurrent(conv.id)}
-const userMsg={id:uid(),role:'user',content:text,attachments:this.pendingAttachments.slice(),ts:now()};this.app.conversations.addMessage(conv.id,userMsg);this.renderMessage(userMsg);this.renderConversations();
+const userMsg={id:uid(),role:'user',content:text,attachments:this.pendingAttachments.slice(),ts:now()};this.app.conversations.addMessage(conv.id,userMsg);this.attachChatToProject(conv.id);this.renderMessage(userMsg);this.renderConversations();
 $('#user-input').value='';this.pendingAttachments=[];this.renderAttachments();this.autoResizeInput();$('#send-btn').disabled=true;$('#stop-btn').classList.add('visible');$('#send-btn').style.display='none';
 const aiMsg={id:uid(),role:'assistant',content:'',activities:[],ts:now()};this.app.conversations.addMessage(conv.id,aiMsg);const aiEl=this.renderMessage(aiMsg,true);
 const history=conv.messages.filter(m=>m.id!==aiMsg.id);
@@ -1405,10 +1685,10 @@ const prevSettings={...this.app.agent.settings};
 this.app.agent.settings.maxIterations=!!$('#deep-think-toggle')?.checked?Math.max(inten.maxIterations,20):inten.maxIterations;
 this.app.agent.settings.maxTools=inten.maxTools;
 this.app.agent.temperature=inten.temperature;
-this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: use tools heavily, verify, and do not stop early.':'');
+this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: use tools heavily, verify, and do not stop early.':'');
 try{
   await this.app.agent.run(text,history,userMsg.attachments,ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!$('#deep-think-toggle')?.checked||inten.maxIterations>=18});
-  if(aiMsg.content&&conv.messages.filter(m=>m.role==='user').length<=1)this.generateChatTitle(conv.id,text,aiMsg.content);
+  if(aiMsg.content&&(conv.needsAiTitle||conv.messages.filter(m=>m.role==='user').length<=1))this.generateChatTitle(conv.id,text,aiMsg.content);
 }catch(e){toast(e.message,'error');const body=aiEl.querySelector('.message-body');if(body&&!body.querySelector('.final-content')?.textContent.trim())body.innerHTML+=`<p style="color:var(--error)">Error: ${escapeHtml(e.message)}</p>`}
 finally{
   this.app.agent.settings=prevSettings;this.app.agent.intensityExtra='';
@@ -1421,16 +1701,24 @@ else if(ev.type==='activity'){
   let root=aiEl.querySelector('.thought-process');
   if(!root){
     root=document.createElement('div');root.className='thought-process';
-    root.innerHTML=`<div class="tp-toggle"><span class="tp-chevron">▸</span> <span class="tp-label">Thought process</span><span class="tp-meta" style="opacity:.7;margin-left:6px"></span></div><div class="tp-panel"></div>`;
+    const gif=this.app.storage.get('thinkingGif','')||'';
+    const media=gif?`<img class="tp-gif" src="${escapeHtml(gif)}" alt="">`:`<span class="tp-spin" aria-hidden="true"></span>`;
+    root.innerHTML=`<div class="tp-toggle">${media}<span class="tp-chevron">▸</span> <span class="tp-label">Thought process</span><span class="tp-meta" style="opacity:.7;margin-left:6px"></span></div><div class="tp-panel"></div>`;
     root.querySelector('.tp-toggle').onclick=()=>{
       root.classList.toggle('open');
       root.querySelector('.tp-chevron').textContent=root.classList.contains('open')?'▾':'▸';
     };
-    const body=aiEl.querySelector('.message-body');
+    let body=aiEl.querySelector('.message-body');
+    if(!body){
+      body=document.createElement('div');
+      body.className='message-body';
+      aiEl.appendChild(body);
+    }
     const finalEl=body.querySelector('.final-content');
     if(finalEl)body.insertBefore(root,finalEl);else body.appendChild(root);
   }
   const panel=root.querySelector('.tp-panel');
+  if(!panel){console.error('thought panel missing');return null}
   const id=uid();
   const isNarration=/thinking|plan|deep/i.test(ev.name||'');
   const step=document.createElement('div');step.className='tp-step';step.dataset.id=id;
@@ -1438,6 +1726,7 @@ else if(ev.type==='activity'){
   const preview=escapeHtml((ev.detail||'').slice(0,100));
   step.innerHTML=`<div class="tp-step-head"><span style="opacity:.6">▸</span> <span class="tp-step-title">${title}</span> <span class="tp-step-status" style="margin-left:auto;opacity:.6">${ev.status==='running'?'…':''}</span></div><div class="tp-step-body"></div>`;
   if(ev.detail){step.querySelector('.tp-step-body').textContent=ev.detail}
+  if(/Writing File|Runtime check/i.test(ev.name||'')){step.classList.add('open');const ch=step.querySelector('.tp-step-head span');if(ch)ch.textContent='\u25BE'}
   step.querySelector('.tp-step-head').onclick=(e)=>{e.stopPropagation();step.classList.toggle('open');step.querySelector('.tp-step-head span').textContent=step.classList.contains('open')?'▾':'▸'};
   panel.appendChild(step);
   const n=panel.querySelectorAll('.tp-step').length;
@@ -1467,12 +1756,24 @@ else if(ev.type==='activity-update'){
     const body=step.querySelector('.tp-step-body');
     body.textContent=ev.full||ev.detail;
     // Only auto-open while streaming writes so user can watch; collapse when done
-    if(ev.stream&&ev.status==='running'){step.classList.add('open');step.querySelector('.tp-step-head span').textContent='▾'}
+    if(ev.stream&&ev.status==='running'){step.classList.add('open','writing-live');const ch=step.querySelector('.tp-step-head span');if(ch)ch.textContent='▾';const root=step.closest('.thought-process');if(root){root.classList.add('open');const c=root.querySelector('.tp-chevron');if(c)c.textContent='▾'}}
     if(ev.status==='done'&&!ev.stream){/* keep user choice */}
   }
   this.scrollToBottom();
 }
-else if(ev.type==='final'){aiMsg.content=ev.content;const body=aiEl.querySelector('.message-body');const thinking=body.querySelector('.thinking-indicator');if(thinking)thinking.remove();let contentEl=body.querySelector('.final-content');if(!contentEl){contentEl=document.createElement('div');contentEl.className='final-content';body.appendChild(contentEl)}let md=ev.content||'';md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>`<a class="file-chip-dl folder-chip" href="#" data-folder="${p}"><span class="dl-icon">📦</span> ${p.split('/').pop()||p}.zip</a>`);
+else if(ev.type==='final'){aiMsg.content=ev.content;
+  try{
+    const conv=this.app.conversations.get(this.app.conversations.currentId);
+    if(conv&&(conv.needsAiTitle||conv.title==='New conversation'||(conv.title&&conv.title.endsWith('…')))){
+      const lastUser=[...conv.messages].reverse().find(m=>m.role==='user');
+      this.generateChatTitle(conv.id,lastUser?.content||'',ev.content);
+    }
+  }catch{}
+let body=aiEl.querySelector('.message-body');
+if(!body){body=document.createElement('div');body.className='message-body';aiEl.appendChild(body)}
+const thinking=body.querySelector('.thinking-indicator');if(thinking)thinking.remove();
+let contentEl=body.querySelector('.final-content');
+if(!contentEl){contentEl=document.createElement('div');contentEl.className='final-content';body.appendChild(contentEl)}let md=ev.content||'';md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>`<a class="file-chip-dl folder-chip" href="#" data-folder="${p}"><span class="dl-icon">📦</span> ${p.split('/').pop()||p}.zip</a>`);
 md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>`<button type="button" class="preview-chip" data-preview="${p}">👁 Preview ${p.split('/').pop()||p}</button>`);
 md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>`<a class="file-chip-dl" href="#" data-path="${p}"><span class="dl-icon">⬇</span> ${p.split('/').pop()}</a>`);
 contentEl.innerHTML=this.renderMarkdown(md);this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
@@ -1482,7 +1783,11 @@ contentEl.querySelectorAll('.file-chip-dl').forEach(a=>{a.onclick=e=>{e.preventD
 }});
 contentEl.querySelectorAll('.preview-chip').forEach(btn=>{btn.onclick=e=>{e.preventDefault();this.openHtmlPreview(btn.dataset.preview)}});
 let actions=aiEl.querySelector('.message-actions');
-if(!actions){actions=document.createElement('div');actions.className='message-actions';aiEl.querySelector('.message-content').appendChild(actions)}
+if(!actions){
+  actions=document.createElement('div');actions.className='message-actions';
+  const host=aiEl.querySelector('.message-content')||aiEl.querySelector('.message-body')||aiEl;
+  host.appendChild(actions);
+}
 actions.innerHTML=`<button type="button" data-act="copy">Copy</button><button type="button" data-act="edit">Edit</button><button type="button" data-act="regen">Regenerate</button><button type="button" data-act="continue">Continue</button>`;
 actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(ev.content);
 actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(aiMsg.id,aiEl);
@@ -1496,19 +1801,83 @@ const bodyContent=msg.role==='user'?escapeHtml(msg.content).replace(/\n/g,'<br>'
 div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}">${avatarText}</div><span class="message-role">${roleLabel}</span><span class="message-time">${fmtTime(msg.ts)}</span></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);const actions=document.createElement('div');actions.className='message-actions';actions.innerHTML=`<button type="button" data-act="copy">Copy</button><button type="button" data-act="edit">Edit</button><button type="button" data-act="regen">Regenerate</button><button type="button" data-act="continue">Continue</button>`;actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(msg.content);actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(msg.id,div);const rg=actions.querySelector('[data-act=regen]');if(rg)rg.onclick=()=>this.regenerateLast();const ct=actions.querySelector('[data-act=continue]');if(ct)ct.onclick=()=>this.continueLast();div.querySelector('.message-content').appendChild(actions)}this.scrollToBottom();return div}
 renderMarkdown(text){
   if(!text)return '';
-  // Normalize broken LaTeX the model often emits
   let t=String(text);
-  // [ \begin{...} ... ]  or  [\begin{...}...]  → $$...$$
-  t=t.replace(/\[\s*(\\begin\{[\s\S]*?\\end\{[^}]+\})\s*\]/g,'$$$$$1$$$$');
-  // Bare \begin{aligned}...\end{aligned} not already in $$
-  t=t.replace(/(\$\$)?(\\begin\{(?:aligned|align|equation|gather|eqnarray|matrix|bmatrix|pmatrix|vmatrix|cases)\}[\s\S]*?\\end\{[^}]+\})(\$\$)?/g,function(m,a,body,b){if(a&&b)return m;return '$$'+body+'$$';});
-  // \[ ... \] already handled by KaTeX; ensure newlines around display math
-  t=t.replace(/\$\$([\s\S]*?)\$\$/g,(m,inner)=>'\n\n$$\n'+inner.trim()+'\n$$\n\n');
-  if(!window.marked)return escapeHtml(t).replace(/\n/g,'<br>');
+  // Fix common double-escaping from JSON/API (\\frac → \frac) but not in code
+  const fences=[];
+  t=t.replace(/```[\s\S]*?```/g,(m)=>{fences.push(m);return '\u0000FENCE'+(fences.length-1)+'\u0000'});
+  t=t.replace(/`[^`\n]+`/g,(m)=>{fences.push(m);return '\u0000FENCE'+(fences.length-1)+'\u0000'});
+  // Normalize backslash commands that were double-escaped
+  t=t.replace(/\\\\([a-zA-Z]+)/g,'\\$1');
+  // Convert \[ \] and \( \)
+  t=t.replace(/\\\[([\s\S]*?)\\\]/g,'$$$$\n$1\n$$$$');
+  t=t.replace(/\\\(([\s\S]*?)\\\)/g,'$$$1$$');
+  // [ \begin{...} ]
+  t=t.replace(/\[\s*(\\begin\{[\s\S]*?\\end\{[^}]+\})\s*\]/g,'$$$$\n$1\n$$$$');
+  // Bare environments
+  t=t.replace(/(^|[^$])(\\begin\{(?:aligned|align\*?|equation\*?|gather\*?|eqnarray|matrix|bmatrix|pmatrix|vmatrix|Vmatrix|cases|array)\}[\s\S]*?\\end\{[^}]+\})/g,(m,pre,body)=>pre+'\n$$\n'+body+'\n$$\n');
+  // Isolated greek/symbols outside math
+  t=t.replace(/(^|[^\\$a-zA-Z0-9])\\(pi|theta|alpha|beta|gamma|delta|epsilon|lambda|mu|sigma|omega|infty|times|div|pm|cdot|leq|geq|neq|approx|rightarrow|leftarrow)(?![a-zA-Z])/g,'$1$\\$2$');
+  // Extract math to placeholders BEFORE markdown (so _ and * don't break)
+  const maths=[];
+  const pushMath=(tex,display)=>{
+    let s=String(tex||'').trim();
+    s=s.replace(/^\n+|\n+$/g,'');
+    maths.push({tex:s,display:!!display});
+    return '\u0000MATH'+(maths.length-1)+'\u0000';
+  };
+  t=t.replace(/\$\$([\s\S]*?)\$\$/g,(_,m)=>pushMath(m,true));
+  t=t.replace(/\$([^\n$]+?)\$/g,(_,m)=>pushMath(m,false));
+  // Bracket notes
+  t=t.replace(/\[\n([\s\S]*?)\n\]/g,(m,inner)=>{
+    const s=inner.trim();
+    if(/\\frac|\\sqrt|\\sum|\\int|\\begin/.test(s))return pushMath(s,true);
+    if(s.length&&s.length<2000)return '\n<div class="bracket-box">'+s+'</div>\n';
+    return m;
+  });
+  // Restore code fences
+  t=t.replace(/\u0000FENCE(\d+)\u0000/g,(_,i)=>fences[Number(i)]);
+  if(!window.marked){
+    let out=escapeHtml(t).replace(/\n/g,'<br>');
+    out=out.replace(/\u0000MATH(\d+)\u0000/g,(_,i)=>this._katexHTML(maths[Number(i)]));
+    return out;
+  }
   marked.setOptions({breaks:true,gfm:true});
-  return marked.parse(t);
+  let out=marked.parse(t);
+  out=out.replace(/&lt;div class="bracket-box"&gt;/g,'<div class="bracket-box">').replace(/&lt;\/div&gt;/g,'</div>');
+  // marked may escape null placeholders — handle both
+  out=out.replace(/\u0000MATH(\d+)\u0000/g,(_,i)=>this._katexHTML(maths[Number(i)]));
+  out=out.replace(/\\u0000MATH(\d+)\\u0000/g,(_,i)=>this._katexHTML(maths[Number(i)]));
+  return out;
 }
-_renderMath(el){if(!window.renderMathInElement||!el)return;try{renderMathInElement(el,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}],throwOnError:false,ignoredTags:['script','noscript','style','textarea','pre','code']})}catch(e){console.warn('math',e)}}
+_katexHTML(item){
+  if(!item)return '';
+  const tex=item.tex||'';
+  try{
+    if(window.katex){
+      return katex.renderToString(tex,{displayMode:!!item.display,throwOnError:false,strict:false,output:'html'});
+    }
+  }catch(e){console.warn('katex',e)}
+  // Fallback readable-ish
+  return '<span class="math-fallback">'+(item.display?'<span class="math-display">':'')+escapeHtml(tex)+(item.display?'</span>':'')+'</span>';
+}
+_renderMath(el){
+  // Math already rendered via _katexHTML in renderMarkdown; only catch stragglers
+  if(!el||!window.renderMathInElement)return;
+  try{
+    renderMathInElement(el,{
+      delimiters:[
+        {left:'$$',right:'$$',display:true},
+        {left:'\\[',right:'\\]',display:true},
+        {left:'$',right:'$',display:false},
+        {left:'\\(',right:'\\)',display:false}
+      ],
+      throwOnError:false,
+      strict:false,
+      ignoredTags:['script','noscript','style','textarea','pre','code','katex'],
+      ignoredClasses:['katex','math-fallback']
+    });
+  }catch(e){console.warn('math',e)}
+}
 enhanceCodeBlocks(container){container.querySelectorAll('pre code').forEach(block=>{const pre=block.parentElement;if(pre.previousElementSibling?.classList?.contains('code-header'))return;const lang=[...block.classList].find(c=>c.startsWith('language-'))?.replace('language-','')||'';const header=document.createElement('div');header.className='code-header';header.innerHTML=`<span>${lang||'code'}</span><button class="copy-btn">Copy</button>`;header.querySelector('.copy-btn').onclick=()=>{navigator.clipboard.writeText(block.textContent);header.querySelector('.copy-btn').textContent='Copied';setTimeout(()=>header.querySelector('.copy-btn').textContent='Copy',1500)};pre.parentElement.insertBefore(header,pre);if(window.hljs)hljs.highlightElement(block)})}
 
 copyMessage(text){navigator.clipboard.writeText(text||'');toast('Copied','success')}
@@ -1518,6 +1887,17 @@ scrollToBottom(){const area=$('#chat-area');requestAnimationFrame(()=>{area.scro
 class App{constructor(){this.storage=new StorageManager();this.conversations=new ConversationManager(this.storage);this.provider=new ProviderManager(this.storage);this.vfs=new VirtualFS(this.storage);this.external=new ExternalFS();this.python=new PythonTool();this.tools=new ToolManager(this.vfs,this.external,this.python);this.plugins=new PluginManager(this.storage);
 this.plugins.onSave=(p)=>this.materializePlugin(p);
 this.plugins.list().forEach(p=>this.materializePlugin(p));
+this.ensureDefaultPlugins=function(){
+  const defaults=[
+    {id:'builtin-math',name:'Math & KaTeX',enabled:false,knowledge:'Always write math with KaTeX: inline $x^2$ and display $$...$$. Never use [ ] for equations. Prefer aligned environments inside $$.',icon:'∑'},
+    {id:'builtin-code',name:'Clean coding',enabled:false,knowledge:'Write correct readable code with specific file paths. Never generic names like temp.js. Use write_file tool.',icon:'</>'},
+    {id:'builtin-truth',name:'Careful claims',enabled:false,knowledge:'Do not invent facts or claim tool success without results. Prefer tools over guessing.',icon:'✓'},
+    {id:'builtin-thinking',name:'Structured thinking',enabled:false,knowledge:'State goal, plan, verify, revise. Narrate briefly when using tools.',icon:'💭'}
+  ];
+  const existing=new Set(this.plugins.list().map(p=>p.id));
+  for(const d of defaults){if(!existing.has(d.id))this.plugins.save({...d,created:Date.now()});}
+}.bind(this);
+this.ensureDefaultPlugins();
 const agentSettings=this.storage.get('agentSettings',{maxIterations:12,maxTools:30,maxTime:180});this.agent=new Agent(this.provider,this.tools,agentSettings,this.plugins,this.storage);this.ui=new UIManager(this)}materializePlugin(p){
   if(!p||!p.files||typeof p.files!=='object')return;
   const base=(p.folder||('plugins/'+(p.id||p.name||'plugin').toString().replace(/\s+/g,'-').toLowerCase())).replace(/\/+$/,'');
