@@ -712,7 +712,9 @@ function countLines(t){return t?t.split('\n').length:0}
 class CloudSync{
   constructor(){
     this.ready=false;this.uid=null;this.db=null;this.auth=null;
-    this._saveTimer=null;this._pushing=false;
+    this._saveTimer=null;this._pushing=false;this._dirty=false;
+    this._unsubConv=null;this._unsubMeta=null;this._app=null;
+    this._applyingRemote=false;this._authReady=null;
   }
   init(){
     const cfg=(window.__THINK_DEEPER_CONFIG||{}).firebaseConfig;
@@ -722,14 +724,24 @@ class CloudSync{
       if(!firebase.apps.length)firebase.initializeApp(cfg);
       this.auth=firebase.auth();
       this.db=firebase.firestore();
+      try{this.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)}catch{}
       this.ready=true;
-      this.auth.onAuthStateChanged((user)=>{
-        if(user){this.uid=user.uid;console.log('[CloudSync] auth session',user.uid)}
-        else this.uid=null;
+      this._authReady=new Promise((resolve)=>{
+        const unsub=this.auth.onAuthStateChanged((user)=>{
+          if(user){this.uid=user.uid;console.log('[CloudSync] auth session',user.uid)}
+          else this.uid=null;
+          resolve(user||null);
+          // keep listening for future changes
+        });
       });
       if(this.auth.currentUser)this.uid=this.auth.currentUser.uid;
       return true;
     }catch(e){console.error('[CloudSync] init',e);return false}
+  }
+  whenAuthReady(){
+    if(!this.ready&&!this.init())return Promise.resolve(null);
+    if(this.auth&&this.auth.currentUser){this.uid=this.auth.currentUser.uid;return Promise.resolve(this.auth.currentUser)}
+    return this._authReady||Promise.resolve(null);
   }
   ensureUid(){
     if(this.uid)return this.uid;
@@ -746,14 +758,66 @@ class CloudSync{
     return{id:u.uid,name:u.displayName,email:u.email,picture:u.photoURL};
   }
   async signOut(){
+    this.stopListening();
     if(this.auth)await this.auth.signOut();
     this.uid=null;
+  }
+  stopListening(){
+    try{if(this._unsubConv)this._unsubConv()}catch{}
+    try{if(this._unsubMeta)this._unsubMeta()}catch{}
+    this._unsubConv=null;this._unsubMeta=null;
+  }
+  startListening(app){
+    this._app=app;
+    const uid=this.ensureUid();
+    if(!this.ready||!uid||!this.db)return;
+    this.stopListening();
+    const base=this.db.collection('users').doc(uid);
+    this._unsubConv=base.collection('conversations').onSnapshot((snap)=>{
+      if(this._pushing||this._applyingRemote)return;
+      if(!app||!app.storage||app.storage.isGuest())return;
+      try{
+        this._applyingRemote=true;
+        const remote=snap.docs.map(d=>({id:d.id,...(d.data()||{})}));
+        // Merge by id; prefer newer updated
+        const local=app.conversations?app.conversations.conversations.slice():(app.storage.get('conversations',[])||[]);
+        const map=new Map();
+        local.forEach(c=>{if(c&&c.id)map.set(String(c.id),c)});
+        let changed=false;
+        remote.forEach(r=>{
+          if(!r||!r.id)return;
+          const id=String(r.id);
+          const L=map.get(id);
+          if(!L){map.set(id,r);changed=true;return}
+          const lu=Number(L.updated||0),ru=Number(r.updated||0);
+          const lm=(L.messages&&L.messages.length)||0,rm=(r.messages&&r.messages.length)||0;
+          if(ru>lu||(ru===lu&&rm>lm)){map.set(id,r);changed=true}
+        });
+        if(changed){
+          const merged=[...map.values()].sort((a,b)=>(b.updated||0)-(a.updated||0));
+          app.storage.set('conversations',merged);
+          if(app.conversations){
+            app.conversations.conversations=merged;
+            if(app.ui){
+              app.ui.renderConversations&&app.ui.renderConversations();
+              const cur=app.conversations.currentId;
+              if(cur&&app.ui.loadConversation){
+                // refresh open chat if it changed
+                app.ui.loadConversation(cur);
+              }
+            }
+          }
+          console.log('[CloudSync] live update',merged.length,'chats');
+        }
+      }catch(e){console.warn('[CloudSync] snapshot',e)}
+      finally{this._applyingRemote=false}
+    },(err)=>console.warn('[CloudSync] listen',err));
   }
   async pullAll(){
     const uid=this.ensureUid();
     if(!this.ready||!uid||!this.db)return null;
     const base=this.db.collection('users').doc(uid);
-    const out={conversations:[],currentConvId:null,apiConfig:null,agentSettings:null,plugins:null,vfs:null,projects:null,automations:null,theme:null,personality:null,pins:null};
+    const out={conversations:[],currentConvId:null};
     try{
       const meta=await base.get();
       if(meta.exists){
@@ -767,76 +831,68 @@ class CloudSync{
       const setDoc=await base.collection('settings').doc('app').get();
       if(setDoc.exists){
         const s=setDoc.data()||{};
-        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
+        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','googleClientId','thinkingGif'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
       }
     }catch(e){console.error('[CloudSync] pull',e);throw e}
     return out;
   }
   schedulePush(app){
-    if(!this.ready){console.warn('[CloudSync] schedule skipped: not ready');return}
-    if(!this.ensureUid()){console.warn('[CloudSync] schedule skipped: no uid');return}
+    if(!this.ready){return}
+    if(!this.ensureUid()){return}
+    this._app=app||this._app;
+    this._dirty=true;
     clearTimeout(this._saveTimer);
     this._saveTimer=setTimeout(()=>{
-      this.pushAll(app).catch(e=>console.warn('[CloudSync] push',e));
-    },600);
+      this.pushAll(this._app).catch(e=>console.warn('[CloudSync] push',e));
+    },500);
   }
   _sanitizeConv(c){
     try{
-      const copy=JSON.parse(JSON.stringify(c));
-      if(Array.isArray(copy.messages)){
-        copy.messages=copy.messages.map(m=>{
-          const msg={role:m.role,content:m.content,ts:m.ts,id:m.id};
-          if(typeof msg.content==='string'&&msg.content.length>50000)msg.content=msg.content.slice(0,50000)+'\n…[truncated]';
-          if(Array.isArray(m.attachments)){
-            msg.attachments=m.attachments.map(a=>({
-              name:a.name,type:a.type,
-              dataUrl:a.dataUrl?'[omitted-image]':undefined,
-              content:a.content?String(a.content).slice(0,20000):undefined
-            }));
-          }
-          return msg;
-        });
-      }
+      const copy={
+        id:c.id,
+        title:c.title||'New conversation',
+        created:c.created||null,
+        updated:c.updated||Date.now(),
+        projectId:c.projectId||null,
+        needsAiTitle:!!c.needsAiTitle,
+        messages:[]
+      };
+      const msgs=Array.isArray(c.messages)?c.messages:[];
+      copy.messages=msgs.map(m=>{
+        const msg={
+          id:m.id||null,
+          role:m.role||'user',
+          content:typeof m.content==='string'?m.content:(m.content==null?'':JSON.stringify(m.content)),
+          ts:m.ts||null
+        };
+        if(msg.content.length>100000)msg.content=msg.content.slice(0,100000)+'\n…[truncated]';
+        if(Array.isArray(m.attachments)&&m.attachments.length){
+          msg.attachments=m.attachments.map(a=>({
+            name:a.name||'file',
+            type:a.type||'',
+            content:a.content?String(a.content).slice(0,30000):null
+            // dataUrls omitted (too large for Firestore)
+          }));
+        }
+        return msg;
+      });
       return copy;
-    }catch{return{id:c&&c.id,title:(c&&c.title)||'chat',messages:[],updated:Date.now()}}
+    }catch(e){
+      return{id:c&&c.id,title:(c&&c.title)||'chat',messages:[],updated:Date.now()};
+    }
   }
   async pushAll(app){
     const uid=this.ensureUid();
     if(!this.ready||!uid||!this.db||!app)return;
-    if(this._pushing)return;
+    if(this._pushing){this._dirty=true;return}
     this._pushing=true;
+    this._dirty=false;
     try{
       const base=this.db.collection('users').doc(uid);
       const s=app.storage;
       const user=s.getActiveUser()||{};
-      await base.set({
-        email:user.email||null,
-        name:user.name||null,
-        picture:user.picture||null,
-        currentConvId:s.get('currentConvId',null),
-        theme:s.get('theme','dark'),
-        personality:s.get('personality','')||'',
-        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-      },{merge:true});
-      let convs=(app.conversations&&app.conversations.conversations)||s.get('conversations',[])||[];
-      let ok=0;
-      for(const c of convs){
-        if(!c||!c.id)continue;
-        try{
-          await base.collection('conversations').doc(String(c.id)).set(this._sanitizeConv(c),{merge:true});
-          ok++;
-        }catch(e){
-          console.warn('[CloudSync] conv',c.id,e.message||e);
-          try{
-            await base.collection('conversations').doc(String(c.id)).set({
-              id:c.id,title:c.title||'chat',updated:c.updated||Date.now(),
-              messages:(c.messages||[]).slice(-15).map(m=>({role:m.role,content:String(m.content||'').slice(0,6000),ts:m.ts||null}))
-            },{merge:true});
-            ok++;
-          }catch(e2){console.warn('[CloudSync] conv retry',e2)}
-        }
-      }
-      await base.collection('settings').doc('app').set({
+      // Full settings mirror (everything account-local used to store)
+      const settingsPayload={
         apiConfig:s.get('apiConfig',null),
         agentSettings:s.get('agentSettings',null),
         plugins:s.get('plugins',[]),
@@ -847,31 +903,70 @@ class CloudSync{
         modelRoles:s.get('modelRoles',{}),
         forceTemp:s.get('forceTemp',null),
         toolChoice:s.get('toolChoice','auto'),
+        intensity:s.get('intensity','medium'),
+        githubToken:s.get('githubToken',''),
+        githubOwner:s.get('githubOwner',''),
+        thinkingGif:s.get('thinkingGif',''),
+        personality:s.get('personality',''),
+        theme:s.get('theme','dark'),
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+      };
+      await base.set({
+        email:user.email||null,
+        name:user.name||null,
+        picture:user.picture||null,
+        currentConvId:s.get('currentConvId',null),
+        theme:settingsPayload.theme,
+        personality:settingsPayload.personality,
         updatedAt:firebase.firestore.FieldValue.serverTimestamp()
       },{merge:true});
-      console.log('[CloudSync] pushed',ok,'/',convs.length,'conversations');
+      await base.collection('settings').doc('app').set(settingsPayload,{merge:true});
+
+      let convs=(app.conversations&&app.conversations.conversations)||s.get('conversations',[])||[];
+      // Always re-read from memory right before write
+      if(app.conversations&&app.conversations.conversations)convs=app.conversations.conversations;
+      let ok=0;
+      for(const c of convs){
+        if(!c||!c.id)continue;
+        const clean=this._sanitizeConv(c);
+        try{
+          await base.collection('conversations').doc(String(c.id)).set(clean,{merge:false});
+          ok++;
+        }catch(e){
+          console.warn('[CloudSync] conv write',c.id,e.message||e);
+          try{
+            await base.collection('conversations').doc(String(c.id)).set({
+              id:c.id,title:c.title||'chat',updated:c.updated||Date.now(),
+              messages:(c.messages||[]).map(m=>({
+                id:m.id||null,role:m.role,ts:m.ts||null,
+                content:String(m.content||'').slice(0,20000)
+              }))
+            },{merge:false});
+            ok++;
+          }catch(e2){console.warn('[CloudSync] conv retry failed',e2)}
+        }
+      }
+      console.log('[CloudSync] pushed',ok,'/',convs.length,'conversations',convs.map(c=>(c.messages||[]).length));
     }catch(e){
       console.error('[CloudSync] pushAll error',e);
+      this._dirty=true;
       throw e;
-    }finally{this._pushing=false}
+    }finally{
+      this._pushing=false;
+      if(this._dirty){
+        clearTimeout(this._saveTimer);
+        this._saveTimer=setTimeout(()=>this.pushAll(app).catch(err=>console.warn('[CloudSync] push',err)),400);
+      }
+    }
   }
   applyPulled(app,data){
     if(!data||!app)return;
     const s=app.storage;
     if(data.conversations)s.set('conversations',data.conversations);
     if(data.currentConvId!==undefined)s.set('currentConvId',data.currentConvId);
-    if(data.apiConfig)s.set('apiConfig',data.apiConfig);
-    if(data.agentSettings)s.set('agentSettings',data.agentSettings);
-    if(data.plugins)s.set('plugins',data.plugins);
-    if(data.vfs)s.set('vfs',data.vfs);
-    if(data.projects)s.set('projects',data.projects);
-    if(data.automations)s.set('automations',data.automations);
-    if(data.pins)s.set('pins',data.pins);
-    if(data.theme)s.set('theme',data.theme);
-    if(data.personality!=null)s.set('personality',data.personality);
-    if(data.modelRoles)s.set('modelRoles',data.modelRoles);
-    if(data.forceTemp!==undefined)s.set('forceTemp',data.forceTemp);
-    if(data.toolChoice)s.set('toolChoice',data.toolChoice);
+    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','thinkingGif','theme','personality'].forEach(k=>{
+      if(data[k]!==undefined)s.set(k,data[k]);
+    });
   }
 }
 
@@ -1347,7 +1442,7 @@ async githubEnablePages(args){
 }
 
 
-class Agent{constructor(provider,tools,settings,plugins,storage){this.provider=provider;this.tools=tools;this.settings=settings;this.plugins=plugins;this.storage=storage;this.abortController=null;this.running=false}
+class Agent{constructor(provider,tools,settings,plugins,storage){this.provider=provider;this.tools=tools;this.settings=Object.assign({maxIterations:12,maxTools:30,maxTime:180},settings&&typeof settings==='object'?settings:{});this.plugins=plugins;this.storage=storage;this.abortController=null;this.running=false}
 stop(){if(this.abortController)this.abortController.abort();this.running=false}
 _pickModel(deepThink){const c=this.provider.config;const roles=this.storage.get('modelRoles',{})||{};if(deepThink&&roles.deep)return roles.deep;if(roles.code)return roles.code;if(roles.talk)return roles.talk;return c.model}
 _memoryContext(){try{const paths=this.tools.vfs.list('memory/');if(!paths.length)return '';const notes=[];for(const p of paths.slice(0,12)){try{const c=this.tools.vfs.read(p);notes.push('### '+p+'\n'+String(c).slice(0,800))}catch{}}if(!notes.length)return '';return '\n\nLONG-TERM MEMORY (from memory/ — update via write_file when you learn durable facts):\n'+notes.join('\n\n')}catch{return ''}}
@@ -1900,7 +1995,7 @@ renderCodeFiles(){
   el.innerHTML=paths.map(p=>`<div class="file" data-path="${escapeHtml(p)}">📄 ${escapeHtml(p.replace(/^code\//,''))}</div>`).join('');
   el.querySelectorAll('.file').forEach(n=>n.onclick=()=>{try{alert(this.app.vfs.read(n.dataset.path).slice(0,2000))}catch(e){toast(e.message,'error')}});
 }
-async sendCode(){
+async sendCode(){this.ensureAgent();
   const text=($('#code-user-input')?.value||'').trim();
   if(!text)return;
   if(this.app.agent.running){toast('Already running — press stop first','error');return}
@@ -2096,7 +2191,7 @@ autoResizeInput(){const ta=$('#user-input');ta.style.height='auto';ta.style.heig
 handleFiles(files){[...files].forEach(file=>{const reader=new FileReader();if(file.type.startsWith('image/')){reader.onload=()=>{this.pendingAttachments.push({name:file.name,type:file.type,dataUrl:reader.result});this.renderAttachments()};reader.readAsDataURL(file)}else{reader.onload=()=>{this.pendingAttachments.push({name:file.name,type:file.type,content:reader.result});this.renderAttachments()};reader.readAsText(file)}});$('#file-input').value=''}
 renderAttachments(){const el=$('#attachments');el.innerHTML='';this.pendingAttachments.forEach((a,i)=>{const div=document.createElement('div');div.className='attachment';if(a.dataUrl)div.innerHTML=`<img src="${a.dataUrl}" alt=""><button class="remove">×</button>`;else div.innerHTML=`<div class="file-chip">📄 ${escapeHtml(a.name)}</div><button class="remove">×</button>`;div.querySelector('.remove').onclick=()=>{this.pendingAttachments.splice(i,1);this.renderAttachments()};el.appendChild(div)});$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length}
 getThinkingHtml(){const gif=this.app.storage.get('thinkingGif','');if(gif)return`<div class="thinking-indicator"><img src="${escapeHtml(gif)}" alt="working"><span>Working…</span></div>`;return`<div class="thinking-indicator"><div class="dots"><span></span><span></span><span></span></div> Working…</div>`}
-async send(){const text=$('#user-input').value.trim();if(!text&&!this.pendingAttachments.length)return;if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');this.openSettings();return}if(!this.app.provider.config.model){toast('Select a model','error');this.openSettings();return}
+async send(){this.ensureAgent();const text=$('#user-input').value.trim();if(!text&&!this.pendingAttachments.length)return;if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');this.openSettings();return}if(!this.app.provider.config.model){toast('Select a model','error');this.openSettings();return}
 this.hideEmpty();let conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv){conv=this.app.conversations.create();this.app.conversations.setCurrent(conv.id)}
 let sendText=text;
   if(this._referQuote){sendText='User referred to the following statement:\n"'+this._referQuote+'"\n\nUser response: '+text;const bar=$('#refer-bar');if(bar)bar.remove();this._referQuote=null}
@@ -2196,6 +2291,8 @@ else if(ev.type==='activity-update'){
   this.scrollToBottom();
 }
 else if(ev.type==='final'){aiMsg.content=ev.content;
+  try{this.app.conversations.persist()}catch{}
+
   try{
     const conv=this.app.conversations.get(this.app.conversations.currentId);
     if(conv&&(conv.needsAiTitle||conv.title==='New conversation'||(conv.title&&conv.title.endsWith('…')))){
@@ -2246,7 +2343,7 @@ if(!actions){
   const host=aiEl.querySelector('.message-content')||aiEl.querySelector('.message-body')||aiEl;
   host.appendChild(actions);
 }
-const tokEst=Math.max(1,Math.round(String((typeof ev!=='undefined'&&ev.content)||(aiMsg&&aiMsg.content)||(msg&&msg.content)||'').length/4));
+const tokEst=Math.max(1,Math.round(String((msg&&msg.content)||'').length/4));
 actions.innerHTML=`<span class="token-badge">~${tokEst} tokens</span><button type="button" data-act="copy" title="Copy">${SVG.copy}</button><button type="button" data-act="edit" title="Edit">${SVG.edit}</button><button type="button" data-act="branch" title="Branch chat">${SVG.branch}</button><button type="button" data-act="regen" title="Regenerate">↻</button><button type="button" data-act="continue" title="Continue">→</button><button type="button" data-act="delete" title="Delete">${SVG.trash}</button>`;
 actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(ev.content);
 actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(aiMsg.id,aiEl);
@@ -2256,11 +2353,11 @@ const br=actions.querySelector('[data-act=branch]');if(br)br.onclick=()=>this.br
 const del=actions.querySelector('[data-act=delete]');if(del)del.onclick=()=>this.deleteMessage(aiMsg.id);
 this.setupMessageSelection(aiEl);
 this.scrollToBottom()}
-else if(ev.type==='done'){$('#agent-status').textContent='Ready';$('#iteration-info').textContent='';const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove()}
+else if(ev.type==='done'){$('#agent-status').textContent='Ready';$('#iteration-info').textContent='';const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();try{this.app.conversations.persist()}catch{}}
 else if(ev.type==='error')toast(ev.message,'error')}
 renderMessage(msg,isStreaming=false){const container=$('#messages');const div=document.createElement('div');div.className=`message ${msg.role}`;div.dataset.id=msg.id;const roleLabel=msg.role==='user'?'You':'Think Deeper';const avatarText=msg.role==='user'?'U':'TD';let attachHtml='';if(msg.attachments?.length){attachHtml='<div class="attachments">';msg.attachments.forEach(a=>{if(a.dataUrl)attachHtml+=`<div class="attachment"><img src="${a.dataUrl}" alt=""></div>`;else attachHtml+=`<div class="attachment"><div class="file-chip">📄 ${escapeHtml(a.name)}</div></div>`});attachHtml+='</div>'}
 const bodyContent=msg.role==='user'?escapeHtml(msg.content).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
-div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}">${avatarText}</div><span class="message-role">${roleLabel}</span><span class="message-time">${fmtTime(msg.ts)}</span></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);const actions=document.createElement('div');actions.className='message-actions';const tokEst=Math.max(1,Math.round(String((typeof ev!=='undefined'&&ev.content)||(aiMsg&&aiMsg.content)||(msg&&msg.content)||'').length/4));
+div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}">${avatarText}</div><span class="message-role">${roleLabel}</span><span class="message-time">${fmtTime(msg.ts)}</span></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);const actions=document.createElement('div');actions.className='message-actions';const tokEst=Math.max(1,Math.round(String((msg&&msg.content)||'').length/4));
 actions.innerHTML=`<span class="token-badge">~${tokEst} tokens</span><button type="button" data-act="copy" title="Copy">${SVG.copy}</button><button type="button" data-act="edit" title="Edit">${SVG.edit}</button><button type="button" data-act="branch" title="Branch chat">${SVG.branch}</button><button type="button" data-act="regen" title="Regenerate">↻</button><button type="button" data-act="continue" title="Continue">→</button><button type="button" data-act="delete" title="Delete">${SVG.trash}</button>`;actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(msg.content);actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(msg.id,div);const rg=actions.querySelector('[data-act=regen]');if(rg)rg.onclick=()=>this.regenerateLast();const ct=actions.querySelector('[data-act=continue]');if(ct)ct.onclick=()=>this.continueLast();div.querySelector('.message-content').appendChild(actions)}this.scrollToBottom();return div}
 renderMarkdown(text){
   if(!text)return '';
@@ -2429,6 +2526,21 @@ copyMessage(text){navigator.clipboard.writeText(text||'');toast('Copied','succes
 editMessage(msgId,el){const body=el.querySelector('.final-content')||el.querySelector('.message-body');if(!body)return;const cur=body.innerText;const next=prompt('Edit response',cur);if(next===null)return;body.innerHTML=this.renderMarkdown(next);this.enhanceCodeBlocks(body);this._renderMath(body);const conv=this.app.conversations.get(this.app.conversations.currentId);if(conv){const m=conv.messages.find(x=>x.id===msgId);if(m){m.content=next;this.app.conversations.persist()}}toast('Updated','success')}
 
 
+
+ensureAgent(){
+  if(this.app.agent&&this.app.agent.settings)return this.app.agent;
+  const s=this.app.storage;
+  if(!this.app.provider)this.app.provider=new ProviderManager(s);
+  if(!this.app.vfs)this.app.vfs=new VirtualFS(s);
+  if(!this.app.external)this.app.external=new ExternalFS();
+  if(!this.app.python)this.app.python=new PythonTool();
+  if(!this.app.tools)this.app.tools=new ToolManager(this.app.vfs,this.app.external,this.app.python);
+  if(!this.app.plugins)this.app.plugins=new PluginManager(s);
+  let agentSettings=s.get('agentSettings',null);
+  if(!agentSettings||typeof agentSettings!=='object')agentSettings={maxIterations:12,maxTools:30,maxTime:180};
+  this.app.agent=new Agent(this.app.provider,this.app.tools,agentSettings,this.app.plugins,s);
+  return this.app.agent;
+}
 reloadWorkspaceForAccount(){
   // Rebuild managers from current storage namespace (account vs guest)
   const s=this.app.storage;
@@ -2441,7 +2553,8 @@ reloadWorkspaceForAccount(){
   this.app.plugins=new PluginManager(s);
   this.app.plugins.onSave=(p)=>this.app.materializePlugin&&this.app.materializePlugin(p);
   try{(this.app.plugins.list()||[]).forEach(p=>this.app.materializePlugin&&this.app.materializePlugin(p))}catch{}
-  const agentSettings=s.get('agentSettings',{maxIterations:12,maxTools:30,maxTime:180});
+  let agentSettings=s.get('agentSettings',null);
+  if(!agentSettings||typeof agentSettings!=='object')agentSettings={maxIterations:12,maxTools:30,maxTime:180};
   this.app.agent=new Agent(this.app.provider,this.app.tools,agentSettings,this.app.plugins,s);
   // UI refresh
   this.renderAuth();
@@ -2504,7 +2617,11 @@ mountGoogleButton(host,overlay){
       }catch(e){console.warn('pull',e);toast('Signed in, but cloud load failed (check Firestore rules)','error')}
       if(this.app.cloud)this.app.cloud.uid=user.id;
       this.reloadWorkspaceForAccount();
-      try{await this.app.cloud.pushAll(this.app);toast('Cloud sync on','success')}catch(e){console.warn('initial push',e);toast('Cloud push failed: '+(e.message||e),'error')}
+      try{
+        await this.app.cloud.pushAll(this.app);
+        this.app.cloud.startListening(this.app);
+        toast('Cloud sync on','success');
+      }catch(e){console.warn('initial push',e);toast('Cloud push failed: '+(e.message||e),'error')}
       this.renderAuth();
       if(overlay)overlay.remove();
       toast('Signed in — chats sync to Firebase','success');
@@ -2678,7 +2795,7 @@ this.ensureDefaultPlugins=function(){
   for(const d of defaults){if(!existing.has(d.id))this.plugins.save({...d,created:Date.now()});}
 }.bind(this);
 this.ensureDefaultPlugins();
-const agentSettings=this.storage.get('agentSettings',{maxIterations:12,maxTools:30,maxTime:180});this.agent=new Agent(this.provider,this.tools,agentSettings,this.plugins,this.storage);this.ui=new UIManager(this)}materializePlugin(p){
+let agentSettings=this.storage.get('agentSettings',null);if(!agentSettings||typeof agentSettings!=='object')agentSettings={maxIterations:12,maxTools:30,maxTime:180};this.agent=new Agent(this.provider,this.tools,agentSettings,this.plugins,this.storage);this.ui=new UIManager(this)}materializePlugin(p){
   if(!p||!p.files||typeof p.files!=='object')return;
   const base=(p.folder||('plugins/'+(p.id||p.name||'plugin').toString().replace(/\s+/g,'-').toLowerCase())).replace(/\/+$/,'');
   try{
@@ -2709,10 +2826,10 @@ start(){
 }
 async _restoreCloudSession(){
   try{
-    if(!this.cloud||!this.cloud.ready)return;
-    await new Promise(r=>setTimeout(r,300));
-    const fu=this.cloud.auth&&this.cloud.auth.currentUser;
-    if(!fu)return;
+    if(!this.cloud)return;
+    if(!this.cloud.ready)this.cloud.init();
+    const fu=await this.cloud.whenAuthReady();
+    if(!fu){console.log('[CloudSync] no saved session');return}
     this.cloud.uid=fu.uid;
     const user={id:fu.uid,name:fu.displayName,email:fu.email,picture:fu.photoURL};
     this.storage.setActiveUser(user);
@@ -2722,6 +2839,7 @@ async _restoreCloudSession(){
     }catch(e){console.warn('[CloudSync] restore pull',e)}
     if(this.ui&&this.ui.reloadWorkspaceForAccount)this.ui.reloadWorkspaceForAccount();
     else if(this.ui&&this.ui.renderAuth)this.ui.renderAuth();
+    this.cloud.startListening(this);
     console.log('[CloudSync] session restored',fu.uid);
   }catch(e){console.warn('[CloudSync] restore',e)}
 }
