@@ -444,9 +444,15 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 .conv-search input{width:100%;padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:.82rem}
 .token-badge{font-size:.68rem;color:var(--text-tertiary);margin-left:8px}
 .refer-banner{font-size:.8rem;padding:8px 10px;margin-bottom:8px;border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0;color:var(--text-secondary)}
-.selection-toolbar{position:absolute;z-index:50;display:flex;gap:4px;padding:4px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15)}
+.selection-toolbar{position:fixed;z-index:80;display:flex;gap:4px;padding:4px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);pointer-events:auto}
 .selection-toolbar button{padding:6px 10px;border:none;background:transparent;border-radius:6px;cursor:pointer;font-size:.75rem;color:var(--text-primary)}
 .selection-toolbar button:hover{background:var(--bg-hover)}
+.pin-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:0 4px 8px}
+.pin-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:5px 8px;border-radius:999px;border:1px solid var(--border);background:var(--accent-soft);color:var(--text-primary);font-size:.75rem}
+.pin-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
+.pin-chip .unpin{border:none;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:.85rem;line-height:1}
+.pin-chip .unpin:hover{color:var(--error)}
+.pin-indicator{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;color:var(--accent);padding:3px 8px;border-radius:999px;border:1px solid var(--border);background:var(--accent-soft)}
 .automations-panel{padding:12px;font-size:.82rem}
 .auto-rule{padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--bg-elevated)}
 
@@ -572,9 +578,11 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 <button class="stop-btn" id="stop-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
 <button class="send-btn" id="send-btn" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
 </div></div></div>
+<div id="pin-bar" class="pin-bar" style="display:none"></div>
 <div class="input-meta">
           <span id="agent-status">Ready</span>
           <span id="iteration-info"></span>
+          <span id="pin-indicator" class="pin-indicator" style="display:none">📌 <span id="pin-count">0</span> pinned</span>
           <label style="margin-left:auto;display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.8rem;color:var(--text-secondary)">
             <input type="checkbox" id="deep-think-toggle" onchange="this.parentElement.classList.toggle('deep-think-on',this.checked)"> Deep Think
           </label>
@@ -846,8 +854,10 @@ class CloudSync{
       const setDoc=await base.collection('settings').doc('app').get();
       if(setDoc.exists){
         const s=setDoc.data()||{};
-        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','googleClientId','thinkingGif'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
+        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','currentCodeId'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
       }
+      const vfsFiles=await this.pullVfs(base);
+      if(vfsFiles&&Object.keys(vfsFiles).length)out.vfs=Object.assign({},out.vfs||{},vfsFiles);
     }catch(e){console.error('[CloudSync] pull',e);throw e}
     return out;
   }
@@ -879,6 +889,7 @@ class CloudSync{
           id:m.id||null,
           role:m.role||'user',
           content:typeof m.content==='string'?m.content:(m.content==null?'':JSON.stringify(m.content)),
+          displayContent:m.displayContent||null,
           ts:m.ts||null
         };
         if(msg.content.length>100000)msg.content=msg.content.slice(0,100000)+'\n…[truncated]';
@@ -886,8 +897,8 @@ class CloudSync{
           msg.attachments=m.attachments.map(a=>({
             name:a.name||'file',
             type:a.type||'',
-            content:a.content?String(a.content).slice(0,30000):null
-            // dataUrls omitted (too large for Firestore)
+            vfsPath:a.vfsPath||null,
+            content:a.content?String(a.content).slice(0,20000):null
           }));
         }
         return msg;
@@ -908,11 +919,12 @@ class CloudSync{
       const s=app.storage;
       const user=s.getActiveUser()||{};
       // Full settings mirror (everything account-local used to store)
+      const vfsObj=s.get('vfs',{})||{};
       const settingsPayload={
         apiConfig:s.get('apiConfig',null),
         agentSettings:s.get('agentSettings',{maxIterations:12,maxTools:30,maxTime:180})||{maxIterations:12,maxTools:30,maxTime:180},
         plugins:s.get('plugins',[]),
-        vfs:s.get('vfs',{}),
+        vfsIndex:Object.keys(vfsObj),
         projects:s.get('projects',[]),
         automations:s.get('automations',[]),
         pins:s.get('pins',[]),
@@ -922,14 +934,25 @@ class CloudSync{
         intensity:s.get('intensity','medium'),
         githubToken:s.get('githubToken',''),
         githubOwner:s.get('githubOwner',''),
+        githubUser:s.get('githubUser',''),
+        googleClientId:s.get('googleClientId',''),
         thinkingGif:s.get('thinkingGif',''),
         personality:s.get('personality',''),
         theme:s.get('theme','dark'),
+        currentProjectId:s.get('currentProjectId',null),
+        pluginsGlobal:s.get('pluginsGlobal',true),
+        appMode:s.get('appMode','chat'),
+        discoveredModels:s.get('discoveredModels',[]),
+        codeMessages:s.get('codeMessages',[]),
+        currentCodeId:s.get('currentCodeId',null),
         updatedAt:firebase.firestore.FieldValue.serverTimestamp()
       };
       const nowTs=Date.now();
-      if(!this._lastSettingsPush||nowTs-this._lastSettingsPush>30000){
+      const settingsSig=JSON.stringify({...settingsPayload,updatedAt:0});
+      const settingsChanged=this._settingsHash!==settingsSig;
+      if(settingsChanged){
         this._lastSettingsPush=nowTs;
+        this._settingsHash=settingsSig;
         await base.set({
           email:user.email||null,
           name:user.name||null,
@@ -970,9 +993,10 @@ class CloudSync{
           }catch(e2){console.warn('[CloudSync] conv retry failed',e2)}
         }
       }
-      this._lastPushAt=Date.now();
+      await this.pushVfs(base,vfsObj);
+        this._lastPushAt=Date.now();
       if(written)console.log('[CloudSync] pushed',written,'changed /',ok,'/',convs.length,'conversations');
-      if(written)this.notifyTabs();
+      if(written||settingsChanged)this.notifyTabs();
     }catch(e){
       console.error('[CloudSync] pushAll error',e);
       this._dirty=true;
@@ -985,12 +1009,49 @@ class CloudSync{
       }
     }
   }
+  _vfsDocId(path){
+    return encodeURIComponent(String(path||'file')).replace(/\./g,'_dot_');
+  }
+  async pushVfs(base,files){
+    if(!base||!files)return;
+    if(!this._vfsHash)this._vfsHash={};
+    const col=base.collection('vfs');
+    for(const path of Object.keys(files)){
+      const f=files[path]||{};
+      let content=f.content==null?'':String(f.content);
+      if(content.length>750000)content=content.slice(0,750000)+'\n…[truncated for cloud]';
+      const sig=path+'|'+(f.updated||'')+'|'+content.length+'|'+(f.version||0);
+      if(this._vfsHash[path]===sig)continue;
+      try{
+        await col.doc(this._vfsDocId(path)).set({
+          path,
+          content,
+          updated:f.updated||Date.now(),
+          version:f.version||1,
+          lines:f.lines||0
+        });
+        this._vfsHash[path]=sig;
+      }catch(e){console.warn('[CloudSync] vfs write',path,e.message||e)}
+    }
+  }
+  async pullVfs(base){
+    try{
+      const snap=await base.collection('vfs').get();
+      const files={};
+      snap.docs.forEach(doc=>{
+        const d=doc.data()||{};
+        if(!d.path)return;
+        files[d.path]={content:d.content||'',updated:d.updated||Date.now(),version:d.version||1,lines:d.lines||0};
+      });
+      return files;
+    }catch(e){console.warn('[CloudSync] vfs pull',e);return null}
+  }
   applyPulled(app,data){
     if(!data||!app)return;
     const s=app.storage;
     if(Array.isArray(data.conversations))s.set('conversations',data.conversations);
     if(data.currentConvId!==undefined)s.set('currentConvId',data.currentConvId);
-    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','thinkingGif','theme','personality'].forEach(k=>{
+    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','currentCodeId'].forEach(k=>{
       if(data[k]===undefined||data[k]===null)return;
       s.set(k,data[k]);
     });
@@ -1154,7 +1215,7 @@ filesInFolder(folder){
 read(p){const f=this.files[p];if(!f)throw new Error('File not found: '+p);return f.content}
 write(p,c,{archiveOld=true}={}){const old=this.files[p];const ln=countLines(c);let added=ln,removed=0;if(old){const lo=old.lines||countLines(old.content);added=Math.max(0,ln-lo);removed=Math.max(0,lo-ln);if(archiveOld){const ap=`archive/${p.replace(/\//g,'__')}_${Date.now()}.bak`;this.files[ap]={...old,archivedFrom:p,archivedAt:now()}}}this.files[p]={content:c,updated:now(),version:(old?.version||0)+1,lines:ln};this.persist();return{path:p,added,removed,lines:ln,isNew:!old}}
 delete(p){if(!this.files[p])throw new Error('File not found');const lines=this.files[p].lines||0;const ap=`archive/${p.replace(/\//g,'__')}_${Date.now()}_deleted.bak`;this.files[ap]={...this.files[p],archivedFrom:p,archivedAt:now()};delete this.files[p];this.persist();return{path:p,removed:lines}}
-persist(){this.storage.set('vfs',this.files)}
+persist(){this.storage.set('vfs',this.files);try{if(window.__app&&window.__app.cloud)window.__app.cloud.schedulePush(window.__app)}catch(e){}}
 tree(){const root={name:'',children:{},files:[]};for(const path of Object.keys(this.files).sort()){const parts=path.split('/');let node=root;for(let i=0;i<parts.length-1;i++){const p=parts[i];if(!node.children[p])node.children[p]={name:p,children:{},files:[]};node=node.children[p]}node.files.push({name:parts[parts.length-1],path,meta:this.files[path]})}return root}}
 
 class PluginManager{constructor(s){this.storage=s;this.plugins=s.get('plugins',[])}
@@ -1174,7 +1235,7 @@ getSystemInjection(){const parts=[];let budget=12000;for(const p of this.enabled
   }
   if(budget<400)break
 }return parts.join('\n\n')}
-persist(){this.storage.set('plugins',this.plugins)}}
+persist(){this.storage.set('plugins',this.plugins);try{if(window.__app&&window.__app.cloud)window.__app.cloud.schedulePush(window.__app)}catch(e){}}}
 
 class ConversationManager{constructor(s){this.storage=s;this.conversations=s.get('conversations',[]);this.currentId=s.get('currentConvId',null)}
 list(){return this.conversations.slice().sort((a,b)=>b.updated-a.updated)}
@@ -1628,7 +1689,7 @@ if(attachments?.length){for(const a of attachments){
     else if(a.dataUrl)this.tools.vfs.write('uploads/'+a.name+'.dataurl.txt',String(a.dataUrl).slice(0,500)+'…[data-url stored for session]',{archiveOld:false});
   }catch(e){}
 }}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE: prefer paths under code/ for project files. You may use image_search and github_* tools. Link folders as [[folder:code/...]] and HTML as [[preview:code/.../index.html]]. Persist files only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE: prefer paths under code/ for project files. You may use image_search and github_* tools. Link folders as [[folder:code/...]] and HTML as [[preview:code/.../index.html]]. Persist files only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 const hardMax=Number.POSITIVE_INFINITY;
 try{while(iteration<hardMax&&this.running){if(!this.running)break;
@@ -1860,7 +1921,7 @@ if(name==='web_search'){const n=(result.results||[]).length;return{detail:result
 return{detail:'Done',full:JSON.stringify(result)}}}
 
 class UIManager{constructor(app){this.app=app;this.pendingAttachments=[];this.activityMap=new Map()}
-init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);const na=$('#new-auto-btn');if(na)na.onclick=()=>this.createAutomation();this.renderAutomations();this.renderProjects();this.updateGitHubStatus();const np=$('#new-project-btn');if(np)np.onclick=()=>this.createProject();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
+init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);const na=$('#new-auto-btn');if(na)na.onclick=()=>this.createAutomation();this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();const np=$('#new-project-btn');if(np)np.onclick=()=>this.createProject();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
 initCodeMode(){
   this.mode='chat';this.thoughtRoots=new WeakMap();
   const chatTab=$('#mode-chat'),codeTab=$('#mode-code');
@@ -1886,6 +1947,7 @@ initCodeMode(){
   if(input)input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.sendCode()}});
   this.renderCodeSkills();
   this.renderCodeFiles();
+  this.restoreCodeTranscript();
 }
 
 
@@ -2105,6 +2167,29 @@ renderCodeSkills(){
   const el=$('#code-skills-list');if(!el)return;
   el.innerHTML=CODE_SKILLS.map(s=>`<label><input type="checkbox" data-skill="${s.id}" checked> <span><strong>${escapeHtml(s.name)}</strong> — ${escapeHtml(s.description)}</span></label>`).join('');
 }
+saveCodeTranscript(){
+  try{
+    const box=$('#code-messages');if(!box)return;
+    const msgs=[...box.querySelectorAll('.code-msg')].map(el=>{
+      const role=el.classList.contains('user')?'user':'assistant';
+      const body=el.querySelector('.final-content')||el.querySelector('.message-body')||el;
+      return {role,content:(body.innerText||body.textContent||'').slice(0,20000)};
+    }).filter(m=>m.content&&!/^Running ·/.test(m.content));
+    this.app.storage.set('codeMessages',msgs.slice(-40));
+  }catch(e){}
+}
+restoreCodeTranscript(){
+  const box=$('#code-messages');if(!box)return;
+  const msgs=this.app.storage.get('codeMessages',[])||[];
+  if(!msgs.length)return;
+  if(box.querySelector('.code-msg'))return;
+  msgs.forEach(m=>{
+    const div=document.createElement('div');
+    div.className='code-msg '+(m.role==='user'?'user':'agent');
+    div.innerHTML=`<div class="role">${m.role==='user'?'You':'Agent'}</div><div class="message-body">${escapeHtml(m.content||'')}</div>`;
+    box.appendChild(div);
+  });
+}
 renderCodeFiles(){
   const el=$('#code-file-tree');if(!el)return;
   const paths=this.app.vfs.filesInFolder('code');
@@ -2173,7 +2258,7 @@ ${text}`;
     const aiMsg={id:uid(),role:'assistant',content:''};
     await this.app.agent.run(codePrompt,[],[],(ev)=>this.handleCodeAgentEvent(ev,aiDiv,aiMsg),{deepThink:true});
   }catch(e){toast(e.message,'error')}
-  finally{this.app.agent.settings=prev;this.app.mode='code';this.renderCodeFiles();const stopBtn=$('#code-stop-btn');const sendBtn=$('#code-send-btn');if(stopBtn)stopBtn.classList.remove('visible');if(sendBtn)sendBtn.style.display='';}
+  finally{this.app.agent.settings=prev;this.app.mode='code';this.renderCodeFiles();this.saveCodeTranscript();try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}const stopBtn=$('#code-stop-btn');const sendBtn=$('#code-send-btn');if(stopBtn)stopBtn.classList.remove('visible');if(sendBtn)sendBtn.style.display='';}
 }
 handleCodeAgentEvent(ev,aiEl,aiMsg){
   // Reuse chat handler against code message element
@@ -2184,8 +2269,8 @@ $('#model-btn').onclick=e=>{e.stopPropagation();this.toggleModelDropdown()};docu
 $$('.suggestion').forEach(btn=>{btn.onclick=()=>{$('#user-input').value=btn.dataset.prompt;$('#send-btn').disabled=false;this.autoResizeInput();this.send()}});
 $$('.preset-btn').forEach(btn=>{btn.onclick=()=>this.applyPreset(btn.dataset.preset)});
 $('#save-api').onclick=()=>this.saveApi();$('#discover-models').onclick=()=>this.discoverModels();$('#save-agent').onclick=()=>this.saveAgentSettings();
-$('#save-personality').onclick=()=>{this.app.storage.set('personality',$('#personality').value);toast('Personality saved','success')};
-$('#save-ui').onclick=()=>{this.app.storage.set('thinkingGif',$('#thinking-gif').value.trim());toast('UI settings saved','success')};
+$('#save-personality').onclick=()=>{this.app.storage.set('personality',$('#personality').value);toast('Personality saved','success');try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}};
+$('#save-ui').onclick=()=>{this.app.storage.set('thinkingGif',$('#thinking-gif').value.trim());toast('UI settings saved','success');try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}};
 $$('#settings-tabs .tab').forEach(tab=>{tab.onclick=()=>{$$('#settings-tabs .tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');['api','agent','personality','ui'].forEach(id=>{$(`#tab-${id}`).style.display=tab.dataset.tab===id?'block':'none'})}})}
 toggleSidebar(c){const sb=$('#sidebar');if(c){sb.classList.add('collapsed');$('#open-sidebar').style.display='flex'}else{sb.classList.remove('collapsed');sb.classList.add('open');$('#open-sidebar').style.display='none'}}
 applyTheme(t){t=t==='light'?'light':'dark';document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;this.app.storage.set('theme',t);const d=$('#hljs-dark'),l=$('#hljs-light');if(d)d.disabled=t!=='dark';if(l)l.disabled=t==='dark';const btn=$('#theme-btn');if(btn)btn.title=t==='dark'?'Switch to light':'Switch to dark'}
@@ -2199,9 +2284,9 @@ applyPreset(n){const p={openai:{baseUrl:'https://api.openai.com/v1',model:'gpt-4
 saveApi(){const config={baseUrl:$('#api-base').value.trim(),apiKey:$('#api-key').value.trim(),model:$('#api-model').value.trim(),org:$('#api-org').value.trim(),project:$('#api-project').value.trim(),rememberKey:$('#remember-key').checked,fallbackBaseUrl:$('#fallback-base')?.value.trim()||'',fallbackApiKey:$('#fallback-key')?.value.trim()||'',fallbackModel:$('#fallback-model')?.value.trim()||'',googleClientId:$('#google-client-id')?.value.trim()||''};this.app.provider.save(config);try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch{}this.app.storage.set('googleClientId',config.googleClientId||'');
 const roles={talk:$('#model-talk')?.value.trim()||'',code:$('#model-code')?.value.trim()||'',deep:$('#model-deep')?.value.trim()||''};this.app.storage.set('modelRoles',roles);
 this.app.storage.set('pluginsGlobal',!!$('#plugins-global')?.checked);
-this.renderModelLabel();toast('API settings saved','success')}
+this.renderModelLabel();toast('API settings saved','success');try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}}
 async discoverModels(){try{this.saveApi();toast('Discovering…');const models=await this.app.provider.discoverModels();toast(`Found ${models.length} models`,'success');this.renderModelList()}catch(e){toast(e.message,'error')}}
-saveAgentSettings(){const s={maxIterations:parseInt($('#max-iterations').value,10)||12,maxTools:parseInt($('#max-tools').value,10)||30,maxTime:parseInt($('#max-time').value,10)||180};this.app.storage.set('agentSettings',s);this.app.agent.settings=s;if($('#tool-choice'))this.app.storage.set('toolChoice',$('#tool-choice').value||'auto');const ft=$('#force-temp');if(ft){let v=parseFloat(ft.value);if(Number.isFinite(v)){v=Math.min(1.2,Math.max(0,v));this.app.storage.set('forceTemp',v)}else this.app.storage.set('forceTemp',null)}toast('Agent settings saved','success')}
+saveAgentSettings(){const s={maxIterations:parseInt($('#max-iterations').value,10)||12,maxTools:parseInt($('#max-tools').value,10)||30,maxTime:parseInt($('#max-time').value,10)||180};this.app.storage.set('agentSettings',s);this.app.agent.settings=s;if($('#tool-choice'))this.app.storage.set('toolChoice',$('#tool-choice').value||'auto');const ft=$('#force-temp');if(ft){let v=parseFloat(ft.value);if(Number.isFinite(v)){v=Math.min(1.2,Math.max(0,v));this.app.storage.set('forceTemp',v)}else this.app.storage.set('forceTemp',null)}toast('Agent settings saved','success');try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}}
 toggleModelDropdown(){const dd=$('#model-dropdown');dd.classList.toggle('open');if(dd.classList.contains('open')){this.renderModelList();$('#model-search').focus()}}
 closeModelDropdown(){$('#model-dropdown').classList.remove('open')}
 renderModelList(filter=''){const list=$('#model-list');list.innerHTML='';let models=this.app.provider.models;if(!models.length&&this.app.provider.config.model)models=[{id:this.app.provider.config.model,name:this.app.provider.config.model}];const q=filter.toLowerCase();const filtered=models.filter(m=>m.id.toLowerCase().includes(q)||(m.name||'').toLowerCase().includes(q));if(!filtered.length){list.innerHTML='<div style="padding:12px;color:var(--text-tertiary);font-size:.85rem">No models. Enter ID in Settings or discover.</div>';return}filtered.forEach(m=>{const div=document.createElement('div');div.className='model-option'+(m.id===this.app.provider.config.model?' active':'');div.innerHTML=`<span>${escapeHtml(m.name||m.id)}</span><span class="id">${escapeHtml(m.id)}</span>`;div.onclick=()=>{this.app.provider.config.model=m.id;this.app.provider.save({model:m.id});this.renderModelLabel();this.closeModelDropdown()};list.appendChild(div)})}
@@ -2312,9 +2397,20 @@ async send(){this.ensureAgent();const text=$('#user-input').value.trim();if(!tex
 this.hideEmpty();let conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv){conv=this.app.conversations.create();this.app.conversations.setCurrent(conv.id)}
 let sendText=text;
   if(this._referQuote){sendText='User referred to the following statement:\n"'+this._referQuote+'"\n\nUser response: '+text;const bar=$('#refer-bar');if(bar)bar.remove();this._referQuote=null}
-  const pins=(this.app.storage.get('pins',[])||[]).slice(0,5);
-  if(pins.length)sendText+='\n\n[Pinned context]\n'+pins.map(p=>'- '+p.text).join('\n');
-  const userMsg={id:uid(),role:'user',content:sendText,displayContent:text,attachments:this.pendingAttachments.slice(),ts:now()};this.app.conversations.addMessage(conv.id,userMsg);this.attachChatToProject(conv.id);this.renderMessage(userMsg);this.renderConversations();
+  const pins=(this.app.storage.get('pins',[])||[]).slice(0,8);
+  const pinCtx=pins.length?('\n\nPINNED CONTEXT (use silently; do not repeat this block in the visible answer unless asked):\n'+pins.map(p=>'- '+p.text).join('\n')):'';
+  this.app.agent.pinCtx=pinCtx;
+  const savedAtt=this.pendingAttachments.slice().map(a=>{
+    try{
+      if(a&&a.name&&(a.content||a.dataUrl)){
+        const path='uploads/'+a.name+(a.dataUrl&&!a.content?'.dataurl.txt':'');
+        this.app.vfs.write(path,a.content||a.dataUrl,{archiveOld:false});
+        return {name:a.name,type:a.type||'',vfsPath:path,dataUrl:a.dataUrl||null,content:a.content?String(a.content).slice(0,20000):null};
+      }
+    }catch(e){}
+    return a;
+  });
+  const userMsg={id:uid(),role:'user',content:text,displayContent:text,attachments:savedAtt,ts:now()};this.app.conversations.addMessage(conv.id,userMsg);this.attachChatToProject(conv.id);this.renderMessage(userMsg);this.renderConversations();
 $('#user-input').value='';this.pendingAttachments=[];this.renderAttachments();this.autoResizeInput();$('#send-btn').disabled=true;$('#stop-btn').classList.add('visible');$('#send-btn').style.display='none';
 const aiMsg={id:uid(),role:'assistant',content:'',activities:[],ts:now()};this.app.conversations.addMessage(conv.id,aiMsg);const aiEl=this.renderMessage(aiMsg,true);
 const history=conv.messages.filter(m=>m.id!==aiMsg.id);
@@ -2326,7 +2422,7 @@ this.app.agent.settings.maxTime=Number.POSITIVE_INFINITY;
 this.app.agent.temperature=inten.temperature;
 this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: use tools heavily, verify, and do not stop early.':'');
 try{
-  await this.app.agent.run(text,history,userMsg.attachments,ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!$('#deep-think-toggle')?.checked||inten.maxIterations>=18});
+  await this.app.agent.run(sendText,history,userMsg.attachments,ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!$('#deep-think-toggle')?.checked||inten.maxIterations>=18});
   if(aiMsg.content&&(conv.needsAiTitle||conv.messages.filter(m=>m.role==='user').length<=1))this.generateChatTitle(conv.id,text,aiMsg.content);
 }catch(e){toast(e.message,'error');const body=aiEl.querySelector('.message-body');if(body&&!body.querySelector('.final-content')?.textContent.trim())body.innerHTML+=`<p style="color:var(--error)">Error: ${escapeHtml(e.message)}</p>`}
 finally{
@@ -2474,9 +2570,9 @@ this.scrollToBottom()}
 else if(ev.type==='done'){$('#agent-status').textContent='Ready';$('#iteration-info').textContent='';const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();try{this.app.conversations.persist()}catch{}}
 else if(ev.type==='error')toast(ev.message,'error')}
 renderMessage(msg,isStreaming=false){const container=$('#messages');const div=document.createElement('div');div.className=`message ${msg.role}`;div.dataset.id=msg.id;const roleLabel=msg.role==='user'?'You':'Think Deeper';const avatarText=msg.role==='user'?'U':'TD';let attachHtml='';if(msg.attachments?.length){attachHtml='<div class="attachments">';msg.attachments.forEach(a=>{if(a.dataUrl)attachHtml+=`<div class="attachment"><img src="${a.dataUrl}" alt=""></div>`;else attachHtml+=`<div class="attachment"><div class="file-chip">📄 ${escapeHtml(a.name)}</div></div>`});attachHtml+='</div>'}
-const bodyContent=msg.role==='user'?escapeHtml(msg.content).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
+const bodyContent=msg.role==='user'?escapeHtml(this.visibleUserText(msg)).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
 div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}">${avatarText}</div><span class="message-role">${roleLabel}</span><span class="message-time">${fmtTime(msg.ts)}</span></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);const actions=document.createElement('div');actions.className='message-actions';const tokEst=Math.max(1,Math.round(String((msg&&msg.content)||'').length/4));
-actions.innerHTML=`<span class="token-badge">~${tokEst} tokens</span><button type="button" data-act="copy" title="Copy">${SVG.copy}</button><button type="button" data-act="edit" title="Edit">${SVG.edit}</button><button type="button" data-act="branch" title="Branch chat">${SVG.branch}</button><button type="button" data-act="regen" title="Regenerate">↻</button><button type="button" data-act="continue" title="Continue">→</button><button type="button" data-act="delete" title="Delete">${SVG.trash}</button>`;actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(msg.content);actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(msg.id,div);const rg=actions.querySelector('[data-act=regen]');if(rg)rg.onclick=()=>this.regenerateLast();const ct=actions.querySelector('[data-act=continue]');if(ct)ct.onclick=()=>this.continueLast();div.querySelector('.message-content').appendChild(actions)}this.scrollToBottom();return div}
+actions.innerHTML=`<span class="token-badge">~${tokEst} tokens</span><button type="button" data-act="copy" title="Copy">${SVG.copy}</button><button type="button" data-act="edit" title="Edit">${SVG.edit}</button><button type="button" data-act="branch" title="Branch chat">${SVG.branch}</button><button type="button" data-act="regen" title="Regenerate">↻</button><button type="button" data-act="continue" title="Continue">→</button><button type="button" data-act="delete" title="Delete">${SVG.trash}</button>`;actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(msg.content);actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(msg.id,div);const rg=actions.querySelector('[data-act=regen]');if(rg)rg.onclick=()=>this.regenerateLast();const ct=actions.querySelector('[data-act=continue]');if(ct)ct.onclick=()=>this.continueLast();const br=actions.querySelector('[data-act=branch]');if(br)br.onclick=()=>this.branchFromMessage(msg.id);const del=actions.querySelector('[data-act=delete]');if(del)del.onclick=()=>this.deleteMessage(msg.id);div.querySelector('.message-content').appendChild(actions)}this.setupMessageSelection(div);this.scrollToBottom();return div}
 renderMarkdown(text){
   if(!text)return '';
   let t=String(text);
@@ -2682,6 +2778,7 @@ reloadWorkspaceForAccount(){
   this.renderAutomations&&this.renderAutomations();
   this.renderModelLabel&&this.renderModelLabel();
   this.renderCodeFiles&&this.renderCodeFiles();
+  this.renderPins&&this.renderPins();
   try{
     if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);
     else this.showEmpty&&this.showEmpty();
@@ -2801,12 +2898,28 @@ logoutGoogle(){
   if(this.app.cloud&&this.app.cloud.ready)this.app.cloud.signOut().then(fin).catch(fin);else fin();
 }
 filterConversations(q){this._convQuery=(q||'').trim().toLowerCase();this.renderConversations()}
+visibleUserText(msg){
+  if(!msg)return '';
+  if(msg.displayContent)return String(msg.displayContent);
+  let t=String(msg.content||'');
+  t=t.replace(/\n\n\[Pinned context\][\s\S]*$/,'');
+  t=t.replace(/^User referred to the following statement:\n"[\s\S]*?"\n\nUser response: /,'');
+  return t;
+}
 branchFromMessage(msgId){
   const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
-  const idx=conv.messages.findIndex(m=>m.id===msgId);if(idx<0)return;
-  const slice=conv.messages.slice(0,idx+1).map(m=>({...JSON.parse(JSON.stringify(m)),id:uid()}));
+  let idx=conv.messages.findIndex(m=>m.id===msgId);
+  if(idx<0){
+    // fallback: branch whole thread
+    idx=conv.messages.length-1;
+  }
+  if(idx<0)return;
+  const slice=conv.messages.slice(0,idx+1).map(m=>JSON.parse(JSON.stringify(m)));
+  slice.forEach(m=>{if(!m.id)m.id=uid()});
+  this._loadingConv=null;
   const c=this.app.conversations.create('Branch: '+String(conv.title||'chat').slice(0,40));
-  c.messages=slice;c.projectId=conv.projectId;this.app.conversations.persist();
+  c.messages=slice;c.projectId=conv.projectId||null;c.mode=conv.mode||'chat';
+  this.app.conversations.persist();
   if(c.projectId)this.attachChatToProject(c.id);
   this.loadConversation(c.id);toast('Branched to new chat','success');
 }
@@ -2821,19 +2934,39 @@ setupMessageSelection(aiEl){
   aiEl.addEventListener('mouseup',()=>{
     const sel=window.getSelection();const text=(sel&&String(sel.toString())||'').trim();
     if(text.length<2){this.hideSelToolbar();return}
-    try{const rect=sel.getRangeAt(0).getBoundingClientRect();this.showSelToolbar(rect,text,aiEl)}catch(e){}
+    try{this.showSelToolbar(sel.getRangeAt(0),text,aiEl)}catch(e){}
   });
 }
-showSelToolbar(rect,text,aiEl){
+showSelToolbar(range,text,aiEl){
   this.hideSelToolbar();
+  if(!range||!text)return;
   const tip=document.createElement('div');tip.className='selection-toolbar';tip.id='sel-toolbar';
-  tip.style.left=(rect.left+window.scrollX)+'px';tip.style.top=(rect.top+window.scrollY-40)+'px';
   tip.innerHTML='<button type="button" data-act="refer">Refer</button><button type="button" data-act="pin">Pin</button>';
   document.body.appendChild(tip);
+  const place=()=>{
+    try{
+      const r=range.getBoundingClientRect();
+      if(!r||(r.width===0&&r.height===0)){this.hideSelToolbar();return}
+      tip.style.left=Math.max(8,Math.min(window.innerWidth-tip.offsetWidth-8,r.left))+'px';
+      tip.style.top=Math.max(8,r.top-36)+'px';
+    }catch(e){this.hideSelToolbar()}
+  };
+  place();
+  requestAnimationFrame(place);
+  const onScroll=()=>place();
+  const area=$('#chat-area');
+  if(area)area.addEventListener('scroll',onScroll,{passive:true});
+  window.addEventListener('scroll',onScroll,true);
+  window.addEventListener('resize',onScroll);
+  this._selCleanup=()=>{
+    if(area)area.removeEventListener('scroll',onScroll);
+    window.removeEventListener('scroll',onScroll,true);
+    window.removeEventListener('resize',onScroll);
+  };
   tip.querySelector('[data-act=refer]').onclick=()=>{this.hideSelToolbar();this.setReferQuote(text)};
   tip.querySelector('[data-act=pin]').onclick=()=>{this.hideSelToolbar();this.pinText(text)};
 }
-hideSelToolbar(){const t=document.getElementById('sel-toolbar');if(t)t.remove()}
+hideSelToolbar(){const t=document.getElementById('sel-toolbar');if(t)t.remove();if(this._selCleanup){try{this._selCleanup()}catch(e){}this._selCleanup=null}}
 setReferQuote(text){
   this._referQuote=text;
   let bar=document.getElementById('refer-bar');
@@ -2843,9 +2976,31 @@ setReferQuote(text){
   const cl=document.getElementById('refer-close');if(cl)cl.onclick=()=>{this._referQuote=null;bar.remove()};
 }
 pinText(text){
+  const t=String(text||'').trim();if(!t)return;
   const pins=this.app.storage.get('pins',[])||[];
-  pins.unshift({id:uid(),text,ts:now(),convId:this.app.conversations.currentId});
-  this.app.storage.set('pins',pins.slice(0,40));toast('Pinned','success');
+  if(pins.some(p=>p&&p.text===t)){toast('Already pinned','info');this.renderPins();return}
+  pins.unshift({id:uid(),text:t,ts:now(),convId:this.app.conversations.currentId});
+  this.app.storage.set('pins',pins.slice(0,40));
+  toast('Pinned','success');
+  this.renderPins();
+  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+}
+unpinText(id){
+  const pins=(this.app.storage.get('pins',[])||[]).filter(p=>p&&p.id!==id);
+  this.app.storage.set('pins',pins);
+  this.renderPins();
+  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+}
+renderPins(){
+  const pins=this.app.storage.get('pins',[])||[];
+  const bar=$('#pin-bar');const ind=$('#pin-indicator');const count=$('#pin-count');
+  if(count)count.textContent=String(pins.length);
+  if(ind)ind.style.display=pins.length?'inline-flex':'none';
+  if(!bar)return;
+  if(!pins.length){bar.style.display='none';bar.innerHTML='';return}
+  bar.style.display='flex';
+  bar.innerHTML=pins.map(p=>`<span class="pin-chip" title="${escapeHtml(p.text)}"><span>📌 ${escapeHtml(String(p.text).slice(0,80))}</span><button type="button" class="unpin" data-id="${p.id}" aria-label="Unpin">×</button></span>`).join('');
+  bar.querySelectorAll('.unpin').forEach(btn=>btn.onclick=()=>this.unpinText(btn.dataset.id));
 }
 createAutomation(){
   const name=prompt('Automation name');if(!name)return;
