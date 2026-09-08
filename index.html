@@ -1073,16 +1073,18 @@ class CloudSync{
       const setDoc=await base.collection('settings').doc('app').get();
       if(setDoc.exists){
         const s=setDoc.data()||{};
-        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
+        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
       }
       const remoteAutos=await this.pullAutomations(base);
-      if(remoteAutos&&remoteAutos.length){
-        const local=out.automations||[];
-        const map=new Map();
-        local.forEach(a=>{if(a&&a.id)map.set(String(a.id),a)});
-        remoteAutos.forEach(a=>{if(a&&a.id)map.set(String(a.id),a)});
-        out.automations=[...map.values()];
-      }
+      const deleted=new Set(((out.deletedAutomations)||[]).map(String));
+      const map=new Map();
+      (out.automations||[]).forEach(a=>{if(a&&a.id&&!deleted.has(String(a.id)))map.set(String(a.id),a)});
+      (remoteAutos||[]).forEach(a=>{
+        if(!a||!a.id)return;
+        if(deleted.has(String(a.id)))return;
+        map.set(String(a.id),a);
+      });
+      out.automations=[...map.values()];
       const vfsFiles=await this.pullVfs(base);
       if(vfsFiles&&Object.keys(vfsFiles).length)out.vfs=Object.assign({},out.vfs||{},vfsFiles);
     }catch(e){console.error('[CloudSync] pull',e);throw e}
@@ -1191,6 +1193,7 @@ class CloudSync{
         currentCodeId:s.get('currentCodeId',null),
         profile:s.get('profile',{}),
         siteMockups:s.get('siteMockups',false),
+        deletedAutomations:s.get('deletedAutomations',[]),
         updatedAt:firebase.firestore.FieldValue.serverTimestamp()
       };
       const nowTs=Date.now();
@@ -1285,6 +1288,7 @@ class CloudSync{
     if(!base||!Array.isArray(list))return;
     if(!this._autoHash)this._autoHash={};
     const col=base.collection('automations');
+    const keep=new Set(list.map(a=>a&&a.id).filter(Boolean).map(String));
     for(const a of list){
       if(!a||!a.id)continue;
       const clean=JSON.parse(JSON.stringify(a));
@@ -1294,6 +1298,18 @@ class CloudSync{
         await col.doc(String(a.id)).set(clean);
         this._autoHash[a.id]=sig;
       }catch(e){console.warn('[CloudSync] auto write',a.id,e.message||e)}
+    }
+    try{
+      const snap=await col.get();
+      for(const doc of snap.docs){
+        if(keep.has(String(doc.id)))continue;
+        try{await doc.ref.delete();delete this._autoHash[doc.id]}catch(e){}
+      }
+    }catch(e){console.warn('[CloudSync] auto prune',e.message||e)}
+    const gone=(this._app&&this._app.storage.get('deletedAutomations',[]))||[];
+    for(const id of gone){
+      if(keep.has(String(id)))continue;
+      try{await col.doc(String(id)).delete();delete this._autoHash[id]}catch(e){}
     }
   }
   async pullAutomations(base){
@@ -1333,7 +1349,7 @@ class CloudSync{
       s.set('conversations',[...map.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0)));
     }
     if(data.currentConvId!==undefined&&data.currentConvId)s.set('currentConvId',data.currentConvId);
-    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups'].forEach(k=>{
+    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations'].forEach(k=>{
       if(data[k]===undefined||data[k]===null)return;
       s.set(k,data[k]);
     });
@@ -3627,10 +3643,12 @@ async buildAutomationFromText(){
     });
     const auto={id:uid(),name:data.name||text.slice(0,32),enabled:true,blocks,edges,created:Date.now()};
     const list=this.app.storage.get('automations',[])||[];
-    list.unshift(auto);this.app.storage.set('automations',list);
+    list.unshift(auto);
+    const gone=(this.app.storage.get('deletedAutomations',[])||[]).filter(id=>id!==auto.id);
+    this.app.storage.set('deletedAutomations',gone);
+    this.persistAutomations(list);
     this.renderAutoHub();
     if(log)log.textContent='Created "'+auto.name+'". Opening canvas…';
-    try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
     this.setMode('canvas');this.autoLoadEditor(auto.id);
   }catch(e){if(log)log.textContent='Could not build that: '+(e.message||e)}
 }
@@ -4002,10 +4020,8 @@ autoSaveEditor(){
   const i=list.findIndex(x=>x.id===this._editingAuto.id);
   const copy=JSON.parse(JSON.stringify(this._editingAuto));
   if(i>=0)list[i]=copy;else list.unshift(copy);
-  this.app.storage.set('automations',list);
-  this.renderAutomations();this.autoRefreshSelect();
+  this.persistAutomations(list);
   toast('Automation saved','success');
-  try{if(this.app.cloud){this.app.cloud._settingsHash=null;this.app.cloud.schedulePush(this.app)}}catch(e){}
 }
 
 autoRefreshSelect(){
@@ -4018,22 +4034,45 @@ autoRefreshSelect(){
 autoNew(){
   const a={id:uid(),name:'New automation',enabled:true,blocks:[],edges:[],created:Date.now()};
   const list=this.app.storage.get('automations',[])||[];
-  list.unshift(a);this.app.storage.set('automations',list);
-  this.renderAutomations();this.autoRefreshSelect();this.autoLoadEditor(a.id);
+  list.unshift(a);
+  const gone=(this.app.storage.get('deletedAutomations',[])||[]).filter(id=>id!==a.id);
+  this.app.storage.set('deletedAutomations',gone);
+  this.persistAutomations(list);
+  this.autoLoadEditor(a.id);
 }
 autoDup(){
   const id=$('#auto-select')?.value|| (this._editingAuto&&this._editingAuto.id);if(!id)return;
   const list=this.app.storage.get('automations',[])||[];
   const src=list.find(x=>x.id===id)||this._editingAuto;if(!src)return;
   const copy=JSON.parse(JSON.stringify(src));copy.id=uid();copy.name=(src.name||'Automation')+' copy';
-  list.unshift(copy);this.app.storage.set('automations',list);this.renderAutomations();this.autoRefreshSelect();this.autoLoadEditor(copy.id);
+  list.unshift(copy);this.persistAutomations(list);this.autoLoadEditor(copy.id);
+}
+persistAutomations(list){
+  this.app.storage.set('automations',list||[]);
+  this.renderAutomations();
+  this.renderAutoHub&&this.renderAutoHub();
+  this.autoRefreshSelect&&this.autoRefreshSelect();
+  try{
+    if(this.app.cloud){
+      this.app.cloud._settingsHash=null;
+      if(this.app.cloud.pushNow)this.app.cloud.pushNow(this.app);
+      else this.app.cloud.schedulePush(this.app);
+    }
+  }catch(e){}
+}
+forgetAutomation(id){
+  if(!id)return;
+  const gone=this.app.storage.get('deletedAutomations',[])||[];
+  if(!gone.includes(id)){gone.push(id);this.app.storage.set('deletedAutomations',gone.slice(-80))}
+  const list=(this.app.storage.get('automations',[])||[]).filter(x=>x.id!==id);
+  this.persistAutomations(list);
+  this._editingAuto=null;
+  if(list[0])this.autoLoadEditor(list[0].id);
+  else {const world=$('#auto-world');if(world)world.querySelectorAll('.ablock').forEach(n=>n.remove())}
 }
 autoDelete(){
   const id=$('#auto-select')?.value|| (this._editingAuto&&this._editingAuto.id);if(!id)return;
-  const list=(this.app.storage.get('automations',[])||[]).filter(x=>x.id!==id);
-  this.app.storage.set('automations',list);this.renderAutomations();this.autoRefreshSelect();
-  this._editingAuto=null;
-  if(list[0])this.autoLoadEditor(list[0].id);
+  this.forgetAutomation(id);
 }
 createAutomation(){this.setMode('auto')}
 
@@ -4046,11 +4085,7 @@ renderAutomations(){
     return '<div class="auto-rule"><strong>'+escapeHtml(a.name||'Untitled')+'</strong><div style="opacity:.7;margin-top:4px">'+legacy+'</div><button type="button" data-edit="'+a.id+'" style="margin-top:6px;font-size:.75rem">Edit</button> <button type="button" data-id="'+a.id+'" class="auto-del" style="margin-top:6px;font-size:.75rem">Delete</button></div>';
   }).join('')||'<div style="opacity:.5;padding:8px">No automations yet</div>';
   el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{this.setMode('auto');this.autoLoadEditor(b.dataset.edit)});
-  el.querySelectorAll('.auto-del').forEach(b=>b.onclick=()=>{
-    const list=(this.app.storage.get('automations',[])||[]).filter(x=>x.id!==b.dataset.id);
-    this.app.storage.set('automations',list);this.renderAutomations();
-    try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
-  });
+  el.querySelectorAll('.auto-del').forEach(b=>b.onclick=()=>this.forgetAutomation(b.dataset.id));
 }
 scheduleAutomations(){
   if(this._autoTimer)clearInterval(this._autoTimer);
