@@ -614,8 +614,9 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 <div class="btn-row"><button class="btn-secondary" id="discover-models">Discover Models</button><button class="btn-primary" id="save-api">Save</button></div>
 </div>
 <div id="tab-agent" style="display:none">
-<div class="form-row"><div class="form-group"><label>Max iterations</label><input type="number" id="max-iterations" value="12" min="1" max="40"></div><div class="form-group"><label>Max tool calls</label><input type="number" id="max-tools" value="30" min="1" max="80"></div></div>
-<div class="form-group"><label>Max time (seconds)</label><input type="number" id="max-time" value="180" min="30" max="3600"></div>
+<p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:12px">Run limits are off. The agent keeps going until it gives a final answer or you press Stop.</p>
+<div class="form-row"><div class="form-group"><label>Max iterations (unused)</label><input type="number" id="max-iterations" value="0" min="0"></div><div class="form-group"><label>Max tool calls (unused)</label><input type="number" id="max-tools" value="0" min="0"></div></div>
+<div class="form-group"><label>Max time seconds (unused)</label><input type="number" id="max-time" value="0" min="0"></div>
 <div class="form-group"><label>Force temperature (0.0–1.2, blank = auto by mode)</label>
 <input type="number" id="force-temp" min="0" max="1.2" step="0.05" placeholder="e.g. 0.4">
 <div class="hint">Clamped to 0–1.2. Overrides intensity temperature when set. Code mode ignores iteration/time caps.</div></div>
@@ -1620,7 +1621,7 @@ ${deep}
 ${personality?'Personality:\n'+personality+'\n':''}${pluginInj?'Plugins:\n'+pluginInj+'\n':''}
 User can expand tool cards to see full code and outputs. Finish when the answer is solid unless Deep Think is on.`
 }
-async run(userMessage,history,attachments,onEvent,{deepThink=false}={}){this.running=true;this.abortController=new AbortController();const signal=this.abortController.signal;const maxIter=deepThink?Math.max(this.settings.maxIterations||12,20):(this.settings.maxIterations||12);const maxTools=deepThink?Math.max(this.settings.maxTools||20,40):(this.settings.maxTools||20);const start=Date.now();const maxMs=(this.settings.maxTime||180)*1000;
+async run(userMessage,history,attachments,onEvent,{deepThink=false}={}){this.running=true;this.abortController=new AbortController();const signal=this.abortController.signal;const maxIter=Number.POSITIVE_INFINITY;const maxTools=Number.POSITIVE_INFINITY;const start=Date.now();const maxMs=Number.POSITIVE_INFINITY;
 if(attachments?.length){for(const a of attachments){
   try{
     if(a.content&&!a.dataUrl)this.tools.vfs.write('uploads/'+a.name,a.content,{archiveOld:false});
@@ -1629,11 +1630,11 @@ if(attachments?.length){for(const a of attachments){
 }}
 let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE: prefer paths under code/ for project files. You may use image_search and github_* tools. Link folders as [[folder:code/...]] and HTML as [[preview:code/.../index.html]]. Persist files only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
-const hardMax=(maxIter>=500)?maxIter:Math.min(Math.max(maxIter,1),deepThink?25:20);
-try{while(iteration<hardMax&&this.running){if(Date.now()-start>maxMs){onEvent({type:'status',text:'Time limit reached'});break}
+const hardMax=Number.POSITIVE_INFINITY;
+try{while(iteration<hardMax&&this.running){if(!this.running)break;
 iteration++;
 console.log('[Agent] iteration',iteration,'/',hardMax,'toolCalls so far',toolCalls);
-onEvent({type:'iteration',current:iteration,max:hardMax});onEvent({type:'status',text:`Reasoning cycle ${iteration}/${hardMax}`});
+onEvent({type:'iteration',current:iteration,max:0});onEvent({type:'status',text:`Reasoning cycle ${iteration}`});
 let response;
 const doChat=async(withTools)=>{
   for(let attempt=0;attempt<4;attempt++){
@@ -1718,7 +1719,7 @@ if(hasTools){
     : ('Plan:\n' + toolSummary);
   onEvent({type:'activity',name:deepThink?'Deep thinking':'Planning',status:'done',detail:planText,expand:true});
   for(const tc of assistantMsg.tool_calls){
-    if(toolCalls>=maxTools){onEvent({type:'status',text:'Tool limit reached'});break}
+    if(!this.running)break;
     toolCalls++;
     const name=tc.function.name;
     let args={};
@@ -1773,7 +1774,7 @@ if(finalContent.trim())break;
 // Empty content without tools — avoid infinite empty loops
 if(iteration>=2){finalContent=finalContent||'(Model returned an empty response.)';break}
 }
-if(!finalContent)finalContent='Reached iteration/tool limit without a final answer. Try a more focused request or raise limits in Settings.';
+if(!finalContent)finalContent='Stopped before a final answer. Press Stop to cancel a long run, or send again if the model returned nothing.';
 onEvent({type:'final',content:finalContent});onEvent({type:'status',text:'Ready'});onEvent({type:'done'});return finalContent}
 catch(e){if(e.name==='AbortError'){onEvent({type:'status',text:'Stopped'});onEvent({type:'final',content:finalContent||'*(Stopped)*'});onEvent({type:'done'});return finalContent}
 console.error('[Agent] fatal',e);
@@ -1932,8 +1933,9 @@ async regenerateLast(){
   $('#stop-btn').classList.add('visible');$('#send-btn').style.display='none';$('#send-btn').disabled=true;
   const inten=this.getIntensity();
   const prevSettings={...this.app.agent.settings};
-  this.app.agent.settings.maxIterations=inten.maxIterations;
-  this.app.agent.settings.maxTools=inten.maxTools;
+  this.app.agent.settings.maxIterations=Number.POSITIVE_INFINITY;
+  this.app.agent.settings.maxTools=Number.POSITIVE_INFINITY;
+  this.app.agent.settings.maxTime=Number.POSITIVE_INFINITY;
   this.app.agent.temperature=inten.temperature;
   this.app.agent.intensityExtra=inten.extra;
   try{
@@ -2318,8 +2320,9 @@ const aiMsg={id:uid(),role:'assistant',content:'',activities:[],ts:now()};this.a
 const history=conv.messages.filter(m=>m.id!==aiMsg.id);
 const inten=this.getIntensity();
 const prevSettings={...this.app.agent.settings};
-this.app.agent.settings.maxIterations=!!$('#deep-think-toggle')?.checked?Math.max(inten.maxIterations,20):inten.maxIterations;
-this.app.agent.settings.maxTools=inten.maxTools;
+this.app.agent.settings.maxIterations=Number.POSITIVE_INFINITY;
+this.app.agent.settings.maxTools=Number.POSITIVE_INFINITY;
+this.app.agent.settings.maxTime=Number.POSITIVE_INFINITY;
 this.app.agent.temperature=inten.temperature;
 this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: use tools heavily, verify, and do not stop early.':'');
 try{
@@ -2331,7 +2334,7 @@ finally{
   $('#stop-btn').classList.remove('visible');$('#send-btn').style.display='flex';$('#send-btn').disabled=false;$('#agent-status').textContent='Ready';$('#iteration-info').textContent='';const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();this.app.conversations.persist()
 }}
 handleAgentEvent(ev,aiEl,aiMsg){if(!aiEl||typeof aiEl.querySelector!=='function'){console.error('handleAgentEvent: aiEl is not a DOM node',aiEl);return}if(ev.type==='status')$('#agent-status').textContent=ev.text;
-else if(ev.type==='iteration')$('#iteration-info').textContent=`Cycle ${ev.current}/${ev.max}`;
+else if(ev.type==='iteration')$('#iteration-info').textContent=`Cycle ${ev.current}`;
 else if(ev.type==='activity'){
   const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();
   let root=aiEl.querySelector('.thought-process');
