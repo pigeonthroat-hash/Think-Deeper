@@ -547,6 +547,37 @@ cursor:grab}
 .monaco-host.open{display:flex}
 .monaco-host .mh{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border)}
 .monaco-host .mh-body{flex:1;min-height:0}
+
+.code-shell{display:flex;flex:1;min-height:0;background:var(--bg-primary);color:var(--text-primary)}
+.code-left{width:360px;min-width:280px;max-width:42%;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-sidebar)}
+.code-left-head{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border)}
+.code-left-head select{flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary)}
+.code-empty{padding:22px;color:var(--text-secondary)}
+.code-empty h2{color:var(--text-primary);font-size:1.1rem;margin:0 0 8px}
+.code-right{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg-primary)}
+.code-right-tabs{display:flex;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--bg-secondary)}
+.crt{border:none;background:transparent;color:var(--text-secondary);padding:6px 12px;border-radius:999px;cursor:pointer}
+.crt.active{background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border)}
+.code-right-body{flex:1;min-height:0;position:relative}
+.code-preview-wrap,.code-edit-wrap{position:absolute;inset:0}
+.code-preview-wrap iframe{width:100%;height:100%;border:0;background:#111}
+.code-preview-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);padding:24px;text-align:center}
+.code-edit-wrap{display:flex}
+.code-edit-wrap .code-file-tree{width:200px;border-right:1px solid var(--border);overflow:auto;padding:8px}
+.code-monaco-inline{flex:1;min-width:0}
+.code-skills-drawer{border-top:1px solid var(--border);padding:6px 12px;font-size:.8rem;background:var(--bg-secondary)}
+.code-msg{margin:12px 10px;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--bg-elevated);line-height:1.5}
+.code-msg.user{background:var(--bg-message-user)}
+.code-msg .role{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary);margin-bottom:6px;font-weight:600}
+.tp-agent{display:inline-block;margin-right:6px;padding:1px 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:.65rem}
+.fade-in-right{animation:fadeInRight .2s ease both}
+@keyframes fadeInRight{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+.auto-hub-wrap{flex-direction:column}
+.auto-hub-ai{width:auto;border-left:none;border-top:1px solid var(--border)}
+.auto-hub-chat{display:flex;flex-direction:column;flex:1;min-height:0}
+.auto-hub-log{min-height:220px}
+.auto-hub-card{display:flex;align-items:center;gap:8px}
+.auto-hub-card .tog{margin-left:auto}
 </style>
 </head>
 <body>
@@ -603,61 +634,63 @@ cursor:grab}
 </div></div>
 
 <div id="code-view">
-  <div class="intensity-bar" id="intensity-bar-code">
-<span class="ib-label">Mode</span>
-<button type="button" class="intensity-chip" data-intensity="fast">Fast</button>
-<button type="button" class="intensity-chip active" data-intensity="medium">Medium</button>
-<button type="button" class="intensity-chip" data-intensity="hard">Hard</button>
-<button type="button" class="intensity-chip" data-intensity="ultra">Ultra</button>
-</div>
-<div class="code-toolbar">
-    <strong style="margin-right:auto;font-size:.9rem">Code workspace</strong>
-    <span id="gh-status" class="gh-connected" style="display:none"></span>
-    <button type="button" id="gh-connect-btn">Connect GitHub</button>
-    <input type="hidden" id="gh-token">
-    <input type="hidden" id="gh-owner">
-    <button type="button" id="code-refresh-files">Refresh files</button>
-  </div>
-  <div class="code-layout">
-    <div class="code-sidebar">
-      <h3>Code chats</h3>
-      <div style="padding:0 10px 8px"><button type="button" class="btn-new-project" id="code-new-session">New code chat</button></div>
-      <div class="code-session-list" id="code-session-list"></div>
-      <h3>Project files</h3>
-      <div class="code-file-tree" id="code-file-tree"></div>
-      <h3>Built-in skills</h3>
-      <div class="code-skills-list" id="code-skills-list"></div>
-    </div>
-    <div class="code-main">
+  <div class="code-shell">
+    <aside class="code-left">
+      <div class="code-left-head">
+        <select id="code-session-select"></select>
+        <button type="button" class="icon-soft" id="code-new-session" title="New code chat">+</button>
+      </div>
       <div class="code-messages" id="code-messages">
-        <div id="code-empty" style="color:var(--text-secondary);font-size:.9rem;padding:24px;max-width:560px">
-          <h2 style="color:var(--text-primary);font-size:1.2rem;margin:0 0 8px">Code workspace</h2>
-          <p>Files go under <code>code/</code>. Skills are preloaded (OpenHands-style). Connect a GitHub token to create repos, commit, and enable Pages.</p>
-          <p>Web + image research tools are available in this mode.</p>
+        <div id="code-empty" class="code-empty">
+          <h2>Code workspace</h2>
+          <p>Chat on the left. Preview or edit files on the right. Files live under <code>code/</code>.</p>
         </div>
       </div>
       <div class="code-input-area">
         <div class="input-box">
-          <textarea id="code-user-input" rows="1" placeholder="Describe a coding task…" style="background:transparent"></textarea>
+          <textarea id="code-user-input" rows="1" placeholder="Describe a coding task…"></textarea>
           <div class="input-actions">
             <button type="button" class="deep-think-mini" id="deep-think-mini-code" title="Deep Think">Deep Think</button>
             <div style="position:relative">
               <button type="button" class="mode-mini" id="mode-mini-btn-code"><span id="mode-mini-label-code">Medium</span> <span class="mode-caret">▾</span></button>
               <div class="mode-pop" id="mode-mini-pop-code"></div>
             </div>
-            <button type="button" class="stop-btn-code" id="code-stop-btn" title="Stop">■</button><button class="send-btn" id="code-send-btn" title="Run">▶</button>
+            <button type="button" class="stop-btn-code" id="code-stop-btn" title="Stop">■</button>
+            <button class="send-btn" id="code-send-btn" title="Run">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
           </div>
         </div>
       </div>
-    </div>
+    </aside>
+    <section class="code-right">
+      <div class="code-right-tabs">
+        <button type="button" class="crt active" data-pane="preview" id="code-tab-preview">Preview</button>
+        <button type="button" class="crt" data-pane="code" id="code-tab-code">Code</button>
+        <span id="gh-status" class="gh-connected" style="display:none;margin-left:auto"></span>
+        <button type="button" id="gh-connect-btn">GitHub</button>
+        <input type="hidden" id="gh-token"><input type="hidden" id="gh-owner">
+        <button type="button" id="code-refresh-files">Refresh</button>
+      </div>
+      <div class="code-right-body">
+        <div class="code-preview-wrap" id="code-preview-wrap">
+          <div class="code-preview-empty" id="code-preview-empty">Preview appears here when there is an HTML file.</div>
+          <iframe id="code-preview-frame" title="Preview" sandbox="allow-scripts allow-same-origin"></iframe>
+        </div>
+        <div class="code-edit-wrap" id="code-edit-wrap" style="display:none">
+          <div class="code-file-tree" id="code-file-tree"></div>
+          <div id="code-monaco-inline" class="code-monaco-inline"></div>
+        </div>
+      </div>
+      <details class="code-skills-drawer"><summary>Skills</summary><div class="code-skills-list" id="code-skills-list"></div></details>
+    </section>
   </div>
 </div>
-
 <div id="auto-hub">
   <div class="auto-hub-wrap">
     <div class="auto-hub-main">
-      <h2>Your automations</h2>
-      <p class="hint">Describe what you want. The builder AI will draft blocks. Open any card to edit it on the canvas.</p>
+      <h2>Automations</h2>
+      <p class="hint">Chat with the builder below. Cards stay here — toggle them on or off, or open the canvas.</p>
       <div id="auto-hub-list" class="auto-hub-list"></div>
     </div>
     <div class="auto-hub-ai">
@@ -858,10 +891,10 @@ cursor:grab}
 <script src="./config.local.js" onerror="console.info('[Think Deeper] config.local.js not found — Google login needs Client ID in that file or Settings')"></script>
 <script>
 const INTENSITY={
-  fast:{label:'Fast',maxIterations:4,maxTools:6,temperature:0.3,extra:'Prefer a direct answer. Use tools only if essential. Keep replies short.',ultraSkills:false},
-  medium:{label:'Medium',maxIterations:12,maxTools:20,temperature:0.4,extra:'Balanced reasoning. Use tools when helpful. Verify important claims.',ultraSkills:false},
-  hard:{label:'Hard',maxIterations:18,maxTools:30,temperature:0.35,extra:'Be thorough. Plan, use tools, self-check important conclusions, fix mistakes.',ultraSkills:false},
-  ultra:{label:'Ultra',maxIterations:25,maxTools:40,temperature:0.3,extra:'Maximum rigor. Multi-step tools, exhaustive checks, check_code until clean, self_check, research when needed. Prefer correctness over speed.',ultraSkills:true}
+  fast:{label:'Fast',maxTokens:1500,maxIterations:8,maxTools:10,temperature:0.4,extra:'Short answers. Stay near a 1.5k-token budget. Tools only if needed.',ultraSkills:false,team:false},
+  medium:{label:'Medium',maxTokens:4000,maxIterations:16,maxTools:20,temperature:0.4,extra:'Balanced replies near a 4k-token budget. Use tools when helpful.',ultraSkills:false,team:false},
+  hard:{label:'Hard',maxTokens:8000,maxIterations:24,maxTools:30,temperature:0.4,extra:'Thorough work near an 8k-token budget. Plan, tool, and verify.',ultraSkills:false,team:false},
+  ultra:{label:'Ultra',maxTokens:16000,maxIterations:40,maxTools:48,temperature:0.4,extra:'Long-horizon work near a 16k-token budget. Builder, Reviewer, and Archivist share the job.',ultraSkills:true,team:true}
 };
 const CODE_SKILLS=[{"id": "tdd", "name": "TDD", "description": "Tests first, then implement.", "body": "Red-green-refactor. Small tests. Keep green."}, {"id": "code-review", "name": "Code review", "description": "Correctness, security, clarity.", "body": "Edge cases, errors, secrets, tests."}, {"id": "refactor", "name": "Refactor", "description": "Structure without behavior change.", "body": "Small steps; keep tests green."}, {"id": "debug", "name": "Debug", "description": "Systematic diagnosis.", "body": "Reproduce, isolate, fix, verify."}, {"id": "architecture", "name": "Architecture", "description": "Module boundaries.", "body": "Clear interfaces; avoid cycles."}, {"id": "github-ship", "name": "GitHub ship", "description": "Repo, commit, Pages.", "body": "Use github_* tools; coherent commits."}, {"id": "web-research", "name": "Web research", "description": "web_search + image_search.", "body": "Verify APIs with search; note URLs."}, {"id": "frontend", "name": "Frontend", "description": "Clean UI implementation.", "body": "Semantic HTML, responsive, accessible."}, {"id": "migrate", "name": "Migration", "description": "Upgrades and ports.", "body": "Inventory APIs; incremental migration."}, {"id": "docs", "name": "Docs", "description": "README and guides.", "body": "Setup, run, architecture; concise."}];
 
@@ -1096,6 +1129,7 @@ class CloudSync{
         if(msg.content.length>100000)msg.content=msg.content.slice(0,100000)+'\n…[truncated]';
         if(Array.isArray(m.activities)&&m.activities.length){
           msg.activities=m.activities.slice(0,50).map(a=>({
+            agent:String(a.agent||'').slice(0,24),
             name:String(a.name||'').slice(0,80),
             status:String(a.status||'').slice(0,20),
             detail:String(a.detail||'').slice(0,6000)
@@ -1546,13 +1580,13 @@ normalizeMessages(messages){
     return out;
   });
 }
-async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback}={}){
+async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTokens}={}){
   const base=(useFallback&&this.config.fallbackBaseUrl)?this.config.fallbackBaseUrl:this.config.baseUrl;
   const url=String(base).replace(/\/$/,'')+'/chat/completions';
   const normalized=this.normalizeMessages(messages);
   const useFb=!!useFallback&&this.config.fallbackBaseUrl&&this.config.fallbackModel;
   const activeModel=useFb?(this.config.fallbackModel):(model||this.config.model);
-  const body={model:activeModel,messages:normalized,temperature:temperature!=null?temperature:.4,max_tokens:8192};
+  const body={model:activeModel,messages:normalized,temperature:temperature!=null?temperature:.4,max_tokens:maxTokens||8192};
   if(tools?.length){
     body.tools=tools;
     const choice=toolChoice||this.storage.get('toolChoice','auto')||'auto';
@@ -1967,6 +2001,7 @@ const doChat=async(withTools)=>{
         tools:(withTools&&(this.storage.get('toolChoice','auto')||'auto')!=='none')?this.tools.definitions:undefined,
         signal,
         model:this._pickModel(deepThink),
+        maxTokens:this.maxTokens||INTENSITY[(this.storage.get('intensity','medium')||'medium')].maxTokens||4000,
         toolChoice:(withTools&&(this.storage.get('toolChoice','auto')||'auto')!=='none')?(this.storage.get('toolChoice','auto')||'auto'):undefined,
         temperature:(()=>{const f=this.storage.get('forceTemp',null);if(f!=null&&f!==''&&Number.isFinite(Number(f)))return Math.min(1.2,Math.max(0,Number(f)));return this.temperature!=null?this.temperature:0.4})()
       });
@@ -2044,7 +2079,7 @@ if(hasTools){
   }).join('\n');
   const thought=String(realThought||'').replace(/\r/g,'').replace(/[ \t]+/g,' ').replace(/\n{2,}/g,'\n').trim().slice(0,220);
   const planText=thought? (thought+'\n'+toolSummary) : toolSummary;
-  onEvent({type:'activity',name:deepThink?'Deep thinking':'Planning',status:'done',detail:planText,expand:true});
+  onEvent({type:'activity',name:deepThink?'Deep thinking':'Planning',agent:'Planner',status:'done',detail:planText,expand:true});
   for(const tc of assistantMsg.tool_calls){
     if(!this.running)break;
     toolCalls++;
@@ -2064,7 +2099,7 @@ if(hasTools){
       continue;
     }
     console.log('[Agent] tool call',name,args,'id',tc.id);
-    const actId=onEvent({type:'activity',name:this._activityTitle(name,args),status:'running',detail:name==='write_file'?('Writing '+(args.path||'file')+'…'):this._detailForArgs(name,args),expand:name==='write_file'});
+    const actId=onEvent({type:'activity',name:this._activityTitle(name,args),agent:this._agentFor(name),status:'running',detail:name==='write_file'?('Writing '+(args.path||'file')+'…'):this._detailForArgs(name,args),expand:name==='write_file'});
     let result;
     try{
       if(name==='write_file'){
@@ -2157,6 +2192,13 @@ async _streamWriteFile(args,actId,onEvent){
   onEvent({type:'activity-update',id:actId,status:'running',detail:`Saving ${path}…`,delta:{added:result.added,removed:result.removed},full:content.length>20000?content.slice(0,20000)+'\n…':content,stream:true,expand:true});
   return result;
 }
+_agentFor(name){
+  if(name==='check_code'||name==='self_check')return 'Reviewer';
+  if(name==='read_file'||name==='list_files')return 'Archivist';
+  if(name==='web_search'||name==='image_search')return 'Researcher';
+  if(name==='generate_image'||name==='write_file'||name==='run_python')return 'Builder';
+  return 'Builder';
+}
 _activityTitle(name,args,done=false){
   const icon=name==='write_file'?SVG.write:name==='read_file'?SVG.read:name==='list_files'?SVG.read:name==='run_python'?SVG.code:name==='web_search'||name==='image_search'?SVG.search:name==='check_code'||name==='self_check'?SVG.check:SVG.code;
   let label='Tool';
@@ -2190,7 +2232,7 @@ if(name==='web_search'){const n=(result.results||[]).length;return{detail:result
 return{detail:'Done',full:JSON.stringify(result)}}}
 
 class UIManager{constructor(app){this.app=app;this.pendingAttachments=[];this.activityMap=new Map()}
-init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindSelDismiss();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.createProject();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
+init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindSelDismiss();this.bindScrollLock();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.createProject();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
 initCodeMode(){
   this.mode='chat';this.thoughtRoots=new WeakMap();
   const chatTab=$('#mode-chat'),codeTab=$('#mode-code');
@@ -2219,6 +2261,10 @@ initCodeMode(){
   this.renderCodeFiles();
   this.restoreCodeTranscript();
   const ns=$('#code-new-session');if(ns)ns.onclick=()=>this.newCodeSession();
+  const tp=$('#code-tab-preview'),tc=$('#code-tab-code');
+  if(tp)tp.onclick=()=>this.setCodePane('preview');
+  if(tc)tc.onclick=()=>this.setCodePane('code');
+  this.refreshCodePreview();
 }
 
 
@@ -2270,9 +2316,10 @@ async regenerateLast(){
   this.app.agent.settings.maxTools=Number.POSITIVE_INFINITY;
   this.app.agent.settings.maxTime=Number.POSITIVE_INFINITY;
   this.app.agent.temperature=inten.temperature;
+  this.app.agent.maxTokens=inten.maxTokens||4000;
   this.app.agent.intensityExtra=inten.extra;
   try{
-    await this.app.agent.run(userMsg.content,conv.messages.filter(m=>m.id!==aiMsg.id),userMsg.attachments||[],ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:inten.maxIterations>=18});
+    await this.app.agent.run(userMsg.content,conv.messages.filter(m=>m.id!==aiMsg.id),userMsg.attachments||[],ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!(this.isDeepThink&&this.isDeepThink())||!!inten.team});
   }catch(e){toast(e.message,'error')}
   finally{
     this.app.agent.settings=prevSettings;this.app.agent.intensityExtra='';
@@ -2468,8 +2515,19 @@ saveCodeTranscript(){
     const msgs=[...box.querySelectorAll('.code-msg')].map(el=>{
       const role=el.classList.contains('user')?'user':'assistant';
       const body=el.querySelector('.final-content')||el.querySelector('.message-body')||el;
-      return {role,content:(body.innerText||body.textContent||'').slice(0,20000)};
-    }).filter(m=>m.content&&!/^Running ·/.test(m.content));
+      const tp=el.querySelector('.thought-process');
+      const activities=tp?[...tp.querySelectorAll('.tp-step')].map(st=>({
+        agent:(st.dataset.agent||st.querySelector('.tp-agent')?.textContent||'').trim(),
+        name:(st.querySelector('.tp-step-title')?.innerText||'').trim(),
+        detail:(st.querySelector('.tp-step-body')?.innerText||'').trim().slice(0,8000)
+      })):undefined;
+      return {
+        role,
+        content:(body.innerText||body.textContent||'').slice(0,20000),
+        html:(body.innerHTML||'').slice(0,40000),
+        activities
+      };
+    }).filter(m=>(m.content||m.html)&&!/^Running ·/.test(m.content||''));
     const list=this.codeSessions();
     const cur=this.currentCodeSession();
     cur.messages=msgs.slice(-50);
@@ -2491,27 +2549,36 @@ restoreCodeTranscript(){
   msgs.forEach(m=>{
     const div=document.createElement('div');
     div.className='code-msg '+(m.role==='user'?'user':'agent');
-    div.innerHTML=`<div class="role">${m.role==='user'?'You':'Agent'}</div><div class="message-body">${escapeHtml(m.content||'')}</div>`;
+    const body=m.html&&m.role==='assistant'?m.html:escapeHtml(m.content||'');
+    div.innerHTML=`<div class="role">${m.role==='user'?'You':'Agent'}</div><div class="message-body">${body}</div>`;
     box.appendChild(div);
+    if(m.activities&&m.activities.length)this.hydrateThoughts(div,{activities:m.activities,thinkMs:m.thinkMs});
   });
   this.renderCodeSessions();
 }
 renderCodeSessions(){
-  const el=$('#code-session-list');if(!el)return;
   const list=this.codeSessions().slice().sort((a,b)=>(b.updated||0)-(a.updated||0));
   const cur=this.app.storage.get('currentCodeId',null);
-  el.innerHTML=list.map(s=>`<div class="code-session-item ${s.id===cur?'active':''}" data-id="${s.id}"><span>${escapeHtml(s.title||'Code chat')}</span><button type="button" data-del="${s.id}" title="Delete">×</button></div>`).join('')||'<div style="padding:8px;font-size:.75rem;color:var(--text-tertiary)">No code chats yet</div>';
-  el.querySelectorAll('.code-session-item').forEach(n=>n.onclick=e=>{
-    if(e.target.closest('[data-del]'))return;
-    this.loadCodeSession(n.dataset.id);
-  });
-  el.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{
-    e.stopPropagation();
-    const list=this.codeSessions().filter(s=>s.id!==b.dataset.del);
-    this.app.storage.set('codeSessions',list);
-    if(this.app.storage.get('currentCodeId')===b.dataset.del)this.app.storage.set('currentCodeId',list[0]&&list[0].id||null);
-    this.restoreCodeTranscript();
-  });
+  const sel=$('#code-session-select');
+  if(sel){
+    sel.innerHTML=list.map(s=>`<option value="${s.id}" ${s.id===cur?'selected':''}>${escapeHtml(s.title||'Code chat')}</option>`).join('')||'<option>Code chat</option>';
+    sel.onchange=()=>this.loadCodeSession(sel.value);
+  }
+  const el=$('#code-session-list');
+  if(el){
+    el.innerHTML=list.map(s=>`<div class="code-session-item ${s.id===cur?'active':''}" data-id="${s.id}"><span>${escapeHtml(s.title||'Code chat')}</span><button type="button" data-del="${s.id}" title="Delete">×</button></div>`).join('');
+    el.querySelectorAll('.code-session-item').forEach(n=>n.onclick=e=>{
+      if(e.target.closest('[data-del]'))return;
+      this.loadCodeSession(n.dataset.id);
+    });
+    el.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{
+      e.stopPropagation();
+      const list=this.codeSessions().filter(s=>s.id!==b.dataset.del);
+      this.app.storage.set('codeSessions',list);
+      if(this.app.storage.get('currentCodeId')===b.dataset.del)this.app.storage.set('currentCodeId',list[0]&&list[0].id||null);
+      this.restoreCodeTranscript();
+    });
+  }
 }
 newCodeSession(){
   this.saveCodeTranscript();
@@ -2526,6 +2593,34 @@ loadCodeSession(id){
   this.saveCodeTranscript();
   this.app.storage.set('currentCodeId',id);
   this.restoreCodeTranscript();
+}
+setCodePane(pane){
+  document.querySelectorAll('.crt').forEach(b=>b.classList.toggle('active',b.dataset.pane===pane));
+  const prev=$('#code-preview-wrap'),ed=$('#code-edit-wrap');
+  if(prev)prev.style.display=pane==='preview'?'block':'none';
+  if(ed)ed.style.display=pane==='code'?'flex':'none';
+  if(pane==='preview')this.refreshCodePreview();
+}
+refreshCodePreview(){
+  const frame=$('#code-preview-frame');const empty=$('#code-preview-empty');if(!frame)return;
+  const paths=this.app.vfs.filesInFolder('code')||[];
+  const htmlPath=paths.find(p=>/index\.html$/i.test(p))||paths.find(p=>/\.html$/i.test(p));
+  if(!htmlPath){if(empty)empty.style.display='flex';frame.removeAttribute('srcdoc');return}
+  if(empty)empty.style.display='none';
+  try{
+    let html=this.app.vfs.read(htmlPath);
+    const base=htmlPath.replace(/[^/]+$/,'');
+    html=html.replace(/(src|href)=["'](?!https?:|data:|#)([^"']+)["']/gi,(m,attr,rel)=>{
+      try{
+        const full=rel.startsWith('/')?rel.slice(1):(base+rel);
+        const file=this.app.vfs.read(full.startsWith('code/')?full:('code/'+full.replace(/^code\//,'')));
+        if(/\.css$/i.test(rel))return attr+'="data:text/css;base64,'+btoa(file)+'"';
+        if(/\.js$/i.test(rel))return attr+'="data:text/javascript;base64,'+btoa(unescape(encodeURIComponent(file)))+'"';
+      }catch(e){}
+      return m;
+    });
+    frame.srcdoc=html;
+  }catch(e){frame.removeAttribute('srcdoc')}
 }
 renderCodeFiles(){
   const el=$('#code-file-tree');if(!el)return;
@@ -2593,6 +2688,7 @@ ${text}`;
   this.app.agent.settings.maxTools=999;
   this.app.agent.settings.maxTime=86400;
   this.app.agent.temperature=inten.temperature;
+  this.app.agent.maxTokens=inten.maxTokens||4000;
   this.app.agent.projectCtx=this.projectContext();this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: maximum verification and tools.':'');
   this.app.mode='code';
   this.app.storage.set('appMode','code');
@@ -2602,7 +2698,7 @@ ${text}`;
     const aiMsg={id:uid(),role:'assistant',content:''};
     await this.app.agent.run(codePrompt,[],[],(ev)=>this.handleCodeAgentEvent(ev,aiDiv,aiMsg),{deepThink:true});
   }catch(e){toast(e.message,'error')}
-  finally{this.app.agent.settings=prev;this.app.mode='code';this.renderCodeFiles();this.saveCodeTranscript();try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}const stopBtn=$('#code-stop-btn');const sendBtn=$('#code-send-btn');if(stopBtn)stopBtn.classList.remove('visible');if(sendBtn)sendBtn.style.display='';}
+  finally{this.app.agent.settings=prev;this.app.mode='code';this.renderCodeFiles();this.refreshCodePreview();this.saveCodeTranscript();try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}const stopBtn=$('#code-stop-btn');const sendBtn=$('#code-send-btn');if(stopBtn)stopBtn.classList.remove('visible');if(sendBtn)sendBtn.style.display='';}
 }
 handleCodeAgentEvent(ev,aiEl,aiMsg){
   // Reuse chat handler against code message element
@@ -2768,7 +2864,7 @@ this.app.agent.settings.maxTime=Number.POSITIVE_INFINITY;
 this.app.agent.temperature=inten.temperature;
 this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: use tools heavily, verify, and do not stop early.':'');
 try{
-  await this.app.agent.run(sendText,history,userMsg.attachments,ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!$('#deep-think-toggle')?.checked||inten.maxIterations>=18});
+  await this.app.agent.run(sendText,history,userMsg.attachments,ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!(this.isDeepThink&&this.isDeepThink())||!!inten.team});
   if(aiMsg.content&&(conv.needsAiTitle||conv.messages.filter(m=>m.role==='user').length<=1))this.generateChatTitle(conv.id,text,aiMsg.content);
 }catch(e){toast(e.message,'error');const body=aiEl.querySelector('.message-body');if(body&&!body.querySelector('.final-content')?.textContent.trim())body.innerHTML+=`<p style="color:var(--error)">Error: ${escapeHtml(e.message)}</p>`}
 finally{
@@ -2806,7 +2902,9 @@ else if(ev.type==='activity'){
   const step=document.createElement('div');step.className='tp-step';step.dataset.id=id;
   const title=ev.name||'Step';
   step.innerHTML=`<div class="tp-step-head"><span style="opacity:.6">▸</span> <span class="tp-step-title"></span> <span class="tp-step-status" style="margin-left:auto;opacity:.6">${ev.status==='running'?'…':''}</span></div><div class="tp-step-body"></div>`;
-  step.querySelector('.tp-step-title').innerHTML=title;
+  const agent=ev.agent||'';
+  step.dataset.agent=agent;
+  step.querySelector('.tp-step-title').innerHTML=(agent?('<span class="tp-agent">'+escapeHtml(agent)+'</span> '):'')+title;
   if(ev.detail){
     const b=step.querySelector('.tp-step-body');
     let d=String(ev.detail);
@@ -2834,6 +2932,7 @@ else if(ev.type==='activity-update'){
   const st=step.querySelector('.tp-step-status');
   if(st)st.textContent=ev.status==='done'?'✓':ev.status==='error'?'!':ev.status==='running'?'…':'';
   if(ev.status==='done'){
+    try{this.refreshCodePreview&&this.refreshCodePreview()}catch(e){}
     const t=step.querySelector('.tp-step-title');
     if(t){t.innerHTML=t.innerHTML.replace(/Writing/g,'Wrote').replace(/Reading/g,'Read').replace(/Running/g,'Ran').replace(/Searching/g,'Searched').replace(/Checking/g,'Checked').replace(/Listing/g,'Listed').replace(/Creating/g,'Created').replace(/Committing/g,'Committed').replace(/Thinking/g,'Thought')}
   }
@@ -2914,7 +3013,7 @@ let contentEl=body.querySelector('.final-content');
 if(!contentEl){contentEl=document.createElement('div');contentEl.className='final-content';body.appendChild(contentEl)}let md=ev.content||'';md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>`<span class="file-chip-dl folder-chip" data-folder="${p}"><span>${p.split('/').pop()||p}.zip</span><button type="button" class="dl-btn" aria-label="Download zip">${SVG.dl}</button></span>`);
 md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>`<button type="button" class="preview-chip" data-preview="${p}">${SVG.eye} Preview ${p.split('/').pop()||p}</button>`);
 md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>`<span class="file-chip-dl" data-path="${p}"><span>${p.split('/').pop()}</span><button type="button" class="dl-btn" aria-label="Download">${SVG.dl}</button></span>`);
-contentEl.innerHTML=this.renderMarkdown(md);this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
+this.revealAnswer(contentEl,this.renderMarkdown(md));this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
 contentEl.querySelectorAll('.file-chip-dl').forEach(a=>{
   const go=e=>{e.preventDefault();e.stopPropagation();
     if(a.dataset.folder){this.downloadFolderZip(a.dataset.folder);return}
@@ -2946,13 +3045,26 @@ snapshotThoughts(aiMsg,aiEl){
   try{
     if(!aiMsg||!aiEl)return;
     const root=aiEl.querySelector('.thought-process');if(!root)return;
-    const steps=[...root.querySelectorAll('.tp-step')].map(st=>({
-      name:(st.querySelector('.tp-step-title')?.textContent||'').trim(),
-      status:(st.querySelector('.tp-step-status')?.textContent||'').trim(),
-      detail:(st.querySelector('.tp-step-body')?.innerText||'').trim().slice(0,8000)
-    }));
+    const steps=[...root.querySelectorAll('.tp-step')].map(st=>{
+      const titleEl=st.querySelector('.tp-step-title');
+      const agentEl=titleEl&&titleEl.querySelector('.tp-agent');
+      const agent=st.dataset.agent||(agentEl?agentEl.textContent.trim():'');
+      const raw=(titleEl?titleEl.innerText:'');
+      const name=raw.replace(agent,'').trim();
+      return {
+        agent,
+        name,
+        status:(st.querySelector('.tp-step-status')?.textContent||'').trim(),
+        detail:(st.querySelector('.tp-step-body')?.innerText||'').trim().slice(0,12000)
+      };
+    });
     aiMsg.activities=steps;
     aiMsg.thinkMs=Date.now()-Number(root.dataset.thinkStart||Date.now());
+    const conv=this.app.conversations.get(this.app.conversations.currentId);
+    if(conv){
+      const m=(conv.messages||[]).find(x=>x.id===aiMsg.id);
+      if(m){m.activities=steps;m.thinkMs=aiMsg.thinkMs}
+    }
   }catch(e){}
 }
 hydrateThoughts(div,msg){
@@ -2971,7 +3083,7 @@ hydrateThoughts(div,msg){
     if(/^Planning$/i.test(name))name='Planned';
     if(/^Deep thinking$/i.test(name))name='Deep thought';
     step.innerHTML=`<div class="tp-step-head"><span class="tp-step-title"></span><span class="tp-step-status" style="margin-left:auto;opacity:.6">${escapeHtml(a.status||'')}</span></div><div class="tp-step-body"></div>`;
-    step.querySelector('.tp-step-title').textContent=name;
+    step.querySelector('.tp-step-title').innerHTML=(a.agent?('<span class="tp-agent">'+escapeHtml(a.agent)+'</span> '):'')+escapeHtml(name);
     if(a.detail)step.querySelector('.tp-step-body').textContent=String(a.detail).slice(0,4000);
     panel.appendChild(step);
   });
@@ -3477,8 +3589,15 @@ promptSitePick(args){
 renderAutoHub(){
   const el=$('#auto-hub-list');if(!el)return;
   const list=this.app.storage.get('automations',[])||[];
-  el.innerHTML=list.map(a=>`<div class="auto-hub-card" data-id="${a.id}"><strong>${escapeHtml(a.name||'Untitled')}</strong><div class="hint">${(a.blocks||[]).length} blocks</div></div>`).join('')||'<div class="hint">No automations yet. Describe one on the right.</div>';
+  el.innerHTML=list.map(a=>`<div class="auto-hub-card" data-id="${a.id}"><div><strong>${escapeHtml(a.name||'Untitled')}</strong><div class="hint">${(a.blocks||[]).length} blocks</div></div><label class="tog" onclick="event.stopPropagation()"><input type="checkbox" data-en="${a.id}" ${a.enabled!==false?'checked':''}> On</label></div>`).join('')||'<div class="hint">No automations yet. Describe one below.</div>';
   el.querySelectorAll('.auto-hub-card').forEach(c=>c.onclick=()=>{this.setMode('canvas');this.autoLoadEditor(c.dataset.id)});
+  el.querySelectorAll('[data-en]').forEach(inp=>inp.onchange=e=>{
+    e.stopPropagation();
+    const list=this.app.storage.get('automations',[])||[];
+    const a=list.find(x=>x.id===inp.dataset.en);if(!a)return;
+    a.enabled=inp.checked;this.app.storage.set('automations',list);
+    try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(err){}
+  });
 }
 async buildAutomationFromText(){
   const text=($('#auto-hub-input')?.value||'').trim();
@@ -3486,7 +3605,7 @@ async buildAutomationFromText(){
   const log=$('#auto-hub-log');
   const bad=/\b(malware|steal|password|api key|hack|exploit|ddos|weapon)\b/i;
   if(bad.test(text)){if(log)log.textContent='Blocked: that request is not allowed.';return}
-  if(log)log.textContent='Designing blocks…';
+  if(log)log.innerHTML+='<div class="code-msg user"><div class="role">You</div>'+escapeHtml(text)+'</div><div class="code-msg agent"><div class="role">Builder AI</div>Designing blocks…</div>';
   try{
     const sys='You design safe Think Deeper automations. Reply ONLY JSON: {"name":"...","blocks":[{"type":"onAiReply|onUserSend|onBroadcast|clock|store|broadcast|playAudio|toast|wait|ifContains|define|sendSilent","title":"...","x":80,"y":80,"config":{}}],"edges":[{"from":0,"to":1}]} Use array indexes in edges. Allowed define JS: print,broadcast,store,get,playAudio,toast only. No eval/fetch/document. If the user asks for harm, reply {"error":"blocked"}.';
     const out=await this.app.provider.chat([{role:'system',content:sys},{role:'user',content:text}],{temperature:0.2});
@@ -4100,7 +4219,35 @@ async runSilentAutomation(a){
   }catch(e){console.warn('automation',e)}
 }
 
-scrollToBottom(){const area=$('#chat-area');requestAnimationFrame(()=>{area.scrollTop=area.scrollHeight})}}
+revealAnswer(el,html){
+  if(!el)return;
+  el.innerHTML=html||'';
+  const kids=[...el.children];
+  if(!kids.length){el.classList.add('fade-in-right');return}
+  kids.forEach((n,i)=>{
+    n.classList.add('fade-in-right');
+    n.style.animationDelay=Math.min(i*55,700)+'ms';
+  });
+  this.scrollToBottom();
+}
+bindScrollLock(){
+  if(this._scrollBound)return;this._scrollBound=true;
+  const lock=area=>{
+    if(!area)return;
+    area.addEventListener('scroll',()=>{
+      const gap=area.scrollHeight-area.scrollTop-area.clientHeight;
+      area._stick=gap<80;
+    },{passive:true});
+    area._stick=true;
+  };
+  lock($('#chat-area'));lock($('#code-messages'));
+}
+scrollToBottom(){
+  const areas=[$('#chat-area'),$('#code-messages')].filter(Boolean);
+  requestAnimationFrame(()=>{
+    areas.forEach(area=>{if(area._stick!==false)area.scrollTop=area.scrollHeight});
+  });
+}}
 
 class App{constructor(){this.storage=new StorageManager();this.cloud=new CloudSync();this.cloud.init();this.conversations=new ConversationManager(this.storage);this.provider=new ProviderManager(this.storage);this.vfs=new VirtualFS(this.storage);this.external=new ExternalFS();this.python=new PythonTool();this.tools=new ToolManager(this.vfs,this.external,this.python);this.plugins=new PluginManager(this.storage);
 this.plugins.onSave=(p)=>this.materializePlugin(p);
