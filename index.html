@@ -2441,7 +2441,7 @@ if(!actions){
   const host=aiEl.querySelector('.message-content')||aiEl.querySelector('.message-body')||aiEl;
   host.appendChild(actions);
 }
-const tokEst=Math.max(1,Math.round(String((msg&&msg.content)||'').length/4));
+const tokEst=Math.max(1,Math.round(String((ev&&ev.content)||(aiMsg&&aiMsg.content)||'').length/4));
 actions.innerHTML=`<span class="token-badge">~${tokEst} tokens</span><button type="button" data-act="copy" title="Copy">${SVG.copy}</button><button type="button" data-act="edit" title="Edit">${SVG.edit}</button><button type="button" data-act="branch" title="Branch chat">${SVG.branch}</button><button type="button" data-act="regen" title="Regenerate">↻</button><button type="button" data-act="continue" title="Continue">→</button><button type="button" data-act="delete" title="Delete">${SVG.trash}</button>`;
 actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(ev.content);
 actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(aiMsg.id,aiEl);
