@@ -18,8 +18,8 @@
 <style>
 @font-face{font-family:"Anthropic Serif";src:url("./Anthropic Serif.woff2") format("woff2");font-weight:400 700;font-style:normal;font-display:swap}
 @font-face{font-family:"Anthropic Sans";src:url("./Anthropic Sans.woff2") format("woff2");font-weight:400 700;font-style:normal;font-display:swap}
-:root{--font-display:"Anthropic Serif","Georgia",serif;--font-body:"Anthropic Sans","Inter",system-ui,sans-serif;--bg-primary:#fafafa;--bg-secondary:#f4f4f5;--bg-tertiary:#e4e4e7;--bg-elevated:#fff;--bg-sidebar:#f8f8f9;--bg-input:#fff;--bg-hover:#f0f0f2;--bg-active:#e8e8ec;--bg-message-user:#f0f0f5;--bg-tool:#f7f7f9;--bg-code:#1e1e22;--text-primary:#18181b;--text-secondary:#52525b;--text-tertiary:#71717a;--text-inverse:#fafafa;--accent:#2563eb;--accent-hover:#1d4ed8;--accent-soft:rgba(37,99,235,.12);--accent-muted:#3b82f6;--success:#16a34a;--error:#dc2626;--info:#2563eb;--green-add:#16a34a;--red-del:#dc2626;--border:#e4e4e7;--border-strong:#d4d4d8;--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;--shadow-sm:0 1px 2px rgba(0,0,0,.04);--shadow-md:0 4px 12px rgba(0,0,0,.06);--shadow-lg:0 8px 30px rgba(0,0,0,.08);--sidebar-width:280px;--header-height:56px;--transition:180ms cubic-bezier(.4,0,.2,1)}
-[data-theme=dark]{--bg-primary:#0c0c0e;--bg-secondary:#141416;--bg-tertiary:#1c1c1f;--bg-elevated:#18181b;--bg-sidebar:#111113;--bg-input:#1c1c1f;--bg-hover:#1f1f23;--bg-active:#27272a;--bg-message-user:#1c1c22;--bg-tool:#161618;--bg-code:#0d0d0f;--text-primary:#f4f4f5;--text-secondary:#a1a1aa;--text-tertiary:#71717a;--text-inverse:#18181b;--accent:#3b82f6;--accent-hover:#60a5fa;--accent-soft:rgba(59,130,246,.15);--accent-muted:#60a5fa;--success:#22c55e;--error:#ef4444;--info:#3b82f6;--green-add:#4ade80;--red-del:#f87171;--border:#27272a;--border-strong:#3f3f46}
+:root{--font-display:"Anthropic Serif","Georgia",serif;--font-body:"Anthropic Sans","Inter",system-ui,sans-serif;--bg-primary:#fafafa;--bg-secondary:#f4f4f5;--bg-tertiary:#e4e4e7;--bg-elevated:#fff;--bg-sidebar:#f8f8f9;--bg-input:#fff;--bg-hover:#f0f0f2;--bg-active:#e8e8ec;--bg-message-user:#f0f0f5;--bg-tool:#f7f7f9;--bg-code:#1e1e22;--text-primary:#18181b;--text-secondary:#52525b;--text-tertiary:#71717a;--text-inverse:#fafafa;--accent:#c45c2a;--accent-hover:#a84c22;--accent-soft:rgba(196,92,42,.16);--accent-muted:#e08a4f;--success:#16a34a;--error:#dc2626;--info:#c45c2a;--green-add:#16a34a;--red-del:#dc2626;--border:#e4e4e7;--border-strong:#d4d4d8;--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:18px;--shadow-sm:0 1px 2px rgba(0,0,0,.04);--shadow-md:0 4px 12px rgba(0,0,0,.06);--shadow-lg:0 8px 30px rgba(0,0,0,.08);--sidebar-width:280px;--header-height:56px;--transition:180ms cubic-bezier(.4,0,.2,1)}
+[data-theme=dark]{--bg-primary:#0c0c0e;--bg-secondary:#141416;--bg-tertiary:#1c1c1f;--bg-elevated:#18181b;--bg-sidebar:#111113;--bg-input:#1c1c1f;--bg-hover:#1f1f23;--bg-active:#27272a;--bg-message-user:#1c1c22;--bg-tool:#161618;--bg-code:#0d0d0f;--text-primary:#f4f4f5;--text-secondary:#a1a1aa;--text-tertiary:#71717a;--text-inverse:#18181b;--accent:#e08a4f;--accent-hover:#f0a36a;--accent-soft:rgba(224,138,79,.18);--accent-muted:#f0a36a;--success:#22c55e;--error:#ef4444;--info:#e08a4f;--green-add:#4ade80;--red-del:#f87171;--border:#27272a;--border-strong:#3f3f46}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html{height:100%;font-size:15px}body{height:100%;font-family:var(--font-body);background:var(--bg-primary);color:var(--text-primary);line-height:1.55;-webkit-font-smoothing:antialiased;overflow:hidden}button,input,textarea,select{font-family:inherit;font-size:inherit}button{cursor:pointer;border:none;background:none;color:inherit}a{color:var(--info);text-decoration:none}::selection{background:var(--accent-soft)}
 .app{display:flex;height:100vh;width:100vw}.sidebar{width:var(--sidebar-width);min-width:var(--sidebar-width);background:var(--bg-sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:transform var(--transition),margin var(--transition);z-index:40}.sidebar.collapsed{margin-left:calc(-1*var(--sidebar-width))}.sidebar-header{padding:16px 14px 12px;display:flex;align-items:center;gap:10px}.app-logo{font-family:var(--font-display);font-size:1.35rem;font-weight:500;letter-spacing:-.02em;color:var(--text-primary);flex:1}.icon-btn{width:34px;height:34px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:background var(--transition),color var(--transition)}.icon-btn:hover{background:var(--bg-hover);color:var(--text-primary)}.icon-btn svg{width:18px;height:18px}
 .new-chat-btn{margin:0 12px 12px;padding:10px 14px;border-radius:var(--radius-md);background:var(--bg-elevated);border:1px solid var(--border);display:flex;align-items:center;gap:10px;font-weight:500;color:var(--text-primary);transition:background var(--transition),border-color var(--transition);box-shadow:var(--shadow-sm)}.new-chat-btn:hover{background:var(--bg-hover);border-color:var(--border-strong)}.new-chat-btn svg{width:16px;height:16px;opacity:.7}
@@ -202,7 +202,7 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 .code-skills-list{max-height:180px;overflow:auto;padding:0 10px 12px;font-size:.72rem;color:#9ca3af}
 .code-skills-list label{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border-radius:6px;cursor:pointer}
 .code-skills-list label:hover{background:#151b24}
-.code-skills-list input{accent-color:#3b82f6;margin-top:2px}
+.code-skills-list input{accent-color:var(--accent);margin-top:2px}
 .code-msg{margin:14px 0;padding:12px 14px;border-radius:12px;border:1px solid #1e2630;line-height:1.5}
 .code-msg.user{background:#151b24}
 .code-msg.agent{background:#0f141c}
@@ -222,9 +222,9 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
   display:flex;align-items:flex-end;gap:10px;padding:12px 14px;
   background:var(--bg-elevated)!important;border:1px solid var(--border)!important;border-radius:16px!important;
 }
-.code-input-area .input-box:focus-within{border-color:#3b82f6!important;box-shadow:0 0 0 3px rgba(59,130,246,.18)!important}
-.code-input-area .send-btn{background:#3b82f6;color:#fff;border:none;cursor:pointer}
-.code-input-area .send-btn:hover{background:#2563eb}
+.code-input-area .input-box:focus-within{border-color:var(--accent)!important;box-shadow:0 0 0 3px rgba(59,130,246,.18)!important}
+.code-input-area .send-btn{background:var(--accent);color:#fff;border:none;cursor:pointer}
+.code-input-area .send-btn:hover{background:var(--accent)}
 .code-input-area .stop-btn-code{
   width:36px;height:36px;border-radius:50%;background:#ef4444;color:#fff;border:none;
   display:none;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0
@@ -265,13 +265,13 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 .intensity-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 #code-view .intensity-bar{border-color:#1e2630;background:#0a0e13}
 #code-view .intensity-chip{background:#151b24;border-color:#2a3340;color:#9ca3af}
-#code-view .intensity-chip.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+#code-view .intensity-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .html-preview-frame{
   width:100%;min-height:360px;border:1px solid #2a3340;border-radius:12px;background:#fff;margin-top:8px
 }
 .preview-chip{
   display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;
-  border:1px solid #3b82f6;background:rgba(59,130,246,.12);color:#93c5fd;cursor:pointer;font-size:.82rem;margin:6px 0
+  border:1px solid var(--accent);background:var(--accent-soft);color:#93c5fd;cursor:pointer;font-size:.82rem;margin:6px 0
 }
 
 
@@ -519,6 +519,34 @@ cursor:grab}
 .aport.out{left:50%;bottom:-7px;transform:translateX(-50%)}
 .aport.side{right:-7px;top:50%;transform:translateY(-50%);background:#7c9cff}
 .awires{position:absolute;inset:0;pointer-events:none;overflow:visible}
+
+#auto-hub{display:none;flex:1;flex-direction:column;min-height:0;background:var(--bg-primary)}
+#auto-hub.active{display:flex}
+.auto-hub-wrap{display:flex;flex:1;min-height:0}
+.auto-hub-main{flex:1;padding:22px;overflow:auto}
+.auto-hub-ai{width:320px;border-left:1px solid var(--border);background:var(--bg-sidebar);padding:16px;display:flex;flex-direction:column;gap:8px}
+.auto-hub-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:12px}
+.auto-hub-card{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--bg-elevated);cursor:pointer}
+.auto-hub-card:hover{border-color:var(--accent)}
+.auto-hub-log{flex:1;overflow:auto;font-size:.8rem;color:var(--text-secondary);background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:8px;min-height:120px}
+.auto-hub-ai textarea{width:100%;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);padding:8px}
+.ask-overlay{position:fixed;inset:0;background:rgba(12,10,8,.55);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:120}
+.ask-overlay.open{display:flex}
+.ask-card,.site-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:560px;width:calc(100% - 32px);box-shadow:var(--shadow-lg)}
+.site-card{max-width:980px}
+.ask-options{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.ask-options button{text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-secondary);cursor:pointer;color:var(--text-primary)}
+.ask-options button.picked{border-color:var(--accent);background:var(--accent-soft)}
+.ask-custom input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary)}
+.ask-send{margin-top:12px;width:44px;height:44px;border-radius:12px;border:none;display:inline-flex;align-items:center;justify-content:center}
+.site-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:12px}
+.site-pick{border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;background:var(--bg-secondary)}
+.site-pick iframe{width:200%;height:220px;border:0;transform:scale(.5);transform-origin:top left;pointer-events:none;background:#fff}
+.site-pick .cap{padding:8px;font-size:.78rem}
+.monaco-host{position:fixed;inset:8% 8%;z-index:90;background:var(--bg-elevated);border:1px solid var(--border);border-radius:14px;display:none;flex-direction:column;box-shadow:var(--shadow-lg)}
+.monaco-host.open{display:flex}
+.monaco-host .mh{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border)}
+.monaco-host .mh-body{flex:1;min-height:0}
 </style>
 </head>
 <body>
@@ -538,15 +566,11 @@ cursor:grab}
 <div class="sidebar-section">Conversations</div>
 <div class="conv-search"><input type="search" id="conv-search" placeholder="Search chats & messages…"></div>
 <div class="conv-list" id="conv-list"></div>
-<div class="sidebar-section">Automations</div>
-<div class="automations-panel" id="automations-panel">
-  <button type="button" class="btn-new-project" id="new-auto-btn">Open canvas</button>
-  <div id="auto-list"></div>
-</div>
 <div class="sidebar-footer">
 
 <button id="plugins-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg> Plugins</button>
 <button id="workspace-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> External Workspace</button>
+<button id="automations-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M17.5 14v7M14 17.5h7"/></svg> Automations</button>
 <button id="settings-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
 <button class="icon-btn" id="theme-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> Theme</button>
 </div>
@@ -629,6 +653,21 @@ cursor:grab}
   </div>
 </div>
 
+<div id="auto-hub">
+  <div class="auto-hub-wrap">
+    <div class="auto-hub-main">
+      <h2>Your automations</h2>
+      <p class="hint">Describe what you want. The builder AI will draft blocks. Open any card to edit it on the canvas.</p>
+      <div id="auto-hub-list" class="auto-hub-list"></div>
+    </div>
+    <div class="auto-hub-ai">
+      <h3>Builder AI</h3>
+      <div id="auto-hub-log" class="auto-hub-log"></div>
+      <textarea id="auto-hub-input" rows="3" placeholder="e.g. When the AI replies, store the answer and play a short beep"></textarea>
+      <button type="button" class="btn-primary" id="auto-hub-send">Create automation</button>
+    </div>
+  </div>
+</div>
 <div id="auto-view">
   <div class="auto-topbar">
     <select id="auto-select"></select>
@@ -700,6 +739,10 @@ cursor:grab}
 <div class="form-group"><label>API Key</label><input type="password" id="api-key" placeholder="sk-…"><div class="hint">Stored only if you choose to remember it.</div></div>
 <div class="form-group"><label><input type="checkbox" id="remember-key"> Remember API key</label></div>
 <div class="form-group"><label>Default Model ID</label><input type="text" id="api-model" placeholder="gpt-4o-mini"></div>
+<div class="form-group"><label>Image API Base URL (optional)</label><input type="text" id="image-base" placeholder="Leave blank to use the chat API base"></div>
+<div class="form-group"><label>Image API Key (optional)</label><input type="password" id="image-key" placeholder="Leave blank to use the chat API key"></div>
+<div class="form-group"><label>Image model</label><input type="text" id="image-model" placeholder="dall-e-3 or your image model"></div>
+<div class="form-group"><label><input type="checkbox" id="site-mockups"> When building a website, offer 5 layout previews first</label></div>
 <div class="form-row"><div class="form-group"><label>Organization</label><input type="text" id="api-org"></div><div class="form-group"><label>Project</label><input type="text" id="api-project"></div></div>
 
 <div class="form-group" style="margin-top:16px"><label>Role models (optional — leave blank to use default)</label>
@@ -789,6 +832,25 @@ cursor:grab}
 <div class="auto-canvas" id="auto-canvas"></div>
 <div class="btn-row"><button type="button" class="btn-primary" id="auto-save-full">Save automation</button></div>
 </div></div></div>
+<div class="ask-overlay" id="ask-overlay">
+  <div class="ask-card" id="ask-card">
+    <h3 id="ask-title">Before we continue</h3>
+    <p id="ask-q"></p>
+    <div id="ask-options" class="ask-options"></div>
+    <div class="ask-custom"><input type="text" id="ask-custom" placeholder="Or type your own answer"></div>
+    <button type="button" class="send-btn ask-send" id="ask-send" title="Send">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+    </button>
+  </div>
+</div>
+<div class="ask-overlay" id="site-overlay">
+  <div class="site-card">
+    <h3>Pick a direction</h3>
+    <p class="hint">Five quick layouts. Choose one before the agent continues.</p>
+    <div id="site-grid" class="site-grid"></div>
+  </div>
+</div>
+<div class="monaco-host" id="monaco-host"><div class="mh"><strong id="monaco-title">Editor</strong><button type="button" class="btn-secondary" id="monaco-send-errors">Send errors to AI</button><button type="button" class="icon-btn" id="monaco-close">×</button></div><div class="mh-body" id="monaco-body"></div></div>
 <div class="toast-container" id="toasts"></div>
 <input type="file" id="file-input" multiple accept="image/*,.png,.jpg,.jpeg,.gif,.webp,.txt,.md,.py,.js,.ts,.json,.csv,.html,.css,.pdf" style="display:none">
 
@@ -978,7 +1040,7 @@ class CloudSync{
       const setDoc=await base.collection('settings').doc('app').get();
       if(setDoc.exists){
         const s=setDoc.data()||{};
-        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
+        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
       }
       const remoteAutos=await this.pullAutomations(base);
       if(remoteAutos&&remoteAutos.length){
@@ -1094,6 +1156,7 @@ class CloudSync{
         codeSessions:s.get('codeSessions',[]),
         currentCodeId:s.get('currentCodeId',null),
         profile:s.get('profile',{}),
+        siteMockups:s.get('siteMockups',false),
         updatedAt:firebase.firestore.FieldValue.serverTimestamp()
       };
       const nowTs=Date.now();
@@ -1236,7 +1299,7 @@ class CloudSync{
       s.set('conversations',[...map.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0)));
     }
     if(data.currentConvId!==undefined&&data.currentConvId)s.set('currentConvId',data.currentConvId);
-    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile'].forEach(k=>{
+    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups'].forEach(k=>{
       if(data[k]===undefined||data[k]===null)return;
       s.set(k,data[k]);
     });
@@ -1582,7 +1645,10 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 {type:'function',function:{name:'image_search',description:'Search for images related to a research topic. Returns titles, image URLs, and source pages. Use in Code mode for visual research.',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}},
 {type:'function',function:{name:'github_create_repo',description:'Create a GitHub repository using the configured token. Returns HTML URL and clone info.',parameters:{type:'object',properties:{name:{type:'string'},description:{type:'string'},private:{type:'boolean'},auto_init:{type:'boolean'}},required:['name']}}},
 {type:'function',function:{name:'github_commit_files',description:'Commit files from the code/ workspace folder to a GitHub repo (create blob/tree/commit/ref). paths are relative to code/ or absolute vfs paths under code/.',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},message:{type:'string'},branch:{type:'string'},paths:{type:'array',items:{type:'string'},description:'File paths to include; empty = all under code/'}},required:['owner','repo','message']}}},
-{type:'function',function:{name:'github_enable_pages',description:'Enable GitHub Pages on a repo from a branch folder (e.g. branch main, path / or /docs).',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},branch:{type:'string'},path:{type:'string'}},required:['owner','repo']}}}
+{type:'function',function:{name:'github_enable_pages',description:'Enable GitHub Pages on a repo from a branch folder (e.g. branch main, path / or /docs).',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},branch:{type:'string'},path:{type:'string'}},required:['owner','repo']}}},
+{type:'function',function:{name:'ask_user',description:'Pause and ask the user a clarifying question with 3 suggested answers plus a custom box. Use when you cannot continue safely without a choice. Do not end the task after this; wait for the answer then continue.',parameters:{type:'object',properties:{question:{type:'string'},option1:{type:'string'},option2:{type:'string'},option3:{type:'string'}},required:['question']}}},
+{type:'function',function:{name:'show_site_options',description:'Show 5 small website layout previews for the user to pick before you keep building. Only use when site mockups are enabled and you are creating a website.',parameters:{type:'object',properties:{prompt:{type:'string'},sites:{type:'array',items:{type:'object',properties:{name:{type:'string'},html:{type:'string'}}}}},required:['sites']}}},
+{type:'function',function:{name:'generate_image',description:'Generate an image from a text prompt using the configured image model. Returns a path in the workspace.',parameters:{type:'object',properties:{prompt:{type:'string'},filename:{type:'string'}},required:['prompt']}}}
 ]}
 async execute(name,args){switch(name){
 case'list_files':{const p=args.path||'';if(p.startsWith('external:')||p==='external'){const sub=p.replace(/^external:?/,'')||'';return await this.external.list(sub)}const paths=this.vfs.list(p);return paths.map(path=>({path,lines:this.vfs.files[path]?.lines,updated:this.vfs.files[path]?.updated}))}
@@ -1597,7 +1663,69 @@ case'image_search':return await this.imageSearch(args.query||'');
 case'github_create_repo':return await this.githubCreateRepo(args);
 case'github_commit_files':return await this.githubCommitFiles(args);
 case'github_enable_pages':return await this.githubEnablePages(args);
+case'ask_user':return await this.askUser(args);
+case'show_site_options':return await this.showSiteOptions(args);
+case'generate_image':return await this.generateImage(args);
 default:throw new Error('Unknown tool: '+name)}}
+async askUser(args){
+  const ui=window.__app&&window.__app.ui;
+  if(!ui||!ui.promptAskUser)return{ok:false,error:'No UI'};
+  return await ui.promptAskUser(args||{});
+}
+async showSiteOptions(args){
+  const ui=window.__app&&window.__app.ui;
+  if(!ui||!ui.promptSitePick)return{ok:false,error:'No UI'};
+  const enabled=this.storage.get('siteMockups',false);
+  if(!enabled)return{ok:false,error:'Site mockups are off in Settings'};
+  return await ui.promptSitePick(args||{});
+}
+async generateImage(args){
+  const prompt=String((args&&args.prompt)||'').trim();
+  if(!prompt)return{ok:false,error:'Empty prompt'};
+  const cfg=this.provider.config||{};
+  const base=(cfg.imageBaseUrl||cfg.baseUrl||'').replace(/\/+$/,'');
+  const key=cfg.imageApiKey||cfg.apiKey||'';
+  const model=cfg.imageModel||'dall-e-3';
+  if(!base||!key)return{ok:false,error:'No image API configured'};
+  try{
+    const res=await fetch(base+'/images/generations',{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},
+      body:JSON.stringify({model,prompt,size:'1024x1024',n:1})
+    });
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok)return{ok:false,error:(data.error&&data.error.message)||('HTTP '+res.status)};
+    const item=(data.data&&data.data[0])||{};
+    let content=item.b64_json?('data:image/png;base64,'+item.b64_json):item.url||'';
+    const name=String((args&&args.filename)||('generated/'+Date.now()+'.png'));
+    const path=name.startsWith('generated/')?name:('generated/'+name);
+    if(content)this.vfs.write(path,content,{archiveOld:false});
+    return {ok:!!content,path,url:item.url||null,mime:'image/png'};
+  }catch(e){return{ok:false,error:e.message||String(e)}}
+}
+async checkCode(path){
+  const target=path||'code';
+  const files=target.endsWith('/')||target==='code'?this.vfs.filesInFolder('code'):[target];
+  const errors=[];
+  const monacoErrs=(window.__app&&window.__app.ui&&window.__app.ui.readMonacoErrors)?window.__app.ui.readMonacoErrors():[];
+  monacoErrs.forEach(e=>errors.push('monaco: '+e));
+  for(const pth of files){
+    let src='';
+    try{src=this.vfs.read(pth)}catch(e){continue}
+    if(/\.js$|\.mjs$/.test(pth)){
+      try{new Function(src)}catch(e){errors.push(pth+': '+e.message)}
+    }
+    if(/\.json$/.test(pth)){
+      try{JSON.parse(src)}catch(e){errors.push(pth+': '+e.message)}
+    }
+    if(/\.html$/.test(pth)){
+      const opens=(src.match(/<(div|section|html|body|p|ul|ol)/gi)||[]).length;
+      const closes=(src.match(/<\/(div|section|html|body|p|ul|ol)>/gi)||[]).length;
+      if(opens!==closes)errors.push(pth+': possible unclosed HTML tags');
+    }
+  }
+  return {ok:errors.length===0,path:target,errors};
+}
 async webSearch(query){
   if(!query||!String(query).trim())return{ok:false,error:'Empty search query',results:[]};
   const q=String(query).trim();
@@ -1761,8 +1889,14 @@ DEEP THINK MODE IS ON.
 - If you hit an uncertainty, state it and run a check.
 - Do not stop early with a partial answer.
 `:'';
+const now=new Date();
 return `You are an agentic problem-solving assistant in "Think Deeper".
 Goal: reliable answers via careful thinking, tools, testing, and self-correction.
+Current local time: ${now.toString()}
+Use the local time only when the user asks about time/date or a search needs a current year.
+If you need a decision from the user, call ask_user with a short question and 3 options, then continue after the tool result. Do not end the turn instead of asking.
+If site mockups are enabled and you are building a website, call show_site_options with 5 small HTML layouts first.
+To create an image, call generate_image.
 
 
 FILE CREATION RULES:
@@ -2034,6 +2168,9 @@ _activityTitle(name,args,done=false){
   else if(name==='image_search')label=done?'Searched images':'Searching images';
   else if(name==='check_code')label=done?'Checked code':'Checking code';
   else if(name==='self_check')label=done?'Self-checked':'Self-check';
+  else if(name==='ask_user')label=done?'Asked you':'Asking you';
+  else if(name==='generate_image')label=done?'Generated image':'Generating image';
+  else if(name==='show_site_options')label=done?'Showed layouts':'Showing layouts';
   else if(name==='github_create_repo')label=done?'Created repo':'Creating repo';
   else if(name==='github_commit_files')label=done?'Committed':'Committing';
   else label=done?('Finished '+name):(name);
@@ -2053,7 +2190,7 @@ if(name==='web_search'){const n=(result.results||[]).length;return{detail:result
 return{detail:'Done',full:JSON.stringify(result)}}}
 
 class UIManager{constructor(app){this.app=app;this.pendingAttachments=[];this.activityMap=new Map()}
-init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);const na=$('#new-auto-btn');if(na)na.onclick=()=>this.setMode('auto');this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindSelDismiss();const np=$('#new-project-btn');if(np)np.onclick=()=>this.createProject();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
+init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindSelDismiss();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.createProject();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
 initCodeMode(){
   this.mode='chat';this.thoughtRoots=new WeakMap();
   const chatTab=$('#mode-chat'),codeTab=$('#mode-code');
@@ -2297,17 +2434,19 @@ async generateChatTitle(convId,userText,assistantText){
 setMode(mode){
   this.hideSelToolbar();
   this.mode=mode;this.app.mode=mode;
-  document.querySelectorAll('.mode-tab').forEach(t=>t.classList.toggle('active',t.dataset.mode===mode));
-  const code=$('#code-view'),chat=$('#chat-area'),auto=$('#auto-view');
+  document.querySelectorAll('.mode-tab').forEach(t=>t.classList.toggle('active',t.dataset.mode===mode||(mode==='canvas'&&t.dataset.mode==='auto')));
+  const code=$('#code-view'),chat=$('#chat-area'),auto=$('#auto-view'),hub=$('#auto-hub');
   const inputArea=document.querySelector('.input-area');
   const intensityChat=$('#intensity-bar-chat');
   if(code)code.classList.toggle('active',mode==='code');
-  if(auto)auto.classList.toggle('active',mode==='auto');
+  if(auto)auto.classList.toggle('active',mode==='canvas');
+  if(hub)hub.classList.toggle('active',mode==='auto');
   if(chat)chat.style.display=mode==='chat'?'':'none';
   if(inputArea)inputArea.style.display=mode==='chat'?'':'none';
   if(intensityChat)intensityChat.style.display='none';
   if(mode==='code')this.renderCodeFiles();
-  if(mode==='auto')this.openAutoBuilder();
+  if(mode==='auto')this.renderAutoHub();
+  if(mode==='canvas')this.openAutoBuilder();
 }
 renderCodeSkills(){
   const el=$('#code-skills-list');if(!el)return;
@@ -2393,7 +2532,14 @@ renderCodeFiles(){
   const paths=this.app.vfs.filesInFolder('code');
   if(!paths.length){el.innerHTML='<div style="color:#8b949e;padding:8px">No files in code/ yet</div>';return}
   el.innerHTML=paths.map(p=>`<div class="file" data-path="${escapeHtml(p)}">${SVG.file} ${escapeHtml(p.replace(/^code\//,''))}</div>`).join('');
-  el.querySelectorAll('.file').forEach(n=>n.onclick=()=>{try{alert(this.app.vfs.read(n.dataset.path).slice(0,2000))}catch(e){toast(e.message,'error')}});
+  el.querySelectorAll('.file').forEach(n=>n.onclick=()=>{
+      try{
+        const path=n.dataset.path;const val=this.app.vfs.read(path);
+        const ext=(path.split('.').pop()||'').toLowerCase();
+        const lang={js:'javascript',mjs:'javascript',ts:'typescript',html:'html',css:'css',json:'json',py:'python',md:'markdown'}[ext]||'plaintext';
+        this.openMonaco(path,val,lang);
+      }catch(e){toast(e.message,'error')}
+    });
 }
 async sendCode(){this.ensureAgent();
   const text=($('#code-user-input')?.value||'').trim();
@@ -2473,13 +2619,13 @@ $$('#settings-tabs .tab').forEach(tab=>{tab.onclick=()=>{$$('#settings-tabs .tab
 toggleSidebar(c){const sb=$('#sidebar');if(c){sb.classList.add('collapsed');$('#open-sidebar').style.display='flex'}else{sb.classList.remove('collapsed');sb.classList.add('open');$('#open-sidebar').style.display='none'}}
 applyTheme(t){t=t==='light'?'light':'dark';document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;this.app.storage.set('theme',t);const d=$('#hljs-dark'),l=$('#hljs-light');if(d)d.disabled=t!=='dark';if(l)l.disabled=t==='dark';const btn=$('#theme-btn');if(btn)btn.title=t==='dark'?'Switch to light':'Switch to dark'}
 toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')||'dark';this.applyTheme(cur==='dark'?'light':'dark')}
-openSettings(){this.hideSelToolbar();try{const c=(this.app.provider&&this.app.provider.config)||{};$('#api-base').value=c.baseUrl||'';$('#api-key').value=c.apiKey||'';$('#api-model').value=c.model||'';$('#api-org').value=c.org||'';$('#api-project').value=c.project||'';$('#remember-key').checked=!!c.rememberKey;if($('#fallback-base')){$('#fallback-base').value=c.fallbackBaseUrl||'';$('#fallback-key').value=c.fallbackApiKey||'';$('#fallback-model').value=c.fallbackModel||''}if($('#google-client-id'))$('#google-client-id').value=c.googleClientId||this.app.storage.get('googleClientId','')||'';
+openSettings(){this.hideSelToolbar();try{const c=(this.app.provider&&this.app.provider.config)||{};$('#api-base').value=c.baseUrl||'';$('#api-key').value=c.apiKey||'';$('#api-model').value=c.model||'';if($('#image-base'))$('#image-base').value=c.imageBaseUrl||'';if($('#image-key'))$('#image-key').value=c.imageApiKey||'';if($('#image-model'))$('#image-model').value=c.imageModel||'';if($('#site-mockups'))$('#site-mockups').checked=!!this.app.storage.get('siteMockups',false);$('#api-org').value=c.org||'';$('#api-project').value=c.project||'';$('#remember-key').checked=!!c.rememberKey;if($('#fallback-base')){$('#fallback-base').value=c.fallbackBaseUrl||'';$('#fallback-key').value=c.fallbackApiKey||'';$('#fallback-model').value=c.fallbackModel||''}if($('#google-client-id'))$('#google-client-id').value=c.googleClientId||this.app.storage.get('googleClientId','')||'';
 const roles=this.app.storage.get('modelRoles',{})||{};
 if($('#model-talk')){$('#model-talk').value=roles.talk||'';$('#model-code').value=roles.code||'';$('#model-deep').value=roles.deep||'';$('#plugins-global').checked=this.app.storage.get('pluginsGlobal',true)!==false;}
 const s=this.app.storage.get('agentSettings',{})||{};if($('#max-iterations'))$('#max-iterations').value=(s&&s.maxIterations)||12;if($('#max-tools'))$('#max-tools').value=(s&&s.maxTools)||30;if($('#max-time'))$('#max-time').value=(s&&s.maxTime)||180;if($('#tool-choice'))$('#tool-choice').value=this.app.storage.get('toolChoice','auto')||'auto';const ft=$('#force-temp');if(ft){const v=this.app.storage.get('forceTemp',null);ft.value=v==null||v===''?'':v}$('#personality').value=this.app.storage.get('personality','')||'';$('#thinking-gif').value=this.app.storage.get('thinkingGif','')||'';$('#settings-overlay').classList.add('open')}catch(err){console.warn('[settings]',err);try{$('#settings-overlay').classList.add('open')}catch(e){}}}
 closeSettings(){$('#settings-overlay').classList.remove('open')}
 applyPreset(n){const p={openai:{baseUrl:'https://api.openai.com/v1',model:'gpt-4o-mini'},groq:{baseUrl:'https://api.groq.com/openai/v1',model:'llama-3.3-70b-versatile'},openrouter:{baseUrl:'https://openrouter.ai/api/v1',model:'openai/gpt-4o-mini'},custom:{baseUrl:'',model:''}}[n];if(p){$('#api-base').value=p.baseUrl;$('#api-model').value=p.model}}
-saveApi(){const config={baseUrl:$('#api-base').value.trim(),apiKey:$('#api-key').value.trim(),model:$('#api-model').value.trim(),org:$('#api-org').value.trim(),project:$('#api-project').value.trim(),rememberKey:$('#remember-key').checked,fallbackBaseUrl:$('#fallback-base')?.value.trim()||'',fallbackApiKey:$('#fallback-key')?.value.trim()||'',fallbackModel:$('#fallback-model')?.value.trim()||'',googleClientId:$('#google-client-id')?.value.trim()||''};this.app.provider.save(config);try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch{}this.app.storage.set('googleClientId',config.googleClientId||'');
+saveApi(){const config={baseUrl:$('#api-base').value.trim(),apiKey:$('#api-key').value.trim(),model:$('#api-model').value.trim(),org:$('#api-org').value.trim(),project:$('#api-project').value.trim(),rememberKey:$('#remember-key').checked,fallbackBaseUrl:$('#fallback-base')?.value.trim()||'',fallbackApiKey:$('#fallback-key')?.value.trim()||'',fallbackModel:$('#fallback-model')?.value.trim()||'',googleClientId:$('#google-client-id')?.value.trim()||'',imageBaseUrl:$('#image-base')?.value.trim()||'',imageApiKey:$('#image-key')?.value.trim()||'',imageModel:$('#image-model')?.value.trim()||''};this.app.storage.set('siteMockups',!!$('#site-mockups')?.checked);this.app.provider.save(config);try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch{}this.app.storage.set('googleClientId',config.googleClientId||'');
 const roles={talk:$('#model-talk')?.value.trim()||'',code:$('#model-code')?.value.trim()||'',deep:$('#model-deep')?.value.trim()||''};this.app.storage.set('modelRoles',roles);
 this.app.storage.set('pluginsGlobal',!!$('#plugins-global')?.checked);
 this.renderModelLabel();toast('API settings saved','success');try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}}
@@ -2598,6 +2744,8 @@ let sendText=text;
   const pins=(this.app.storage.get('pins',[])||[]).slice(0,8);
   const pinCtx=pins.length?('\n\nPINNED CONTEXT (use silently; do not repeat this block in the visible answer unless asked):\n'+pins.map(p=>'- '+p.text).join('\n')):'';
   this.app.agent.pinCtx=pinCtx;this.app.agent.userProfileCtx=this.profileCtx();
+  const merr=this.readMonacoErrors?this.readMonacoErrors():[];
+  if(merr.length)sendText+='\n\nEditor diagnostics:\n'+merr.join('\n');
   const savedAtt=this.pendingAttachments.slice().map(a=>{
     try{
       if(a&&a.name&&(a.content||a.dataUrl)){
@@ -2838,6 +2986,15 @@ actions.innerHTML=`<span class="token-badge">~${tokEst} tokens</span><button typ
 renderMarkdown(text){
   if(!text)return '';
   let t=String(text);
+  t=t.replace(/!\[([^\]]*)\]\((generated\/[^)]+)\)/g,(m,alt,path)=>{
+    try{
+      const file=this.app.vfs.read(path);
+      if(file&&String(file).startsWith('data:image'))return '<img alt="'+escapeHtml(alt||'')+'" src="'+file+'" style="max-width:100%;border-radius:12px">';
+      if(/^https?:/.test(file))return '<img alt="'+escapeHtml(alt||'')+'" src="'+escapeHtml(file)+'" style="max-width:100%;border-radius:12px">';
+    }catch(e){}
+    return m;
+  });
+
 
   // --- 1. Protect code fences & inline code ---
   const fences=[];
@@ -3267,6 +3424,126 @@ renderPins(){
     host.appendChild(div);
   });
 }
+
+bindAskUi(){
+  const send=$('#ask-send');if(send)send.onclick=()=>this.finishAsk();
+  const custom=$('#ask-custom');if(custom)custom.addEventListener('keydown',e=>{if(e.key==='Enter')this.finishAsk()});
+  const mc=$('#monaco-close');if(mc)mc.onclick=()=>$('#monaco-host').classList.remove('open');
+  const se=$('#monaco-send-errors');if(se)se.onclick=()=>this.sendMonacoErrors();
+  this.initMonaco();
+}
+promptAskUser(args){
+  return new Promise(resolve=>{
+    this._askResolve=resolve;
+    $('#ask-q').textContent=args.question||'Before we continue, which should it be?';
+    const box=$('#ask-options');box.innerHTML='';
+    [args.option1,args.option2,args.option3].filter(Boolean).forEach(opt=>{
+      const b=document.createElement('button');b.type='button';b.textContent=opt;
+      b.onclick=()=>{box.querySelectorAll('button').forEach(x=>x.classList.remove('picked'));b.classList.add('picked');this._askPicked=opt;};
+      box.appendChild(b);
+    });
+    this._askPicked='';
+    $('#ask-custom').value='';
+    $('#ask-overlay').classList.add('open');
+  });
+}
+finishAsk(){
+  const custom=($('#ask-custom').value||'').trim();
+  const answer=custom||this._askPicked||'';
+  if(!answer){toast('Pick an option or type an answer','error');return}
+  $('#ask-overlay').classList.remove('open');
+  const r=this._askResolve;this._askResolve=null;
+  if(r)r({ok:true,answer});
+}
+promptSitePick(args){
+  return new Promise(resolve=>{
+    const grid=$('#site-grid');grid.innerHTML='';
+    const sites=(args.sites||[]).slice(0,5);
+    if(!sites.length){resolve({ok:false,error:'No sites'});return}
+    sites.forEach((s,i)=>{
+      const wrap=document.createElement('div');wrap.className='site-pick';
+      const iframe=document.createElement('iframe');iframe.sandbox='';iframe.srcdoc=String(s.html||'<p>Empty</p>').slice(0,20000);
+      const cap=document.createElement('div');cap.className='cap';cap.textContent=s.name||('Layout '+(i+1));
+      wrap.appendChild(iframe);wrap.appendChild(cap);
+      wrap.onclick=()=>{
+        $('#site-overlay').classList.remove('open');
+        resolve({ok:true,choice:s.name||('Layout '+(i+1)),html:s.html||''});
+      };
+      grid.appendChild(wrap);
+    });
+    $('#site-overlay').classList.add('open');
+  });
+}
+renderAutoHub(){
+  const el=$('#auto-hub-list');if(!el)return;
+  const list=this.app.storage.get('automations',[])||[];
+  el.innerHTML=list.map(a=>`<div class="auto-hub-card" data-id="${a.id}"><strong>${escapeHtml(a.name||'Untitled')}</strong><div class="hint">${(a.blocks||[]).length} blocks</div></div>`).join('')||'<div class="hint">No automations yet. Describe one on the right.</div>';
+  el.querySelectorAll('.auto-hub-card').forEach(c=>c.onclick=()=>{this.setMode('canvas');this.autoLoadEditor(c.dataset.id)});
+}
+async buildAutomationFromText(){
+  const text=($('#auto-hub-input')?.value||'').trim();
+  if(!text)return;
+  const log=$('#auto-hub-log');
+  const bad=/\b(malware|steal|password|api key|hack|exploit|ddos|weapon)\b/i;
+  if(bad.test(text)){if(log)log.textContent='Blocked: that request is not allowed.';return}
+  if(log)log.textContent='Designing blocks…';
+  try{
+    const sys='You design safe Think Deeper automations. Reply ONLY JSON: {"name":"...","blocks":[{"type":"onAiReply|onUserSend|onBroadcast|clock|store|broadcast|playAudio|toast|wait|ifContains|define|sendSilent","title":"...","x":80,"y":80,"config":{}}],"edges":[{"from":0,"to":1}]} Use array indexes in edges. Allowed define JS: print,broadcast,store,get,playAudio,toast only. No eval/fetch/document. If the user asks for harm, reply {"error":"blocked"}.';
+    const out=await this.app.provider.chat([{role:'system',content:sys},{role:'user',content:text}],{temperature:0.2});
+    const raw=String((out&&out.choices&&out.choices[0]&&out.choices[0].message&&out.choices[0].message.content)||'');
+    const m=raw.match(/\{[\s\S]*\}/);
+    const data=JSON.parse(m?m[0]:raw);
+    if(data.error){if(log)log.textContent='Blocked: '+data.error;return}
+    const types=new Set((this.AUTO_PRESETS||[]).map(p=>p.type));
+    const blocks=[];
+    (data.blocks||[]).forEach((b,i)=>{
+      if(!types.has(b.type))return;
+      if(b.type==='define'&&/\b(eval|Function|fetch|document|window)\b/.test(b.config&&b.config.code||''))return;
+      blocks.push({id:uid(),type:b.type,title:b.title||b.type,tag:b.tag||'action',x:b.x||80,y:(b.y!=null?b.y:80+i*150),config:b.config||{}});
+    });
+    const edges=[];
+    (data.edges||[]).forEach(e=>{
+      const a=blocks[e.from],b=blocks[e.to];
+      if(a&&b)edges.push({id:uid(),from:a.id,to:b.id});
+    });
+    const auto={id:uid(),name:data.name||text.slice(0,32),enabled:true,blocks,edges,created:Date.now()};
+    const list=this.app.storage.get('automations',[])||[];
+    list.unshift(auto);this.app.storage.set('automations',list);
+    this.renderAutoHub();
+    if(log)log.textContent='Created "'+auto.name+'". Opening canvas…';
+    try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+    this.setMode('canvas');this.autoLoadEditor(auto.id);
+  }catch(e){if(log)log.textContent='Could not build that: '+(e.message||e)}
+}
+initMonaco(){
+  if(this._monacoReady||typeof require==='undefined')return;
+  try{
+    require.config({paths:{vs:'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs'}});
+    require(['vs/editor/editor.main'],()=>{this._monacoReady=true;});
+  }catch(e){}
+}
+openMonaco(path,value,lang){
+  const host=$('#monaco-host');const body=$('#monaco-body');if(!host||!body)return;
+  host.classList.add('open');
+  $('#monaco-title').textContent=path||'Editor';
+  const start=()=>{
+    if(this._monaco){this._monaco.setValue(value||'');return}
+    this._monaco=window.monaco.editor.create(body,{value:value||'',language:lang||'javascript',automaticLayout:true,theme:'vs-dark',minimap:{enabled:false}});
+  };
+  if(window.monaco)start();else setTimeout(()=>{if(window.monaco)start();},600);
+}
+sendMonacoErrors(){
+  const errs=this.readMonacoErrors();
+  if(!errs.length){toast('No editor errors','success');return}
+  const box=$('#user-input')||$('#code-user-input');
+  if(box){box.value=(box.value?box.value+'\n':'')+'Editor errors:\n'+errs.join('\n');box.dispatchEvent(new Event('input'))}
+  toast('Errors added to your next message','success');
+}
+readMonacoErrors(){
+  if(!window.monaco||!this._monaco)return [];
+  const model=this._monaco.getModel();if(!model)return [];
+  return window.monaco.editor.getModelMarkers({resource:model.uri}).map(m=>`${m.startLineNumber}:${m.startColumn} ${m.message}`);
+}
 bindSelDismiss(){
   if(this._selDismissBound)return;this._selDismissBound=true;
   document.addEventListener('mousedown',e=>{
@@ -3576,7 +3853,7 @@ autoDrawWires(moveEv){
     if(kind==='out')return {x:(b.x||0)+w/2,y:(b.y||0)+h};
     return {x:(b.x||0)+w/2,y:(b.y||0)};
   };
-  const parts=['<svg xmlns="http://www.w3.org/2000/svg" width="5000" height="5000" class="awires">'];
+  const parts=[];
   for(const e of (this._editingAuto.edges||[])){
     const a=portXY(e.from,'out');const b=portXY(e.to,'in');
     if(!a||!b)continue;
@@ -3592,8 +3869,11 @@ autoDrawWires(moveEv){
       parts.push('<path d="M '+a.x+' '+a.y+' L '+x+' '+y+'" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="5 4"/>');
     }
   }
-  parts.push('</svg>');
-  svg.outerHTML=parts.join('');
+  svg.setAttribute('id','auto-wires');
+  svg.setAttribute('class','awires');
+  svg.setAttribute('width','5000');
+  svg.setAttribute('height','5000');
+  svg.innerHTML=parts.join('');
 }
 autoSaveEditor(){
   if(!this._editingAuto)return;
@@ -3890,5 +4170,6 @@ async _restoreCloudSession(){
 }
 const app=new App();app.start();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
 </body>
 </html>
