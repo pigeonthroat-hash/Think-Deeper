@@ -486,6 +486,33 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 .math-plain{font-family:var(--font-body),Georgia,serif;color:var(--text-primary);font-size:1.02em}
 .math-plain.math-display,.math-display .math-plain{display:block;text-align:center;margin:.75em 0;font-size:1.1em}
 .katex-error{color:var(--text-primary)!important;background:transparent!important}
+
+#auto-view{display:none;flex:1;flex-direction:column;min-height:0;background:var(--bg-primary);color:var(--text-primary)}
+#auto-view.active{display:flex}
+.auto-topbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg-secondary)}
+.auto-topbar input,.auto-topbar select{padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary)}
+.auto-workspace{display:flex;flex:1;min-height:0}
+.auto-rail{width:210px;border-right:1px solid var(--border);background:var(--bg-sidebar);overflow:auto;padding:10px}
+.auto-rail h3{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary);margin:10px 0 6px}
+.auto-rail button{display:block;width:100%;text-align:left;margin:0 0 6px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:.78rem;cursor:grab}
+.auto-rail button:hover{border-color:var(--accent);background:var(--accent-soft)}
+.auto-board{flex:1;position:relative;overflow:hidden;background:
+  radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--border) 80%, transparent) 1px, transparent 0) 0 0/22px 22px,
+  var(--bg-primary);
+cursor:grab}
+.auto-board.panning{cursor:grabbing}
+.auto-world{position:absolute;left:0;top:0;transform-origin:0 0}
+.ablock{position:absolute;width:230px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:10px 10px 12px}
+.ablock.selected{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.ablock .ah{display:flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;cursor:grab}
+.ablock .atag{font-size:.62rem;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.ablock input,.ablock textarea,.ablock select{width:100%;margin-top:6px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:.75rem}
+.ablock textarea{min-height:64px;font-family:ui-monospace,Menlo,monospace}
+.aport{position:absolute;width:12px;height:12px;border-radius:50%;background:var(--accent);border:2px solid var(--bg-elevated);cursor:crosshair;z-index:2}
+.aport.in{left:50%;top:-7px;transform:translateX(-50%)}
+.aport.out{left:50%;bottom:-7px;transform:translateX(-50%)}
+.aport.side{right:-7px;top:50%;transform:translateY(-50%);background:#7c9cff}
+.awires{position:absolute;inset:0;pointer-events:none;overflow:visible}
 </style>
 </head>
 <body>
@@ -496,6 +523,7 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 <div class="mode-tabs" id="mode-tabs">
 <button type="button" class="mode-tab active" data-mode="chat" id="mode-chat">Chat</button>
 <button type="button" class="mode-tab" data-mode="code" id="mode-code">Code</button>
+<button type="button" class="mode-tab" data-mode="auto" id="mode-auto">Automations</button>
 </div>
 <button class="new-chat-btn" id="new-chat-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> New chat</button>
 <div class="sidebar-section">Projects</div>
@@ -506,7 +534,7 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 <div class="conv-list" id="conv-list"></div>
 <div class="sidebar-section">Automations</div>
 <div class="automations-panel" id="automations-panel">
-  <button type="button" class="btn-new-project" id="new-auto-btn">＋ New automation</button>
+  <button type="button" class="btn-new-project" id="new-auto-btn">Open canvas</button>
   <div id="auto-list"></div>
 </div>
 <div class="sidebar-footer">
@@ -592,6 +620,25 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
   </div>
 </div>
 
+<div id="auto-view">
+  <div class="auto-topbar">
+    <select id="auto-select"></select>
+    <input type="text" id="auto-name" placeholder="Automation name" style="min-width:160px">
+    <label style="font-size:.8rem;display:flex;gap:6px;align-items:center"><input type="checkbox" id="auto-enabled" checked> On</label>
+    <button type="button" class="btn-secondary" id="auto-new">New</button>
+    <button type="button" class="btn-secondary" id="auto-dup">Duplicate</button>
+    <button type="button" class="btn-secondary" id="auto-del-full">Delete</button>
+    <button type="button" class="btn-primary" id="auto-save-full">Save</button>
+    <span style="margin-left:auto;font-size:.75rem;color:var(--text-tertiary)">Drag blocks · pull a dot to connect · scroll to zoom</span>
+  </div>
+  <div class="auto-workspace">
+    <aside class="auto-rail" id="auto-rail"></aside>
+    <div class="auto-board" id="auto-board">
+      <svg class="awires" id="auto-wires"></svg>
+      <div class="auto-world" id="auto-world"></div>
+    </div>
+  </div>
+</div>
 <div class="intensity-bar" id="intensity-bar-chat">
 <span class="ib-label">Mode</span>
 <button type="button" class="intensity-chip" data-intensity="fast">Fast</button>
@@ -918,6 +965,14 @@ class CloudSync{
         const s=setDoc.data()||{};
         ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','currentCodeId','profile'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
       }
+      const remoteAutos=await this.pullAutomations(base);
+      if(remoteAutos&&remoteAutos.length){
+        const local=out.automations||[];
+        const map=new Map();
+        local.forEach(a=>{if(a&&a.id)map.set(String(a.id),a)});
+        remoteAutos.forEach(a=>{if(a&&a.id)map.set(String(a.id),a)});
+        out.automations=[...map.values()];
+      }
       const vfsFiles=await this.pullVfs(base);
       if(vfsFiles&&Object.keys(vfsFiles).length)out.vfs=Object.assign({},out.vfs||{},vfsFiles);
     }catch(e){console.error('[CloudSync] pull',e);throw e}
@@ -1064,6 +1119,7 @@ class CloudSync{
         }
       }
       await this.pushVfs(base,vfsObj);
+        await this.pushAutomations(base,s.get('automations',[])||[]);
         this._lastPushAt=Date.now();
       if(written)console.log('[CloudSync] pushed',written,'changed /',ok,'/',convs.length,'conversations');
       if(written||settingsChanged)this.notifyTabs();
@@ -1103,6 +1159,27 @@ class CloudSync{
         this._vfsHash[path]=sig;
       }catch(e){console.warn('[CloudSync] vfs write',path,e.message||e)}
     }
+  }
+  async pushAutomations(base,list){
+    if(!base||!Array.isArray(list))return;
+    if(!this._autoHash)this._autoHash={};
+    const col=base.collection('automations');
+    for(const a of list){
+      if(!a||!a.id)continue;
+      const clean=JSON.parse(JSON.stringify(a));
+      const sig=JSON.stringify(clean);
+      if(this._autoHash[a.id]===sig)continue;
+      try{
+        await col.doc(String(a.id)).set(clean);
+        this._autoHash[a.id]=sig;
+      }catch(e){console.warn('[CloudSync] auto write',a.id,e.message||e)}
+    }
+  }
+  async pullAutomations(base){
+    try{
+      const snap=await base.collection('automations').get();
+      return snap.docs.map(d=>({id:d.id,...(d.data()||{})}));
+    }catch(e){console.warn('[CloudSync] auto pull',e);return []}
   }
   async pullVfs(base){
     try{
@@ -1502,136 +1579,80 @@ async webSearch(query){
   const q=String(query).trim();
   const results=[];
   const errors=[];
-  const fetchText=async(url,ms=14000)=>{
+  const fetchJSON=async(url,ms=12000)=>{
     const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
-    const res=await fetch(url,{signal:ctrl,mode:'cors'});
+    const res=await fetch(url,{signal:ctrl,mode:'cors',headers:{Accept:'application/json'}});
     if(!res.ok)throw new Error('HTTP '+res.status);
-    return await res.text();
+    return await res.json();
   };
-  // 1) Wikipedia OpenSearch (CORS-friendly)
+  const push=(item)=>{
+    if(!item||!item.title)return;
+    const url=item.url||'';
+    if(url&&results.some(r=>r.url===url))return;
+    results.push({title:String(item.title).slice(0,160),snippet:String(item.snippet||'').slice(0,320),url,source:item.source||'web'});
+  };
   try{
-    const wiki='https://en.wikipedia.org/w/api.php?action=opensearch&limit=5&namespace=0&format=json&origin=*&search='+encodeURIComponent(q);
-    const text=await fetchText(wiki,10000);
-    const data=JSON.parse(text);
-    const titles=data[1]||[], descs=data[2]||[], urls=data[3]||[];
-    for(let i=0;i<titles.length;i++)results.push({title:titles[i],snippet:descs[i]||'',url:urls[i]||'',source:'wikipedia'});
-  }catch(e){errors.push('wikipedia: '+(e.message||e))}
-  // 2) DuckDuckGo instant answer via proxies
-  if(results.length<3){
-    const target='https://api.duckduckgo.com/?q='+encodeURIComponent(q)+'&format=json&no_html=1&skip_disambig=1';
-    const proxies=[
-      'https://corsproxy.io/?'+encodeURIComponent(target),
-      'https://api.allorigins.win/raw?url='+encodeURIComponent(target),
-      'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(target)
-    ];
-    for(const url of proxies){
-      try{
-        const text=await fetchText(url,12000);
-        const data=JSON.parse(text);
-        if(data.AbstractText)results.push({title:data.Heading||'Summary',snippet:data.AbstractText,url:data.AbstractURL||'',source:'ddg'});
-        for(const t of (data.RelatedTopics||[]).flatMap(x=>x.Topics?x.Topics:[x]).slice(0,6)){
-          if(t.Text)results.push({title:(t.Text||'').split(' - ')[0].slice(0,90),snippet:t.Text,url:t.FirstURL||'',source:'ddg'});
-        }
-        if(data.Answer)results.push({title:'Answer',snippet:String(data.Answer),url:'',source:'ddg'});
-        if(results.length)break;
-      }catch(e){errors.push('ddg: '+(e.message||e))}
+    const wiki='https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=5&srsearch='+encodeURIComponent(q)+'&format=json&origin=*';
+    const data=await fetchJSON(wiki,10000);
+    for(const hit of (data.query&&data.query.search)||[]){
+      push({title:hit.title,snippet:(hit.snippet||'').replace(/<[^>]+>/g,''),url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(String(hit.title).replace(/ /g,'_')),source:'wikipedia'});
     }
-  }
-  // 3) Wikipedia summary fallback for short queries
+  }catch(e){errors.push('wikipedia: '+(e.message||e))}
+  try{
+    const open='https://en.wikipedia.org/w/api.php?action=opensearch&limit=5&namespace=0&format=json&origin=*&search='+encodeURIComponent(q);
+    const data=await fetchJSON(open,8000);
+    const titles=data[1]||[], descs=data[2]||[], urls=data[3]||[];
+    for(let i=0;i<titles.length;i++)push({title:titles[i],snippet:descs[i]||'',url:urls[i]||'',source:'wikipedia'});
+  }catch(e){errors.push('opensearch: '+(e.message||e))}
+  try{
+    const hn='https://hn.algolia.com/api/v1/search?hitsPerPage=5&query='+encodeURIComponent(q);
+    const data=await fetchJSON(hn,9000);
+    for(const h of data.hits||[]){
+      const url=h.url||('https://news.ycombinator.com/item?id='+h.objectID);
+      push({title:h.title||h.story_title||'HN result',snippet:(h.story_text||h.comment_text||'').replace(/<[^>]+>/g,'').slice(0,240),url,source:'hn'});
+    }
+  }catch(e){errors.push('hn: '+(e.message||e))}
+  try{
+    const gh='https://api.github.com/search/repositories?per_page=4&q='+encodeURIComponent(q);
+    const data=await fetchJSON(gh,9000);
+    for(const r of data.items||[]){
+      push({title:r.full_name,snippet:r.description||'',url:r.html_url,source:'github'});
+    }
+  }catch(e){errors.push('github: '+(e.message||e))}
+  try{
+    const wd='https://www.wikidata.org/w/api.php?action=wbsearchentities&language=en&format=json&origin=*&limit=4&search='+encodeURIComponent(q);
+    const data=await fetchJSON(wd,8000);
+    for(const s of data.search||[]){
+      push({title:s.label||q,snippet:s.description||'',url:s.concepturi||('https://www.wikidata.org/wiki/'+s.id),source:'wikidata'});
+    }
+  }catch(e){errors.push('wikidata: '+(e.message||e))}
   if(!results.length){
     try{
       const slug=encodeURIComponent(q.replace(/ /g,'_'));
-      const sum='https://en.wikipedia.org/api/rest_v1/page/summary/'+slug;
-      const text=await fetchText(sum,10000);
-      const data=JSON.parse(text);
-      if(data.extract)results.push({title:data.title||q,snippet:data.extract,url:data.content_urls?.desktop?.page||'',source:'wikipedia-summary'});
-    }catch(e){errors.push('wiki-sum: '+(e.message||e))}
+      const data=await fetchJSON('https://en.wikipedia.org/api/rest_v1/page/summary/'+slug,8000);
+      if(data.extract)push({title:data.title||q,snippet:data.extract,url:(data.content_urls&&data.content_urls.desktop&&data.content_urls.desktop.page)||'',source:'wikipedia'});
+    }catch(e){errors.push('summary: '+(e.message||e))}
   }
-  if(!results.length)return{ok:false,error:'No search results ('+errors.slice(0,3).join('; ')+'). Proceed with known knowledge and mark uncertainty.',query:q,results:[],errors};
-  // de-dupe by url/title
-  const seen=new Set();const unique=[];
-  for(const r of results){
-    const k=(r.url||r.title||'').toLowerCase();
-    if(seen.has(k))continue;seen.add(k);unique.push(r);
-  }
-  return{ok:true,query:q,results:unique.slice(0,10)};
+  return {ok:results.length>0,query:q,results:results.slice(0,12),errors:errors.slice(0,6)};
 }
-
-async checkCode(path){
-  const folder=(path&&String(path).trim())?String(path).trim():'code';
-  let paths=[];
-  try{
-    if(this.vfs.files[folder])paths=[folder];
-    else {
-      const base=folder.startsWith('code')?folder:('code/'+folder.replace(/^\/+/,''));
-      paths=this.vfs.filesInFolder(base);
-      if(!paths.length)paths=this.vfs.filesInFolder('code');
-    }
-  }catch(e){return{ok:false,errors:[{file:folder,message:e.message}]}}
-  if(!paths.length)return{ok:false,errors:[{file:'code/',message:'No files found. Write files under code/ first.'}]};
-  const errors=[];const checked=[];
-  for(const p of paths){
-    let content;try{content=this.vfs.read(p)}catch(e){errors.push({file:p,message:e.message});continue}
-    const lower=p.toLowerCase();checked.push(p);
-    if(/\.jsx?$|\.mjs$|\.cjs$/.test(lower)){
-      try{new Function('"use strict";\n'+content)}catch(e){errors.push({file:p,kind:'js-syntax',message:e.message})}
-    } else if(/\.tsx?$/.test(lower)){
-      try{
-        let code=content.replace(/^\s*import\s+type\s .+?;$/gm,'');
-        new Function('"use strict";\n'+code);
-      }catch(e){errors.push({file:p,kind:'ts-rough-syntax',message:e.message+' (rough TS strip check)'})}
-    } else if(/\.py$/.test(lower)){
-      try{
-        await this.python.init();
-        const src=JSON.stringify(content);
-        const fname=JSON.stringify(p);
-        const r=await this.python.run('compile('+src+', '+fname+', "exec")\n"ok"');
-        if(r&&r.ok===false)errors.push({file:p,kind:'python',message:r.error||'compile failed'});
-        else if(r&&r.stderr)errors.push({file:p,kind:'python',message:r.stderr});
-      }catch(e){errors.push({file:p,kind:'python',message:e.message})}
-    } else if(/\.html?$/.test(lower)){
-      const scripts=[...content.matchAll(/<script(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi)];
-      for(const m of scripts){
-        try{if(m[1].trim())new Function(m[1])}catch(e){errors.push({file:p,kind:'html-script',message:e.message})}
-      }
-    } else if(/\.json$/.test(lower)){
-      try{JSON.parse(content)}catch(e){errors.push({file:p,kind:'json',message:e.message})}
-    }
-  }
-  return{ok:errors.length===0,checked,errors,summary:errors.length?`${errors.length} error(s) across ${checked.length} file(s)`:`All ${checked.length} file(s) passed checks`};
-}
-
 async imageSearch(query){
   if(!query||!String(query).trim())return{ok:false,error:'Empty image query',results:[]};
   const q=String(query).trim();
-  const target='https://api.duckduckgo.com/?q='+encodeURIComponent(q+' images')+'&format=json&no_html=1';
-  const proxies=[
-    'https://api.allorigins.win/raw?url='+encodeURIComponent(target),
-    'https://corsproxy.io/?'+encodeURIComponent(target),
-    'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(target)
-  ];
-  let data=null,lastErr='';
-  for(const url of proxies){
-    try{
-      const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(12000):undefined;
-      const res=await fetch(url,{signal:ctrl,mode:'cors'});
-      if(!res.ok)throw new Error('HTTP '+res.status);
-      data=JSON.parse(await res.text());
-      break;
-    }catch(e){lastErr=(e&&e.message)||String(e)}
+  try{
+    const url='https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrlimit=8&gsrnamespace=6&gsrsearch='+encodeURIComponent(q)+'&prop=imageinfo&iiprop=url|mime|size';
+    const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(12000):undefined;
+    const res=await fetch(url,{signal:ctrl,mode:'cors'});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const pages=(data.query&&data.query.pages)||{};
+    const results=Object.values(pages).map(p=>{
+      const info=(p.imageinfo&&p.imageinfo[0])||{};
+      return {title:p.title||q,url:info.url||'',thumb:info.url||'',source:'commons'};
+    }).filter(r=>r.url);
+    return {ok:results.length>0,query:q,results};
+  }catch(e){
+    return {ok:false,query:q,results:[],error:e.message||String(e)};
   }
-  if(!data)return{ok:false,error:'Image search fetch failed ('+lastErr+'). Describe visuals from knowledge instead.',query:q,results:[]};
-  const results=[];
-  if(data.Image)results.push({title:data.Heading||q,image:data.Image,url:data.AbstractURL||'',source:'ddg'});
-  for(const t of (data.RelatedTopics||[]).flatMap(x=>x.Topics?x.Topics:[x]).slice(0,8)){
-    if(t.Icon&&t.Icon.URL)results.push({title:(t.Text||'').slice(0,80),image:t.Icon.URL.startsWith('http')?t.Icon.URL:'https://duckduckgo.com'+t.Icon.URL,url:t.FirstURL||''});
-  }
-  return{ok:true,query:q,results:results.slice(0,10)};
-}
-_ghHeaders(){
-  const t=this.githubToken||(window.__app&&window.__app.storage.get('githubToken',''))||'';
-  if(!t)throw new Error('GitHub token not set. Save a token in Code workspace toolbar.');
-  return{Authorization:'Bearer '+t,'Accept':'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'};
 }
 async githubCreateRepo(args){
   const body={name:args.name,description:args.description||'',private:!!args.private,auto_init:args.auto_init!==false};
@@ -1856,12 +1877,15 @@ if(hasTools){
   const realThought=(assistantMsg.content||'').trim();
   const toolSummary=assistantMsg.tool_calls.map((t,i)=>{
     let a={};try{a=JSON.parse(t.function.arguments||'{}')}catch{}
-    const argHint=t.function.name==='run_python'?(a.code||'').slice(0,120):t.function.name==='read_file'||t.function.name==='write_file'?(a.path||''):t.function.name==='web_search'?(a.query||''):JSON.stringify(a).slice(0,100);
-    return (i+1)+'. '+t.function.name+(argHint?': '+argHint:'');
+    let hint='';
+    if(t.function.name==='run_python')hint='Python';
+    else if(t.function.name==='read_file'||t.function.name==='write_file')hint=String(a.path||'').slice(0,60);
+    else if(t.function.name==='web_search'||t.function.name==='image_search')hint=String(a.query||'').slice(0,60);
+    else hint='';
+    return (i+1)+'. '+t.function.name+(hint?' · '+hint:'');
   }).join('\n');
-  const planText=realThought
-    ? (realThought + '\n\n— Tools —\n' + toolSummary)
-    : ('Plan:\n' + toolSummary);
+  const thought=String(realThought||'').replace(/\r/g,'').replace(/[ \t]+/g,' ').replace(/\n{2,}/g,'\n').trim().slice(0,220);
+  const planText=thought? (thought+'\n'+toolSummary) : toolSummary;
   onEvent({type:'activity',name:deepThink?'Deep thinking':'Planning',status:'done',detail:planText,expand:true});
   for(const tc of assistantMsg.tool_calls){
     if(!this.running)break;
@@ -2005,12 +2029,13 @@ if(name==='web_search'){const n=(result.results||[]).length;return{detail:result
 return{detail:'Done',full:JSON.stringify(result)}}}
 
 class UIManager{constructor(app){this.app=app;this.pendingAttachments=[];this.activityMap=new Map()}
-init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);const na=$('#new-auto-btn');if(na)na.onclick=()=>this.openAutoBuilder();this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindSelDismiss();const np=$('#new-project-btn');if(np)np.onclick=()=>this.createProject();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
+init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);const na=$('#new-auto-btn');if(na)na.onclick=()=>this.setMode('auto');this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindSelDismiss();const np=$('#new-project-btn');if(np)np.onclick=()=>this.createProject();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
 initCodeMode(){
   this.mode='chat';this.thoughtRoots=new WeakMap();
   const chatTab=$('#mode-chat'),codeTab=$('#mode-code');
   if(chatTab)chatTab.onclick=()=>this.setMode('chat');
   if(codeTab)codeTab.onclick=()=>this.setMode('code');
+  const autoTab=$('#mode-auto');if(autoTab)autoTab.onclick=()=>this.setMode('auto');
   const gh=$('#gh-token');if(gh)gh.value=this.app.storage.get('githubToken','')||'';
   const own=$('#gh-owner');if(own)own.value=this.app.storage.get('githubOwner','')||'';
   const save=$('#gh-save-token');
@@ -2234,19 +2259,16 @@ setMode(mode){
   this.hideSelToolbar();
   this.mode=mode;this.app.mode=mode;
   document.querySelectorAll('.mode-tab').forEach(t=>t.classList.toggle('active',t.dataset.mode===mode));
-  const code=$('#code-view'),chat=$('#chat-area'),input=$('#chat-area')?.parentElement?.querySelector('.input-area');
-  // hide standard input in code mode
+  const code=$('#code-view'),chat=$('#chat-area'),auto=$('#auto-view');
   const inputArea=document.querySelector('.input-area');
-  if(mode==='code'){
-    if(code)code.classList.add('active');
-    if(chat)chat.style.display='none';
-    if(inputArea)inputArea.style.display='none';
-    this.renderCodeFiles();
-  } else {
-    if(code)code.classList.remove('active');
-    if(chat)chat.style.display='';
-    if(inputArea)inputArea.style.display='';
-  }
+  const intensityChat=$('#intensity-bar-chat');
+  if(code)code.classList.toggle('active',mode==='code');
+  if(auto)auto.classList.toggle('active',mode==='auto');
+  if(chat)chat.style.display=mode==='chat'?'':'none';
+  if(inputArea)inputArea.style.display=mode==='chat'?'':'none';
+  if(intensityChat)intensityChat.style.display='none';
+  if(mode==='code')this.renderCodeFiles();
+  if(mode==='auto')this.openAutoBuilder();
 }
 renderCodeSkills(){
   const el=$('#code-skills-list');if(!el)return;
@@ -2548,7 +2570,13 @@ else if(ev.type==='activity'){
   step.querySelector('.tp-step-title').innerHTML=title;
   if(ev.detail){
     const b=step.querySelector('.tp-step-body');
-    try{b.innerHTML=this.renderMarkdown(String(ev.detail).slice(0,8000))}catch{b.textContent=ev.detail}
+    let d=String(ev.detail);
+    if(/plan|think/i.test(ev.name||'')){
+      d=d.replace(/\r/g,'').replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n').trim().slice(0,320);
+      b.textContent=d;
+    }else{
+      try{b.innerHTML=this.renderMarkdown(d.slice(0,4000))}catch{b.textContent=d.slice(0,4000)}
+    }
   }
   if(/Writing File|Runtime check/i.test(ev.name||'')){step.classList.add('open');const ch=step.querySelector('.tp-step-head span');if(ch)ch.textContent='\u25BE'}
   step.querySelector('.tp-step-head').onclick=(e)=>{e.stopPropagation();step.classList.toggle('open');step.querySelector('.tp-step-head span').textContent=step.classList.contains('open')?'▾':'▸'};
@@ -3202,38 +3230,244 @@ bindAutoBuilder(){
     {type:'clock',tag:'trigger',title:'At time',fields:[['time','Time HH:MM','17:00'],['days','Days','mon,tue,wed,thu,fri']]},
     {type:'onUserSend',tag:'trigger',title:'When you send',fields:[]},
     {type:'onAiReply',tag:'trigger',title:'When AI replies',fields:[]},
-    {type:'onBroadcast',tag:'trigger',title:'When receive broadcast',fields:[['event','Event name','AI talked']]},
+    {type:'onBroadcast',tag:'trigger',title:'When receive',fields:[['event','Broadcast name','AI talked']]},
     {type:'onNewChat',tag:'trigger',title:'When new chat',fields:[]},
-    {type:'sendSilent',tag:'action',title:'Ask AI (silent)',fields:[['prompt','Prompt','Summarize the last reply']]},
-    {type:'broadcast',tag:'action',title:'Broadcast',fields:[['event','Event name','AI talked']]},
+    {type:'sendSilent',tag:'action',title:'Ask AI',fields:[['prompt','Prompt','Summarize the last reply']]},
+    {type:'broadcast',tag:'action',title:'Send broadcast',fields:[['event','Broadcast name','AI talked']]},
     {type:'store',tag:'action',title:'Store value',fields:[['key','Key','lastAi'],['from','From lastAi|lastUser|text','lastAi'],['text','Custom text','']]},
     {type:'playAudio',tag:'action',title:'Play audio',fields:[['url','HTTPS audio URL',''],['vol','Volume 0-1','0.5']]},
     {type:'toast',tag:'action',title:'Notify',fields:[['text','Message','Done']]},
-    {type:'wait',tag:'action',title:'Wait',fields:[['ms','Milliseconds','1000']]},
-    {type:'ifContains',tag:'logic',title:'If text contains',fields:[['needle','Contains',''],['source','Source lastAi|lastUser','lastAi']]},
-    {type:'define',tag:'define',title:'Define (safe JS)',fields:[['code','Code','const greeting = "hello"\nprint(greeting)']]}
+    {type:'wait',tag:'action',title:'Wait',fields:[['ms','Milliseconds','400']]},
+    {type:'ifContains',tag:'logic',title:'If contains',fields:[['needle','Contains',''],['source','lastAi or lastUser','lastAi']]},
+    {type:'define',tag:'define',title:'Define (safe JS)',fields:[['code','Code','const greeting = "hello"\nprint(greeting)\nbroadcast("greeted")']]}
   ];
-  const ov=$('#auto-builder-overlay');
-  const cl=$('#close-auto-builder');if(cl)cl.onclick=()=>ov&&ov.classList.remove('open');
-  if(ov)ov.onclick=e=>{if(e.target===ov)ov.classList.remove('open')};
+  this.AUTO_TEMPLATES=[
+    {name:'AI reply → store → shout',build:()=>this.autoTemplateReplyBroadcast()},
+    {name:'Hear shout → play sound',build:()=>this.autoTemplateSound()},
+    {name:'Daily 9am ask',build:()=>this.autoTemplateClock()},
+    {name:'If error in reply',build:()=>this.autoTemplateIfError()}
+  ];
+  this._cam={x:40,y:40,s:1};
+  this._wireDrag=null;
+  const rail=$('#auto-rail');
+  if(rail){
+    rail.innerHTML='<h3>Triggers</h3>'+this.AUTO_PRESETS.filter(p=>p.tag==='trigger').map(p=>`<button type="button" data-type="${p.type}">${p.title}</button>`).join('')+
+      '<h3>Actions</h3>'+this.AUTO_PRESETS.filter(p=>p.tag==='action').map(p=>`<button type="button" data-type="${p.type}">${p.title}</button>`).join('')+
+      '<h3>Logic</h3>'+this.AUTO_PRESETS.filter(p=>p.tag!=='trigger'&&p.tag!=='action').map(p=>`<button type="button" data-type="${p.type}">${p.title}</button>`).join('')+
+      '<h3>Templates</h3>'+this.AUTO_TEMPLATES.map((t,i)=>`<button type="button" data-tpl="${i}">${t.name}</button>`).join('');
+    rail.querySelectorAll('[data-type]').forEach(b=>b.onclick=()=>this.autoAddBlock(b.dataset.type));
+    rail.querySelectorAll('[data-tpl]').forEach(b=>b.onclick=()=>this.AUTO_TEMPLATES[Number(b.dataset.tpl)].build());
+  }
+  const ov=$('#auto-builder-overlay');if(ov)ov.style.display='none';
+  const cl=$('#close-auto-builder');if(cl)cl.onclick=()=>this.setMode('chat');
   const neu=$('#auto-new');if(neu)neu.onclick=()=>this.autoNew();
   const dup=$('#auto-dup');if(dup)dup.onclick=()=>this.autoDup();
   const del=$('#auto-del-full');if(del)del.onclick=()=>this.autoDelete();
   const sv=$('#auto-save-full');if(sv)sv.onclick=()=>this.autoSaveEditor();
   const sel=$('#auto-select');if(sel)sel.onchange=()=>this.autoLoadEditor(sel.value);
-  const pal=$('#auto-palette');
-  if(pal){
-    pal.innerHTML=this.AUTO_PRESETS.map(p=>`<button type="button" data-type="${p.type}">${p.title}</button>`).join('');
-    pal.querySelectorAll('button').forEach(b=>b.onclick=()=>this.autoAddBlock(b.dataset.type));
+  const board=$('#auto-board');
+  if(board&&!board._bound){
+    board._bound=true;
+    board.addEventListener('wheel',e=>{
+      e.preventDefault();
+      const s=this._cam.s;
+      const next=Math.min(1.8,Math.max(0.45,s*(e.deltaY<0?1.08:0.92)));
+      this._cam.s=next;this.autoApplyCam();
+    },{passive:false});
+    board.addEventListener('pointerdown',e=>{
+      if(e.target.closest('.ablock')||e.target.closest('.aport'))return;
+      this._pan={x:e.clientX-this._cam.x,y:e.clientY-this._cam.y};
+      board.classList.add('panning');
+    });
+    window.addEventListener('pointermove',e=>{
+      if(this._pan){this._cam.x=e.clientX-this._pan.x;this._cam.y=e.clientY-this._pan.y;this.autoApplyCam();return}
+      if(this._wireDrag){this.autoDrawWires(e);}
+    });
+    window.addEventListener('pointerup',e=>{
+      board.classList.remove('panning');this._pan=null;
+      if(this._wireDrag){
+        const hit=document.elementFromPoint(e.clientX,e.clientY);
+        const port=hit&&hit.closest&&hit.closest('.aport.in');
+        if(port){
+          const to=port.dataset.bid;
+          const from=this._wireDrag.from;
+          if(to&&from&&to!==from){
+            this._editingAuto.edges=this._editingAuto.edges||[];
+            if(!this._editingAuto.edges.some(x=>x.from===from&&x.to===to)){
+              this._editingAuto.edges.push({id:uid(),from,to,fromPort:this._wireDrag.port||'out',toPort:'in'});
+            }
+          }
+        }
+        this._wireDrag=null;this.autoDrawWires();
+      }
+    });
   }
+}
+autoApplyCam(){
+  const w=$('#auto-world');const svg=$('#auto-wires');
+  const t=`translate(${this._cam.x}px,${this._cam.y}px) scale(${this._cam.s})`;
+  if(w)w.style.transform=t;
+  if(svg)svg.style.transform=t;
 }
 openAutoBuilder(){
   this.hideSelToolbar();
   this.autoRefreshSelect();
   const list=this.app.storage.get('automations',[])||[];
-  if(list[0])this.autoLoadEditor(list[0].id);else this.autoNew();
-  $('#auto-builder-overlay').classList.add('open');
+  if(this._editingAuto)this.autoLoadEditor(this._editingAuto.id);
+  else if(list[0])this.autoLoadEditor(list[0].id);
+  else this.autoNew();
 }
+autoAddBlock(type,x,y){
+  const preset=(this.AUTO_PRESETS||[]).find(p=>p.type===type);if(!preset)return null;
+  if(!this._editingAuto)this.autoNew();
+  const config={};preset.fields.forEach(f=>config[f[0]]=f[2]);
+  const n=(this._editingAuto.blocks||[]).length;
+  const b={id:uid(),type,title:preset.title,tag:preset.tag,x:x??(80+(n%4)*260),y:y??(60+Math.floor(n/4)*160),config};
+  this._editingAuto.blocks=this._editingAuto.blocks||[];
+  this._editingAuto.blocks.push(b);
+  this.autoRenderCanvas();
+  return b;
+}
+autoTemplateReplyBroadcast(){
+  this.autoNew();this._editingAuto.name='When AI talks';
+  const a=this.autoAddBlock('onAiReply',80,80);
+  const s=this.autoAddBlock('store',80,240);s.config.key='lastAi';s.config.from='lastAi';
+  const b=this.autoAddBlock('broadcast',80,400);b.config.event='AI talked';
+  this._editingAuto.edges=[{id:uid(),from:a.id,to:s.id},{id:uid(),from:s.id,to:b.id}];
+  this.autoRenderCanvas();
+}
+autoTemplateSound(){
+  this.autoNew();this._editingAuto.name='Sound on AI talked';
+  const a=this.autoAddBlock('onBroadcast',80,80);a.config.event='AI talked';
+  const p=this.autoAddBlock('playAudio',80,250);p.config.url='https://actions.google.com/sounds/v1/alarms/beep_short.ogg';p.config.vol='0.4';
+  this._editingAuto.edges=[{id:uid(),from:a.id,to:p.id}];
+  this.autoRenderCanvas();
+}
+autoTemplateClock(){
+  this.autoNew();this._editingAuto.name='Morning ask';
+  const c=this.autoAddBlock('clock',80,80);c.config.time='09:00';
+  const s=this.autoAddBlock('sendSilent',80,250);s.config.prompt='Good morning. Give me a 4-bullet briefing.';
+  this._editingAuto.edges=[{id:uid(),from:c.id,to:s.id}];
+  this.autoRenderCanvas();
+}
+autoTemplateIfError(){
+  this.autoNew();this._editingAuto.name='Retry on error';
+  const t=this.autoAddBlock('onAiReply',80,80);
+  const i=this.autoAddBlock('ifContains',80,240);i.config.needle='error';i.config.source='lastAi';
+  const s=this.autoAddBlock('sendSilent',80,400);s.config.prompt='The last answer had an error. Fix it briefly.';
+  this._editingAuto.edges=[{id:uid(),from:t.id,to:i.id},{id:uid(),from:i.id,to:s.id}];
+  this.autoRenderCanvas();
+}
+autoLoadEditor(id){
+  const list=this.app.storage.get('automations',[])||[];
+  const a=list.find(x=>x.id===id)||list[0];
+  this._editingAuto=a?JSON.parse(JSON.stringify(a)):null;
+  if(!this._editingAuto)return;
+  this._editingAuto.blocks=this._editingAuto.blocks||[];
+  this._editingAuto.edges=this._editingAuto.edges||[];
+  if($('#auto-name'))$('#auto-name').value=this._editingAuto.name||'';
+  if($('#auto-enabled'))$('#auto-enabled').checked=this._editingAuto.enabled!==false;
+  const sel=$('#auto-select');if(sel)sel.value=this._editingAuto.id;
+  this.autoRenderCanvas();
+}
+autoRenderCanvas(){
+  const world=$('#auto-world');if(!world||!this._editingAuto)return;
+  const blocks=this._editingAuto.blocks||[];
+  world.innerHTML=blocks.map(b=>{
+    const preset=(this.AUTO_PRESETS||[]).find(p=>p.type===b.type)||{fields:[]};
+    const fields=(preset.fields||[]).map(f=>{
+      const val=String((b.config&&b.config[f[0]])??f[2]??'');
+      if(f[0]==='code')return `<textarea data-bid="${b.id}" data-key="${f[0]}">${escapeHtml(val)}</textarea>`;
+      return `<input data-bid="${b.id}" data-key="${f[0]}" value="${escapeHtml(val)}" placeholder="${escapeHtml(f[1])}">`;
+    }).join('');
+    return `<div class="ablock" data-id="${b.id}" style="left:${b.x||0}px;top:${b.y||0}px">
+      <div class="aport in" data-bid="${b.id}" title="Input"></div>
+      <div class="ah"><span class="atag">${escapeHtml(b.tag||b.type)}</span><span>${escapeHtml(b.title||b.type)}</span><button type="button" data-rm="${b.id}" style="margin-left:auto">×</button></div>
+      ${fields}
+      <div class="aport out" data-bid="${b.id}" title="Then"></div>
+    </div>`;
+  }).join('');
+  world.querySelectorAll('input,textarea').forEach(inp=>inp.oninput=()=>{
+    const b=this._editingAuto.blocks.find(x=>x.id===inp.dataset.bid);if(!b)return;
+    b.config=b.config||{};b.config[inp.dataset.key]=inp.value;
+  });
+  world.querySelectorAll('[data-rm]').forEach(btn=>btn.onclick=e=>{
+    e.stopPropagation();
+    const id=btn.dataset.rm;
+    this._editingAuto.blocks=this._editingAuto.blocks.filter(x=>x.id!==id);
+    this._editingAuto.edges=(this._editingAuto.edges||[]).filter(x=>x.from!==id&&x.to!==id);
+    this.autoRenderCanvas();
+  });
+  world.querySelectorAll('.ablock').forEach(el=>{
+    const head=el.querySelector('.ah');
+    head.onpointerdown=e=>{
+      if(e.target.closest('button'))return;
+      e.stopPropagation();
+      const b=this._editingAuto.blocks.find(x=>x.id===el.dataset.id);if(!b)return;
+      const start={x:e.clientX,y:e.clientY,bx:b.x||0,by:b.y||0};
+      const move=ev=>{
+        b.x=start.bx+(ev.clientX-start.x)/this._cam.s;
+        b.y=start.by+(ev.clientY-start.y)/this._cam.s;
+        el.style.left=b.x+'px';el.style.top=b.y+'px';
+        this.autoDrawWires();
+      };
+      const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up)};
+      window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);
+    };
+  });
+  world.querySelectorAll('.aport.out').forEach(p=>{
+    p.onpointerdown=e=>{
+      e.stopPropagation();
+      this._wireDrag={from:p.dataset.bid,port:'out',x:e.clientX,y:e.clientY};
+      this.autoDrawWires(e);
+    };
+  });
+  this.autoApplyCam();
+  this.autoDrawWires();
+}
+autoDrawWires(moveEv){
+  const svg=$('#auto-wires');const world=$('#auto-world');if(!svg||!world||!this._editingAuto)return;
+  const portCenter=(bid,kind)=>{
+    const el=world.querySelector(`.ablock[data-id="${bid}"] .aport.${kind}`);
+    if(!el)return null;
+    const r=el.getBoundingClientRect();
+    const wr=world.getBoundingClientRect();
+    const s=this._cam.s||1;
+    return {x:(r.left+r.width/2-wr.left)/s,y:(r.top+r.height/2-wr.top)/s};
+  };
+  let d='';
+  for(const e of (this._editingAuto.edges||[])){
+    const a=portCenter(e.from,'out');const b=portCenter(e.to,'in');
+    if(!a||!b)continue;
+    const mid=(a.y+b.y)/2;
+    d+=`<path d="M ${a.x} ${a.y} C ${a.x} ${mid}, ${b.x} ${mid}, ${b.x} ${b.y}" fill="none" stroke="currentColor" stroke-width="2" opacity=".7"/>`;
+  }
+  if(this._wireDrag&&moveEv){
+    const a=portCenter(this._wireDrag.from,'out');
+    if(a){
+      const wr=world.getBoundingClientRect();
+      const s=this._cam.s||1;
+      const x=(moveEv.clientX-wr.left)/s,y=(moveEv.clientY-wr.top)/s;
+      d+=`<path d="M ${a.x} ${a.y} L ${x} ${y}" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="5 4"/>`;
+    }
+  }
+  svg.innerHTML=d;
+  svg.setAttribute('width','4000');svg.setAttribute('height','4000');
+}
+autoSaveEditor(){
+  if(!this._editingAuto)return;
+  this._editingAuto.name=($('#auto-name')?.value||'').trim()||'Untitled';
+  this._editingAuto.enabled=!!$('#auto-enabled')?.checked;
+  const list=this.app.storage.get('automations',[])||[];
+  const i=list.findIndex(x=>x.id===this._editingAuto.id);
+  const copy=JSON.parse(JSON.stringify(this._editingAuto));
+  if(i>=0)list[i]=copy;else list.unshift(copy);
+  this.app.storage.set('automations',list);
+  this.renderAutomations();this.autoRefreshSelect();
+  toast('Automation saved','success');
+  try{if(this.app.cloud){this.app.cloud._settingsHash=null;this.app.cloud.schedulePush(this.app)}}catch(e){}
+}
+
 autoRefreshSelect(){
   const sel=$('#auto-select');if(!sel)return;
   const list=this.app.storage.get('automations',[])||[];
@@ -3242,94 +3476,27 @@ autoRefreshSelect(){
   if(cur&&list.some(a=>a.id===cur))sel.value=cur;
 }
 autoNew(){
-  const a={id:uid(),name:'New automation',enabled:true,blocks:[],created:Date.now()};
+  const a={id:uid(),name:'New automation',enabled:true,blocks:[],edges:[],created:Date.now()};
   const list=this.app.storage.get('automations',[])||[];
   list.unshift(a);this.app.storage.set('automations',list);
-  (this._editingAuto.blocks||[]).forEach(b=>{
-    if(b.type!=='define')return;
-    const names=[...String((b.config&&b.config.code)||'').matchAll(/const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=/g)].map(m=>m[1]);
-    names.forEach(n=>{
-      if(!(this.AUTO_PRESETS||[]).some(p=>p.type==='const_'+n)){
-        this.AUTO_PRESETS.push({type:'const_'+n,tag:'value',title:n+' (const)',fields:[['value','Value','']]});
-      }
-    });
-  });
-  this.bindAutoBuilder();
   this.renderAutomations();this.autoRefreshSelect();this.autoLoadEditor(a.id);
 }
 autoDup(){
-  const id=$('#auto-select')?.value;if(!id)return;
+  const id=$('#auto-select')?.value|| (this._editingAuto&&this._editingAuto.id);if(!id)return;
   const list=this.app.storage.get('automations',[])||[];
-  const src=list.find(x=>x.id===id);if(!src)return;
+  const src=list.find(x=>x.id===id)||this._editingAuto;if(!src)return;
   const copy=JSON.parse(JSON.stringify(src));copy.id=uid();copy.name=(src.name||'Automation')+' copy';
   list.unshift(copy);this.app.storage.set('automations',list);this.renderAutomations();this.autoRefreshSelect();this.autoLoadEditor(copy.id);
 }
 autoDelete(){
-  const id=$('#auto-select')?.value;if(!id)return;
+  const id=$('#auto-select')?.value|| (this._editingAuto&&this._editingAuto.id);if(!id)return;
   const list=(this.app.storage.get('automations',[])||[]).filter(x=>x.id!==id);
   this.app.storage.set('automations',list);this.renderAutomations();this.autoRefreshSelect();
+  this._editingAuto=null;
   if(list[0])this.autoLoadEditor(list[0].id);
 }
-autoAddBlock(type){
-  const preset=(this.AUTO_PRESETS||[]).find(p=>p.type===type);if(!preset)return;
-  const config={};
-  preset.fields.forEach(f=>config[f[0]]=f[2]);
-  if(!this._editingAuto)this.autoNew();
-  this._editingAuto.blocks=this._editingAuto.blocks||[];
-  this._editingAuto.blocks.push({id:uid(),type,title:preset.title,tag:preset.tag,config});
-  this.autoRenderCanvas();
-}
-autoLoadEditor(id){
-  const list=this.app.storage.get('automations',[])||[];
-  const a=list.find(x=>x.id===id)||list[0];
-  this._editingAuto=a?JSON.parse(JSON.stringify(a)):null;
-  if(!this._editingAuto)return;
-  if($('#auto-name'))$('#auto-name').value=this._editingAuto.name||'';
-  if($('#auto-enabled'))$('#auto-enabled').checked=this._editingAuto.enabled!==false;
-  const sel=$('#auto-select');if(sel)sel.value=this._editingAuto.id;
-  this.autoRenderCanvas();
-}
-autoRenderCanvas(){
-  const el=$('#auto-canvas');if(!el||!this._editingAuto)return;
-  const blocks=this._editingAuto.blocks||[];
-  if(!blocks.length){el.innerHTML='<div style="opacity:.5;padding:12px">Add blocks from the row above. They run top to bottom.</div>';return}
-  el.innerHTML=blocks.map((b,i)=>{
-    const preset=(this.AUTO_PRESETS||[]).find(p=>p.type===b.type)||{fields:[]};
-    const fields=(preset.fields||[]).map(f=>{
-      const val=String((b.config&&b.config[f[0]])??f[2]??'');
-      if(f[0]==='code')return `<label style="font-size:.72rem;color:var(--text-tertiary)">${escapeHtml(f[1])}<textarea data-bid="${b.id}" data-key="${f[0]}">${escapeHtml(val)}</textarea></label>`;
-      return `<label style="font-size:.72rem;color:var(--text-tertiary)">${escapeHtml(f[1])}<input data-bid="${b.id}" data-key="${f[0]}" value="${escapeHtml(val)}"></label>`;
-    }).join('');
-    return `${i?'<div class="auto-then">↓ then</div>':''}<div class="auto-block" data-id="${b.id}"><div class="bh"><span class="btag">${escapeHtml(b.tag||b.type)}</span><span>${escapeHtml(b.title||b.type)}</span><button type="button" data-up="${b.id}" style="margin-left:auto">↑</button><button type="button" data-dn="${b.id}">↓</button><button type="button" data-rm="${b.id}">×</button></div>${fields}</div>`;
-  }).join('');
-  el.querySelectorAll('input,textarea').forEach(inp=>inp.oninput=()=>{
-    const b=this._editingAuto.blocks.find(x=>x.id===inp.dataset.bid);if(!b)return;
-    b.config=b.config||{};b.config[inp.dataset.key]=inp.value;
-  });
-  el.querySelectorAll('[data-rm]').forEach(btn=>btn.onclick=()=>{
-    this._editingAuto.blocks=this._editingAuto.blocks.filter(x=>x.id!==btn.dataset.rm);
-    this.autoRenderCanvas();
-  });
-  el.querySelectorAll('[data-up]').forEach(btn=>btn.onclick=()=>{
-    const arr=this._editingAuto.blocks;const i=arr.findIndex(x=>x.id===btn.dataset.up);if(i>0){[arr[i-1],arr[i]]=[arr[i],arr[i-1]];this.autoRenderCanvas()}
-  });
-  el.querySelectorAll('[data-dn]').forEach(btn=>btn.onclick=()=>{
-    const arr=this._editingAuto.blocks;const i=arr.findIndex(x=>x.id===btn.dataset.dn);if(i>=0&&i<arr.length-1){[arr[i+1],arr[i]]=[arr[i],arr[i+1]];this.autoRenderCanvas()}
-  });
-}
-autoSaveEditor(){
-  if(!this._editingAuto)return;
-  this._editingAuto.name=($('#auto-name')?.value||'').trim()||'Untitled';
-  this._editingAuto.enabled=!!$('#auto-enabled')?.checked;
-  const list=this.app.storage.get('automations',[])||[];
-  const i=list.findIndex(x=>x.id===this._editingAuto.id);
-  if(i>=0)list[i]=JSON.parse(JSON.stringify(this._editingAuto));else list.unshift(JSON.parse(JSON.stringify(this._editingAuto)));
-  this.app.storage.set('automations',list);
-  this.renderAutomations();this.autoRefreshSelect();
-  toast('Automation saved','success');
-  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
-}
-createAutomation(){this.openAutoBuilder()}
+createAutomation(){this.setMode('auto')}
+
 renderAutomations(){
   const el=$('#auto-list');if(!el)return;
   const list=this.app.storage.get('automations',[])||[];
@@ -3338,7 +3505,7 @@ renderAutomations(){
     const legacy=a.time?escapeHtml(a.time)+' · '+escapeHtml((a.days||[]).join(', ')):(n+' block'+(n===1?'':'s'));
     return '<div class="auto-rule"><strong>'+escapeHtml(a.name||'Untitled')+'</strong><div style="opacity:.7;margin-top:4px">'+legacy+'</div><button type="button" data-edit="'+a.id+'" style="margin-top:6px;font-size:.75rem">Edit</button> <button type="button" data-id="'+a.id+'" class="auto-del" style="margin-top:6px;font-size:.75rem">Delete</button></div>';
   }).join('')||'<div style="opacity:.5;padding:8px">No automations yet</div>';
-  el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{this.openAutoBuilder();this.autoLoadEditor(b.dataset.edit)});
+  el.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{this.setMode('auto');this.autoLoadEditor(b.dataset.edit)});
   el.querySelectorAll('.auto-del').forEach(b=>b.onclick=()=>{
     const list=(this.app.storage.get('automations',[])||[]).filter(x=>x.id!==b.dataset.id);
     this.app.storage.set('automations',list);this.renderAutomations();
@@ -3368,7 +3535,7 @@ tickAutomations(){
       const stamp=now.toDateString()+' '+key;
       if(fired[a.id]===stamp)continue;
       fired[a.id]=stamp;this.app.storage.set('autoFiredMap',fired);
-      this.runAutomation(a,{reason:'clock'});
+      this.runAutomation(a,{reason:'clock'},[clock.id]);
       continue;
     }
     if(!blocks.length&&a.time&&a.days){
@@ -3389,14 +3556,15 @@ fireAutomations(kind,ctx){
     const blocks=a.blocks||[];
     if(!blocks.length)continue;
     if(kind==='onBroadcast'){
-      const hit=blocks.some(b=>b.type==='onBroadcast'&&String((b.config&&b.config.event)||'').toLowerCase()===String((ctx&&ctx.event)||'').toLowerCase());
-      if(hit)this.runAutomation(a,ctx||{});
+      const starts=blocks.filter(b=>b.type==='onBroadcast'&&String((b.config&&b.config.event)||'').toLowerCase()===String((ctx&&ctx.event)||'').toLowerCase());
+      if(starts.length)this.runAutomation(a,ctx||{},starts.map(s=>s.id));
       continue;
     }
-    if(blocks.some(b=>b.type===kind))this.runAutomation(a,Object.assign({reason:kind},ctx||{}));
+    const starts=blocks.filter(b=>b.type===kind);
+    if(starts.length)this.runAutomation(a,Object.assign({reason:kind},ctx||{}),starts.map(s=>s.id));
   }
 }
-async runAutomation(a,ctx){
+async runAutomation(a,ctx,startIds){
   if(this._autoRunning)return;
   this._autoRunning=true;
   try{
@@ -3405,48 +3573,64 @@ async runAutomation(a,ctx){
     ctx.lastUser=ctx.lastUser||store.lastUser||'';
     ctx.lastAi=ctx.lastAi||store.lastAi||'';
     const blocks=a.blocks||[];
-    for(const b of blocks){
-      if(b.type==='clock'||b.type==='onUserSend'||b.type==='onAiReply'||b.type==='onBroadcast'||b.type==='onNewChat')continue;
+    const byId=Object.fromEntries(blocks.map(b=>[b.id,b]));
+    const edges=a.edges||[];
+    const outgoing=id=>edges.filter(e=>e.from===id).map(e=>e.to);
+    let queue;
+    if(startIds&&startIds.length){
+      queue=[];
+      startIds.forEach(id=>outgoing(id).forEach(n=>queue.push(n)));
+      if(!queue.length) queue=startIds.slice();
+    } else {
+      queue=blocks.filter(b=>!['clock','onUserSend','onAiReply','onBroadcast','onNewChat'].includes(b.type)).map(b=>b.id);
+    }
+    const seen=new Set();
+    while(queue.length){
+      const id=queue.shift();
+      if(!id||seen.has(id))continue;
+      seen.add(id);
+      const b=byId[id];if(!b)continue;
+      if(['clock','onUserSend','onAiReply','onBroadcast','onNewChat'].includes(b.type)){
+        outgoing(id).forEach(n=>queue.push(n));continue;
+      }
       if(b.type==='ifContains'){
         const src=(b.config&&b.config.source)==='lastUser'?ctx.lastUser:ctx.lastAi;
         const needle=String((b.config&&b.config.needle)||'');
-        if(needle&&String(src||'').indexOf(needle)===-1)break;
+        if(!needle||String(src||'').toLowerCase().indexOf(needle.toLowerCase())>=0) outgoing(id).forEach(n=>queue.push(n));
         continue;
       }
       if(b.type==='wait'){
         const ms=Math.min(15000,Math.max(0,parseInt(b.config&&b.config.ms,10)||0));
         await new Promise(r=>setTimeout(r,ms));
-        continue;
+        outgoing(id).forEach(n=>queue.push(n));continue;
       }
       if(b.type==='store'){
         const from=(b.config&&b.config.from)||'lastAi';
         const val=from==='text'?(b.config&&b.config.text)||'':from==='lastUser'?ctx.lastUser:ctx.lastAi;
-        const key=(b.config&&b.config.key)||'value';
-        store[key]=val;this.app.storage.set('autoStore',store);
-        continue;
+        store[(b.config&&b.config.key)||'value']=val;this.app.storage.set('autoStore',store);
+        outgoing(id).forEach(n=>queue.push(n));continue;
       }
       if(b.type==='broadcast'){
         const ev=(b.config&&b.config.event)||'';
+        outgoing(id).forEach(n=>queue.push(n));
         if(ev)setTimeout(()=>this.fireAutomations('onBroadcast',Object.assign({},ctx,{event:ev})),0);
         continue;
       }
-      if(b.type==='toast'){toast((b.config&&b.config.text)||a.name,'info');continue}
+      if(b.type==='toast'){toast((b.config&&b.config.text)||a.name,'info');outgoing(id).forEach(n=>queue.push(n));continue}
       if(b.type==='playAudio'){
         try{
           const url=String((b.config&&b.config.url)||'');
-          if(!/^https:\/\//i.test(url)){console.warn('blocked non-https audio');continue}
-          const audio=new Audio(url);
-          audio.volume=Math.min(1,Math.max(0,parseFloat(b.config&&b.config.vol)||0.5));
-          audio.play().catch(()=>{});
+          if(/^https:\/\//i.test(url)){const audio=new Audio(url);audio.volume=Math.min(1,Math.max(0,parseFloat(b.config&&b.config.vol)||0.5));audio.play().catch(()=>{})}
         }catch(e){}
-        continue;
+        outgoing(id).forEach(n=>queue.push(n));continue;
       }
       if(b.type==='sendSilent'){
         await this.runSilentAutomation({name:a.name,prompt:(b.config&&b.config.prompt)||a.prompt||''});
-        continue;
+        outgoing(id).forEach(n=>queue.push(n));continue;
       }
       if(b.type==='define'){
         this.runSafeDefine((b.config&&b.config.code)||'',ctx,store,a);
+        outgoing(id).forEach(n=>queue.push(n));
       }
     }
   }catch(e){console.warn('automation',e)}
