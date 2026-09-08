@@ -727,11 +727,18 @@ class CloudSync{
       try{this.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)}catch{}
       this.ready=true;
       this._authReady=new Promise((resolve)=>{
-        const unsub=this.auth.onAuthStateChanged((user)=>{
-          if(user){this.uid=user.uid;console.log('[CloudSync] auth session',user.uid)}
-          else this.uid=null;
-          resolve(user||null);
-          // keep listening for future changes
+        let resolved=false;
+        this.auth.onAuthStateChanged((user)=>{
+          if(user){
+            this.uid=user.uid;
+            console.log('[CloudSync] auth session',user.uid);
+            if(!resolved){resolved=true;resolve(user)}
+            this._onAuthUser(user);
+          }else{
+            this.uid=null;
+            this.stopListening();
+            if(!resolved){resolved=true;resolve(null)}
+          }
         });
       });
       if(this.auth.currentUser)this.uid=this.auth.currentUser.uid;
@@ -742,6 +749,29 @@ class CloudSync{
     if(!this.ready&&!this.init())return Promise.resolve(null);
     if(this.auth&&this.auth.currentUser){this.uid=this.auth.currentUser.uid;return Promise.resolve(this.auth.currentUser)}
     return this._authReady||Promise.resolve(null);
+  }
+  async _onAuthUser(user){
+    if(!user)return;
+    this.uid=user.uid;
+    const app=this._app||window.__app;
+    if(!app||!app.storage||!app.ui){this._pendingAuthUser=user;return}
+    this._pendingAuthUser=null;
+    try{
+      if(app.storage.isGuest()||app.storage.userId!==user.uid){
+        app.storage.setActiveUser({id:user.uid,name:user.displayName,email:user.email,picture:user.photoURL});
+      }
+      const data=await this.pullAll();
+      if(data)this.applyPulled(app,data);
+      if(app.ui&&app.ui.reloadWorkspaceForAccount&&(app.storage.userId!==user.uid||!app.conversations)){
+        app.ui.reloadWorkspaceForAccount();
+      }else{
+        this.refreshFromLocal(app);
+      }
+      this.startListening(app);
+    }catch(e){
+      console.warn('[CloudSync] auth user sync',e);
+      this.startListening(app);
+    }
   }
   ensureUid(){
     if(this.uid)return this.uid;
@@ -774,44 +804,24 @@ class CloudSync{
     this.stopListening();
     const base=this.db.collection('users').doc(uid);
     this._unsubConv=base.collection('conversations').onSnapshot((snap)=>{
-      if(this._pushing||this._applyingRemote)return;
+      if(this._applyingRemote)return;
       if(!app||!app.storage||app.storage.isGuest())return;
       try{
         this._applyingRemote=true;
         const remote=snap.docs.map(d=>({id:d.id,...(d.data()||{})}));
-        // Merge by id; prefer newer updated
-        const local=app.conversations?app.conversations.conversations.slice():(app.storage.get('conversations',[])||[]);
-        const map=new Map();
-        local.forEach(c=>{if(c&&c.id)map.set(String(c.id),c)});
-        let changed=false;
-        remote.forEach(r=>{
-          if(!r||!r.id)return;
-          const id=String(r.id);
-          const L=map.get(id);
-          if(!L){map.set(id,r);changed=true;return}
-          const lu=Number(L.updated||0),ru=Number(r.updated||0);
-          const lm=(L.messages&&L.messages.length)||0,rm=(r.messages&&r.messages.length)||0;
-          if(ru>lu||(ru===lu&&rm>lm)){map.set(id,r);changed=true}
-        });
-        if(changed){
-          const merged=[...map.values()].sort((a,b)=>(b.updated||0)-(a.updated||0));
-          app.storage.set('conversations',merged);
-          if(app.conversations){
-            app.conversations.conversations=merged;
-            if(app.ui){
-              app.ui.renderConversations&&app.ui.renderConversations();
-              const cur=app.conversations.currentId;
-              if(cur&&app.ui.loadConversation){
-                // refresh open chat if it changed
-                app.ui.loadConversation(cur);
-              }
-            }
-          }
-          console.log('[CloudSync] live update',merged.length,'chats');
-        }
+        const changed=this.applyRemoteConversations(app,remote,{reloadOpen:!this._pushing});
+        if(changed)console.log('[CloudSync] live update',(app.conversations&&app.conversations.conversations||[]).length,'chats');
       }catch(e){console.warn('[CloudSync] snapshot',e)}
       finally{this._applyingRemote=false}
     },(err)=>console.warn('[CloudSync] listen',err));
+    this._unsubMeta=base.onSnapshot((doc)=>{
+      if(!doc||!doc.exists||this._pushing||this._applyingRemote)return;
+      if(!app||!app.storage||app.storage.isGuest())return;
+      const d=doc.data()||{};
+      if(d.currentConvId&&app.conversations&&app.conversations.currentId!==d.currentConvId){
+        app.storage.set('currentConvId',d.currentConvId);
+      }
+    },(err)=>console.warn('[CloudSync] meta listen',err));
   }
   async pullAll(){
     const uid=this.ensureUid();
@@ -894,7 +904,7 @@ class CloudSync{
       // Full settings mirror (everything account-local used to store)
       const settingsPayload={
         apiConfig:s.get('apiConfig',null),
-        agentSettings:s.get('agentSettings',null),
+        agentSettings:s.get('agentSettings',{maxIterations:12,maxTools:30,maxTime:180})||{maxIterations:12,maxTools:30,maxTime:180},
         plugins:s.get('plugins',[]),
         vfs:s.get('vfs',{}),
         projects:s.get('projects',[]),
@@ -947,6 +957,7 @@ class CloudSync{
         }
       }
       console.log('[CloudSync] pushed',ok,'/',convs.length,'conversations',convs.map(c=>(c.messages||[]).length));
+      this.notifyTabs();
     }catch(e){
       console.error('[CloudSync] pushAll error',e);
       this._dirty=true;
@@ -962,11 +973,93 @@ class CloudSync{
   applyPulled(app,data){
     if(!data||!app)return;
     const s=app.storage;
-    if(data.conversations)s.set('conversations',data.conversations);
+    if(Array.isArray(data.conversations))s.set('conversations',data.conversations);
     if(data.currentConvId!==undefined)s.set('currentConvId',data.currentConvId);
     ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','thinkingGif','theme','personality'].forEach(k=>{
-      if(data[k]!==undefined)s.set(k,data[k]);
+      if(data[k]===undefined||data[k]===null)return;
+      s.set(k,data[k]);
     });
+  }
+
+  applyRemoteConversations(app,remote,{reloadOpen=true}={}){
+    if(!app||!app.storage||app.storage.isGuest())return false;
+    const list=Array.isArray(remote)?remote:[];
+    const local=app.conversations?app.conversations.conversations.slice():(app.storage.get('conversations',[])||[]);
+    const map=new Map();
+    local.forEach(c=>{if(c&&c.id)map.set(String(c.id),c)});
+    let changed=false;
+    list.forEach(r=>{
+      if(!r||!r.id)return;
+      const id=String(r.id);
+      const L=map.get(id);
+      if(!L){map.set(id,r);changed=true;return}
+      const lu=Number(L.updated||0),ru=Number(r.updated||0);
+      const lm=(L.messages&&L.messages.length)||0,rm=(r.messages&&r.messages.length)||0;
+      if(ru>lu||(ru===lu&&rm>lm)){map.set(id,r);changed=true}
+    });
+    if(!changed)return false;
+    const merged=[...map.values()].sort((a,b)=>(b.updated||0)-(a.updated||0));
+    app.storage.set('conversations',merged);
+    if(app.conversations)app.conversations.conversations=merged;
+    if(app.ui){
+      app.ui.renderConversations&&app.ui.renderConversations();
+      const cur=app.conversations&&app.conversations.currentId;
+      const running=app.agent&&app.agent.running;
+      if(reloadOpen&&cur&&!running&&app.ui.loadConversation)app.ui.loadConversation(cur);
+    }
+    return true;
+  }
+
+  refreshFromLocal(app){
+    if(!app||!app.storage||app.storage.isGuest())return;
+    const merged=app.storage.get('conversations',[])||[];
+    const curId=app.storage.get('currentConvId',null);
+    if(app.conversations){
+      app.conversations.conversations=merged;
+      if(curId)app.conversations.currentId=curId;
+    }
+    if(app.ui){
+      app.ui.renderConversations&&app.ui.renderConversations();
+      const cur=app.conversations&&app.conversations.currentId;
+      const running=app.agent&&app.agent.running;
+      if(cur&&!running&&app.ui.loadConversation){
+        const live=merged.find(c=>c&&c.id===cur);
+        if(live)app.ui.loadConversation(cur);
+      }
+    }
+  }
+  bindCrossTab(app){
+    this._app=app;
+    if(this._tabBound)return;
+    this._tabBound=true;
+    window.addEventListener('storage',(e)=>{
+      if(!e.key||!app||!app.storage||app.storage.isGuest())return;
+      if(e.key.indexOf('conversations')===-1&&e.key.indexOf('currentConvId')===-1)return;
+      this.refreshFromLocal(app);
+    });
+    const pull=()=>this.pullConversationsIfLoggedIn(app);
+    window.addEventListener('focus',pull);
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pull()});
+    try{
+      this._bc=new BroadcastChannel('thinkdeeper_v2_sync');
+      this._bc.onmessage=(ev)=>{
+        if(ev&&ev.data&&ev.data.type==='conversations')this.refreshFromLocal(app);
+      };
+    }catch(e){}
+  }
+  notifyTabs(){
+    try{if(this._bc)this._bc.postMessage({type:'conversations',t:Date.now()})}catch(e){}
+  }
+  async pullConversationsIfLoggedIn(app){
+    if(!app||!this.ensureUid()||!app.storage||app.storage.isGuest())return;
+    if(this._applyingRemote||this._pushing)return;
+    try{
+      const uid=this.ensureUid();
+      const snap=await this.db.collection('users').doc(uid).collection('conversations').get();
+      const remote=snap.docs.map(d=>({id:d.id,...(d.data()||{})}));
+      this.applyRemoteConversations(app,remote,{reloadOpen:false});
+      this.refreshFromLocal(app);
+    }catch(e){console.warn('[CloudSync] pull on focus',e)}
   }
 }
 
@@ -985,12 +1078,17 @@ class StorageManager{
   get(k,f=null){
     try{
       if(this.isGuest()){
-        if(Object.prototype.hasOwnProperty.call(this.guestMem,k))return this.guestMem[k];
+        if(Object.prototype.hasOwnProperty.call(this.guestMem,k)){
+          const gv=this.guestMem[k];
+          return gv==null?f:gv;
+        }
         // guests: no durable localStorage for app data
         return f;
       }
       const v=localStorage.getItem(this._key(k));
-      return v===null?f:JSON.parse(v);
+      if(v===null||v===undefined||v===''||v==='null'||v==='undefined')return f;
+      const parsed=JSON.parse(v);
+      return parsed==null?f:parsed;
     }catch{return f}
   }
   set(k,v){
@@ -1071,7 +1169,7 @@ setTitle(id,title){const c=this.get(id);if(!c||!title)return;c.title=String(titl
 delete(id){this.conversations=this.conversations.filter(c=>c.id!==id);if(this.currentId===id)this.currentId=this.conversations[0]?.id||null;this.persist()}
 rename(id,t){this.update(id,{title:t})}
 setCurrent(id){this.currentId=id;this.storage.set('currentConvId',id);try{if(window.__app&&window.__app.cloud)window.__app.cloud.schedulePush(window.__app)}catch{}}
-persist(){this.storage.set('conversations',this.conversations);this.storage.set('currentConvId',this.currentId);try{if(window.__app&&window.__app.cloud)window.__app.cloud.schedulePush(window.__app)}catch{}}}
+persist(){this.storage.set('conversations',this.conversations);this.storage.set('currentConvId',this.currentId);try{if(window.__app&&window.__app.cloud){window.__app.cloud.schedulePush(window.__app);window.__app.cloud.notifyTabs&&window.__app.cloud.notifyTabs()}}catch{}}}
 
 class ProviderManager{constructor(s){this.storage=s;this.config=s.get('apiConfig',{baseUrl:'https://api.openai.com/v1',apiKey:'',model:'',org:'',project:'',rememberKey:false,fallbackBaseUrl:'',fallbackApiKey:'',fallbackModel:''});this.models=s.get('discoveredModels',[])}
 save(c){this.config={...this.config,...c};const t={...this.config};if(!t.rememberKey)t.apiKey='';this.storage.set('apiConfig',t)}
@@ -2073,10 +2171,10 @@ $$('#settings-tabs .tab').forEach(tab=>{tab.onclick=()=>{$$('#settings-tabs .tab
 toggleSidebar(c){const sb=$('#sidebar');if(c){sb.classList.add('collapsed');$('#open-sidebar').style.display='flex'}else{sb.classList.remove('collapsed');sb.classList.add('open');$('#open-sidebar').style.display='none'}}
 applyTheme(t){t=t==='light'?'light':'dark';document.documentElement.setAttribute('data-theme',t);document.documentElement.style.colorScheme=t;this.app.storage.set('theme',t);const d=$('#hljs-dark'),l=$('#hljs-light');if(d)d.disabled=t!=='dark';if(l)l.disabled=t==='dark';const btn=$('#theme-btn');if(btn)btn.title=t==='dark'?'Switch to light':'Switch to dark'}
 toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')||'dark';this.applyTheme(cur==='dark'?'light':'dark')}
-openSettings(){const c=this.app.provider.config;$('#api-base').value=c.baseUrl||'';$('#api-key').value=c.apiKey||'';$('#api-model').value=c.model||'';$('#api-org').value=c.org||'';$('#api-project').value=c.project||'';$('#remember-key').checked=!!c.rememberKey;if($('#fallback-base')){$('#fallback-base').value=c.fallbackBaseUrl||'';$('#fallback-key').value=c.fallbackApiKey||'';$('#fallback-model').value=c.fallbackModel||''}if($('#google-client-id'))$('#google-client-id').value=c.googleClientId||this.app.storage.get('googleClientId','')||'';
+openSettings(){try{const c=(this.app.provider&&this.app.provider.config)||{};$('#api-base').value=c.baseUrl||'';$('#api-key').value=c.apiKey||'';$('#api-model').value=c.model||'';$('#api-org').value=c.org||'';$('#api-project').value=c.project||'';$('#remember-key').checked=!!c.rememberKey;if($('#fallback-base')){$('#fallback-base').value=c.fallbackBaseUrl||'';$('#fallback-key').value=c.fallbackApiKey||'';$('#fallback-model').value=c.fallbackModel||''}if($('#google-client-id'))$('#google-client-id').value=c.googleClientId||this.app.storage.get('googleClientId','')||'';
 const roles=this.app.storage.get('modelRoles',{})||{};
 if($('#model-talk')){$('#model-talk').value=roles.talk||'';$('#model-code').value=roles.code||'';$('#model-deep').value=roles.deep||'';$('#plugins-global').checked=this.app.storage.get('pluginsGlobal',true)!==false;}
-const s=this.app.storage.get('agentSettings',{});$('#max-iterations').value=s.maxIterations||12;$('#max-tools').value=s.maxTools||30;$('#max-time').value=s.maxTime||180;if($('#tool-choice'))$('#tool-choice').value=this.app.storage.get('toolChoice','auto')||'auto';const ft=$('#force-temp');if(ft){const v=this.app.storage.get('forceTemp',null);ft.value=v==null||v===''?'':v}$('#personality').value=this.app.storage.get('personality','')||'';$('#thinking-gif').value=this.app.storage.get('thinkingGif','')||'';$('#settings-overlay').classList.add('open')}
+const s=this.app.storage.get('agentSettings',{})||{};if($('#max-iterations'))$('#max-iterations').value=(s&&s.maxIterations)||12;if($('#max-tools'))$('#max-tools').value=(s&&s.maxTools)||30;if($('#max-time'))$('#max-time').value=(s&&s.maxTime)||180;if($('#tool-choice'))$('#tool-choice').value=this.app.storage.get('toolChoice','auto')||'auto';const ft=$('#force-temp');if(ft){const v=this.app.storage.get('forceTemp',null);ft.value=v==null||v===''?'':v}$('#personality').value=this.app.storage.get('personality','')||'';$('#thinking-gif').value=this.app.storage.get('thinkingGif','')||'';$('#settings-overlay').classList.add('open')}catch(err){console.warn('[settings]',err);try{$('#settings-overlay').classList.add('open')}catch(e){}}}
 closeSettings(){$('#settings-overlay').classList.remove('open')}
 applyPreset(n){const p={openai:{baseUrl:'https://api.openai.com/v1',model:'gpt-4o-mini'},groq:{baseUrl:'https://api.groq.com/openai/v1',model:'llama-3.3-70b-versatile'},openrouter:{baseUrl:'https://openrouter.ai/api/v1',model:'openai/gpt-4o-mini'},custom:{baseUrl:'',model:''}}[n];if(p){$('#api-base').value=p.baseUrl;$('#api-model').value=p.model}}
 saveApi(){const config={baseUrl:$('#api-base').value.trim(),apiKey:$('#api-key').value.trim(),model:$('#api-model').value.trim(),org:$('#api-org').value.trim(),project:$('#api-project').value.trim(),rememberKey:$('#remember-key').checked,fallbackBaseUrl:$('#fallback-base')?.value.trim()||'',fallbackApiKey:$('#fallback-key')?.value.trim()||'',fallbackModel:$('#fallback-model')?.value.trim()||'',googleClientId:$('#google-client-id')?.value.trim()||''};this.app.provider.save(config);try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch{}this.app.storage.set('googleClientId',config.googleClientId||'');
@@ -2819,8 +2917,11 @@ start(){
   }catch(e){}
   if(!this.cloud)this.cloud=new CloudSync();
   this.cloud.init();
+  this.cloud._app=this;
   this.ui.init();
   this.ui.scheduleAutomations&&this.ui.scheduleAutomations();
+  this.cloud.bindCrossTab&&this.cloud.bindCrossTab(this);
+  if(this.cloud._pendingAuthUser)this.cloud._onAuthUser(this.cloud._pendingAuthUser);
   // Restore Firebase Auth session after refresh
   this._restoreCloudSession();
 }
