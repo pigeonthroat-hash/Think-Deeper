@@ -756,6 +756,7 @@ class CloudSync{
     const app=this._app||window.__app;
     if(!app||!app.storage||!app.ui){this._pendingAuthUser=user;return}
     this._pendingAuthUser=null;
+    if(this._syncedUid===user.uid&&this._unsubConv)return;
     try{
       if(app.storage.isGuest()||app.storage.userId!==user.uid){
         app.storage.setActiveUser({id:user.uid,name:user.displayName,email:user.email,picture:user.photoURL});
@@ -765,9 +766,10 @@ class CloudSync{
       if(app.ui&&app.ui.reloadWorkspaceForAccount&&(app.storage.userId!==user.uid||!app.conversations)){
         app.ui.reloadWorkspaceForAccount();
       }else{
-        this.refreshFromLocal(app);
+        this.refreshFromLocal(app,false);
       }
       this.startListening(app);
+      this._syncedUid=user.uid;
     }catch(e){
       console.warn('[CloudSync] auth user sync',e);
       this.startListening(app);
@@ -804,12 +806,14 @@ class CloudSync{
     this.stopListening();
     const base=this.db.collection('users').doc(uid);
     this._unsubConv=base.collection('conversations').onSnapshot((snap)=>{
-      if(this._applyingRemote)return;
+      if(this._applyingRemote||this._pushing)return;
+      if(snap.metadata&&snap.metadata.hasPendingWrites)return;
+      if(this._lastPushAt&&(Date.now()-this._lastPushAt)<2500)return;
       if(!app||!app.storage||app.storage.isGuest())return;
       try{
         this._applyingRemote=true;
         const remote=snap.docs.map(d=>({id:d.id,...(d.data()||{})}));
-        const changed=this.applyRemoteConversations(app,remote,{reloadOpen:!this._pushing});
+        const changed=this.applyRemoteConversations(app,remote,{reloadOpen:false});
         if(changed)console.log('[CloudSync] live update',(app.conversations&&app.conversations.conversations||[]).length,'chats');
       }catch(e){console.warn('[CloudSync] snapshot',e)}
       finally{this._applyingRemote=false}
@@ -849,12 +853,13 @@ class CloudSync{
   schedulePush(app){
     if(!this.ready){return}
     if(!this.ensureUid()){return}
+    if(this._applyingRemote){return}
     this._app=app||this._app;
     this._dirty=true;
     clearTimeout(this._saveTimer);
     this._saveTimer=setTimeout(()=>{
       this.pushAll(this._app).catch(e=>console.warn('[CloudSync] push',e));
-    },500);
+    },2000);
   }
   _sanitizeConv(c){
     try{
@@ -921,27 +926,35 @@ class CloudSync{
         theme:s.get('theme','dark'),
         updatedAt:firebase.firestore.FieldValue.serverTimestamp()
       };
-      await base.set({
-        email:user.email||null,
-        name:user.name||null,
-        picture:user.picture||null,
-        currentConvId:s.get('currentConvId',null),
-        theme:settingsPayload.theme,
-        personality:settingsPayload.personality,
-        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-      },{merge:true});
-      await base.collection('settings').doc('app').set(settingsPayload,{merge:true});
+      const nowTs=Date.now();
+      if(!this._lastSettingsPush||nowTs-this._lastSettingsPush>30000){
+        this._lastSettingsPush=nowTs;
+        await base.set({
+          email:user.email||null,
+          name:user.name||null,
+          picture:user.picture||null,
+          currentConvId:s.get('currentConvId',null),
+          theme:settingsPayload.theme,
+          personality:settingsPayload.personality,
+          updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+        },{merge:true});
+        await base.collection('settings').doc('app').set(settingsPayload,{merge:true});
+      }
 
       let convs=(app.conversations&&app.conversations.conversations)||s.get('conversations',[])||[];
       // Always re-read from memory right before write
       if(app.conversations&&app.conversations.conversations)convs=app.conversations.conversations;
-      let ok=0;
+      if(!this._pushHash)this._pushHash={};
+      let ok=0,written=0;
       for(const c of convs){
         if(!c||!c.id)continue;
         const clean=this._sanitizeConv(c);
+        const sig=JSON.stringify(clean);
+        if(this._pushHash[String(c.id)]===sig){ok++;continue}
         try{
           await base.collection('conversations').doc(String(c.id)).set(clean,{merge:false});
-          ok++;
+          this._pushHash[String(c.id)]=sig;
+          ok++;written++;
         }catch(e){
           console.warn('[CloudSync] conv write',c.id,e.message||e);
           try{
@@ -956,8 +969,9 @@ class CloudSync{
           }catch(e2){console.warn('[CloudSync] conv retry failed',e2)}
         }
       }
-      console.log('[CloudSync] pushed',ok,'/',convs.length,'conversations',convs.map(c=>(c.messages||[]).length));
-      this.notifyTabs();
+      this._lastPushAt=Date.now();
+      if(written)console.log('[CloudSync] pushed',written,'changed /',ok,'/',convs.length,'conversations');
+      if(written)this.notifyTabs();
     }catch(e){
       console.error('[CloudSync] pushAll error',e);
       this._dirty=true;
@@ -966,7 +980,7 @@ class CloudSync{
       this._pushing=false;
       if(this._dirty){
         clearTimeout(this._saveTimer);
-        this._saveTimer=setTimeout(()=>this.pushAll(app).catch(err=>console.warn('[CloudSync] push',err)),400);
+        this._saveTimer=setTimeout(()=>this.pushAll(app).catch(err=>console.warn('[CloudSync] push',err)),2500);
       }
     }
   }
@@ -981,36 +995,43 @@ class CloudSync{
     });
   }
 
-  applyRemoteConversations(app,remote,{reloadOpen=true}={}){
+  _convStamp(c){
+    if(!c)return '';
+    const n=(c.messages&&c.messages.length)||0;
+    const last=n?(c.messages[n-1]||{}):{};
+    return [c.id,c.title||'',Number(c.updated||0),n,last.role||'',String(last.content||'').length].join('|');
+  }
+  applyRemoteConversations(app,remote,{reloadOpen=false}={}){
     if(!app||!app.storage||app.storage.isGuest())return false;
     const list=Array.isArray(remote)?remote:[];
     const local=app.conversations?app.conversations.conversations.slice():(app.storage.get('conversations',[])||[]);
     const map=new Map();
     local.forEach(c=>{if(c&&c.id)map.set(String(c.id),c)});
     let changed=false;
+    let openChanged=false;
+    const curId=app.conversations&&app.conversations.currentId;
     list.forEach(r=>{
       if(!r||!r.id)return;
       const id=String(r.id);
       const L=map.get(id);
-      if(!L){map.set(id,r);changed=true;return}
+      if(!L){map.set(id,r);changed=true;if(id===curId)openChanged=true;return}
       const lu=Number(L.updated||0),ru=Number(r.updated||0);
-      const lm=(L.messages&&L.messages.length)||0,rm=(r.messages&&r.messages.length)||0;
-      if(ru>lu||(ru===lu&&rm>lm)){map.set(id,r);changed=true}
+      if(!(ru>lu))return;
+      if(this._convStamp(L)===this._convStamp(r))return;
+      map.set(id,r);changed=true;
+      if(id===curId)openChanged=true;
     });
     if(!changed)return false;
-    const merged=[...map.values()].sort((a,b)=>(b.updated||0)-(a.updated||0));
+    const merged=[...map.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0));
     app.storage.set('conversations',merged);
     if(app.conversations)app.conversations.conversations=merged;
-    if(app.ui){
-      app.ui.renderConversations&&app.ui.renderConversations();
-      const cur=app.conversations&&app.conversations.currentId;
-      const running=app.agent&&app.agent.running;
-      if(reloadOpen&&cur&&!running&&app.ui.loadConversation)app.ui.loadConversation(cur);
-    }
+    if(app.ui&&app.ui.renderConversations)app.ui.renderConversations();
+    const running=app.agent&&app.agent.running;
+    if(reloadOpen&&openChanged&&curId&&!running&&app.ui&&app.ui.loadConversation)app.ui.loadConversation(curId);
     return true;
   }
 
-  refreshFromLocal(app){
+  refreshFromLocal(app,reloadOpen=false){
     if(!app||!app.storage||app.storage.isGuest())return;
     const merged=app.storage.get('conversations',[])||[];
     const curId=app.storage.get('currentConvId',null);
@@ -1018,14 +1039,10 @@ class CloudSync{
       app.conversations.conversations=merged;
       if(curId)app.conversations.currentId=curId;
     }
-    if(app.ui){
-      app.ui.renderConversations&&app.ui.renderConversations();
-      const cur=app.conversations&&app.conversations.currentId;
-      const running=app.agent&&app.agent.running;
-      if(cur&&!running&&app.ui.loadConversation){
-        const live=merged.find(c=>c&&c.id===cur);
-        if(live)app.ui.loadConversation(cur);
-      }
+    if(app.ui&&app.ui.renderConversations)app.ui.renderConversations();
+    if(reloadOpen&&curId&&!(app.agent&&app.agent.running)&&app.ui&&app.ui.loadConversation){
+      const live=merged.find(c=>c&&c.id===curId);
+      if(live)app.ui.loadConversation(curId);
     }
   }
   bindCrossTab(app){
@@ -1034,16 +1051,15 @@ class CloudSync{
     this._tabBound=true;
     window.addEventListener('storage',(e)=>{
       if(!e.key||!app||!app.storage||app.storage.isGuest())return;
-      if(e.key.indexOf('conversations')===-1&&e.key.indexOf('currentConvId')===-1)return;
-      this.refreshFromLocal(app);
+      if(e.key.indexOf('conversations')===-1)return;
+      this.refreshFromLocal(app,false);
     });
     const pull=()=>this.pullConversationsIfLoggedIn(app);
-    window.addEventListener('focus',pull);
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pull()});
+    window.addEventListener('focus',()=>{if(!this._lastPushAt||Date.now()-this._lastPushAt>8000)pull()});
     try{
       this._bc=new BroadcastChannel('thinkdeeper_v2_sync');
       this._bc.onmessage=(ev)=>{
-        if(ev&&ev.data&&ev.data.type==='conversations')this.refreshFromLocal(app);
+        if(ev&&ev.data&&ev.data.type==='conversations')this.refreshFromLocal(app,false);
       };
     }catch(e){}
   }
@@ -1053,12 +1069,13 @@ class CloudSync{
   async pullConversationsIfLoggedIn(app){
     if(!app||!this.ensureUid()||!app.storage||app.storage.isGuest())return;
     if(this._applyingRemote||this._pushing)return;
+    if(this._lastFocusPull&&Date.now()-this._lastFocusPull<15000)return;
+    this._lastFocusPull=Date.now();
     try{
       const uid=this.ensureUid();
       const snap=await this.db.collection('users').doc(uid).collection('conversations').get();
       const remote=snap.docs.map(d=>({id:d.id,...(d.data()||{})}));
       this.applyRemoteConversations(app,remote,{reloadOpen:false});
-      this.refreshFromLocal(app);
     }catch(e){console.warn('[CloudSync] pull on focus',e)}
   }
 }
@@ -1168,7 +1185,7 @@ draftTitle(text){const t=String(text||'').replace(/\s+/g,' ').trim();if(!t)retur
 setTitle(id,title){const c=this.get(id);if(!c||!title)return;c.title=String(title).replace(/[\n\r]/g,' ').trim().slice(0,60);c.updated=now();this.persist()}
 delete(id){this.conversations=this.conversations.filter(c=>c.id!==id);if(this.currentId===id)this.currentId=this.conversations[0]?.id||null;this.persist()}
 rename(id,t){this.update(id,{title:t})}
-setCurrent(id){this.currentId=id;this.storage.set('currentConvId',id);try{if(window.__app&&window.__app.cloud)window.__app.cloud.schedulePush(window.__app)}catch{}}
+setCurrent(id){if(this.currentId===id){this.storage.set('currentConvId',id);return}this.currentId=id;this.storage.set('currentConvId',id)}
 persist(){this.storage.set('conversations',this.conversations);this.storage.set('currentConvId',this.currentId);try{if(window.__app&&window.__app.cloud){window.__app.cloud.schedulePush(window.__app);window.__app.cloud.notifyTabs&&window.__app.cloud.notifyTabs()}}catch{}}}
 
 class ProviderManager{constructor(s){this.storage=s;this.config=s.get('apiConfig',{baseUrl:'https://api.openai.com/v1',apiKey:'',model:'',org:'',project:'',rememberKey:false,fallbackBaseUrl:'',fallbackApiKey:'',fallbackModel:''});this.models=s.get('discoveredModels',[])}
@@ -2276,7 +2293,7 @@ editPlugin(id){const p=id?this.app.plugins.get(id):{id:uid(),name:'',description
 savePlugin(){const p=this._editingPlugin||{id:uid()};p.name=$('#plugin-name').value.trim()||'Untitled';p.description=$('#plugin-desc').value.trim();p.instructions=$('#plugin-instructions').value;p.knowledge=$('#plugin-knowledge').value;p.icon=$('#plugin-icon').value.trim()||'🧩';p.enabled=$('#plugin-enabled').checked;p.training=!!$('#plugin-training')?.checked;this.app.plugins.save(p);$('#plugin-editor').style.display='none';this.renderPluginList();toast('Plugin saved','success')}
 async importPlugin(file){if(!file)return;try{const text=await file.text();let data;try{data=JSON.parse(text)}catch{data=null}const p=data?{id:uid(),name:data.name||file.name.replace(/\.\w+$/,''),description:data.description||'',instructions:data.instructions||data.prompt||'',knowledge:data.knowledge||'',icon:data.icon||'📦',enabled:true,training:!!data.training,folder:data.folder||'',files:data.files||null}:{id:uid(),name:file.name.replace(/\.\w+$/,''),description:'Imported text',instructions:text,knowledge:'',icon:'📄',enabled:true};this.app.plugins.save(p);this.renderPluginList();toast('Imported','success')}catch(e){toast('Import failed: '+e.message,'error')}$('#import-plugin-file').value=''}
 newChat(){const c=this.app.conversations.create();const pid=this.app.storage.get('currentProjectId',null);if(pid){c.projectId=pid;this.app.conversations.update(c.id,{projectId:pid});this.attachChatToProject(c.id)}this.app.conversations.setCurrent(c.id);this.renderConversations();this.showEmpty();$('#messages').innerHTML=''}
-loadConversation(id){this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();return}this.hideEmpty();c.messages.forEach(m=>this.renderMessage(m,false));this.scrollToBottom()}
+loadConversation(id){if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>this.renderMessage(m,false));this.scrollToBottom();this._loadingConv=null}
 renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>p.id===pid):null;let chats=this.app.conversations.list();if(proj){const set=new Set(proj.chatIds||[]);chats=chats.filter(c=>set.has(c.id)||c.projectId===pid)}
   const q=(this._convQuery||'').trim().toLowerCase();
   if(q){chats=chats.filter(c=>{
