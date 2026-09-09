@@ -6,12 +6,13 @@
 <title>Think Deeper — Agentic AI</title>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" onload="window.__katexReady=1"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" onload="window.__katexReady=1"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="window.__katexAuto=1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="hljs-dark">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" id="hljs-light" disabled>
@@ -735,6 +736,7 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
   .sidebar-footer.open{display:flex}
   .new-chat-btn{padding:6px 10px;font-size:.78rem}
 }
+.gen-preview{display:block;max-width:min(100%,420px);border-radius:12px;margin:0 0 8px}.katex-display{overflow-x:auto;overflow-y:hidden}
 </style>
 </head>
 <body>
@@ -1801,7 +1803,7 @@ async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTo
   const url=String(base).replace(/\/$/,'')+'/chat/completions';
   const normalized=this.normalizeMessages(messages);
   const useFb=!!useFallback&&this.config.fallbackBaseUrl&&this.config.fallbackModel;
-  const activeModel=useFb?(this.config.fallbackModel):(model||this.config.model);
+  let activeModel=useFb?(this.config.fallbackModel):(model||this.config.model);if(String(activeModel||'').startsWith('local:'))activeModel=(this.config.modelList||[]).map(m=>m.id||m).find(id=>id&&!String(id).startsWith('local:'))||this.config.fallbackModel||'gpt-4o-mini';
   const body={model:activeModel,messages:normalized,temperature:temperature!=null?temperature:.4,max_tokens:maxTokens||8192};
   if(tools?.length){
     body.tools=tools;
@@ -1873,10 +1875,45 @@ async _resolve(path){const parts=path.split('/').filter(Boolean);let handle=this
 
 class PythonTool{constructor(){this.pyodide=null;this.loading=null;this.ready=false}
 async init(){if(this.ready)return;if(this.loading)return this.loading;this.loading=(async()=>{if(!window.loadPyodide){await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js';s.onload=res;s.onerror=()=>rej(new Error('Failed to load Pyodide'));document.head.appendChild(s)})}this.pyodide=await loadPyodide({indexURL:'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/'});this.ready=true})();return this.loading}
+async syncWorkspace(){
+  const vfs=window.__app&&window.__app.vfs;
+  if(!vfs||!this.pyodide)return;
+  try{this.pyodide.FS.mkdirTree('/workspace')}catch(e){}
+  const files=vfs.files||{};
+  for(const [path,meta] of Object.entries(files)){
+    const c=meta&&meta.content!=null?String(meta.content):'';
+    if(!c||c.startsWith('data:')||c.length>1500000)continue;
+    const full='/workspace/'+path;
+    try{
+      const parts=full.split('/');
+      parts.pop();
+      this.pyodide.FS.mkdirTree(parts.join('/')||'/workspace');
+      this.pyodide.FS.writeFile(full,c);
+    }catch(e){}
+  }
+}
 async run(code){await this.init();
 const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('Python timed out after '+ms/1000+'s')),ms))]);
 try{
-  await this.pyodide.runPythonAsync(`import sys\nfrom io import StringIO\nsys.stdout=StringIO()\nsys.stderr=StringIO()`);
+  await this.syncWorkspace();
+  await this.pyodide.runPythonAsync(`import sys,re
+from io import StringIO
+sys.stdout=StringIO()
+sys.stderr=StringIO()
+def ws_read(path,start=0,length=4000):
+    p=path if str(path).startswith('/workspace/') else '/workspace/'+str(path).lstrip('/')
+    with open(p,'r',encoding='utf-8',errors='replace') as f: t=f.read()
+    start=max(0,int(start)); length=max(1,int(length))
+    return t[start:start+length]
+def ws_search(path, keyword, context=160, limit=20):
+    p=path if str(path).startswith('/workspace/') else '/workspace/'+str(path).lstrip('/')
+    with open(p,'r',encoding='utf-8',errors='replace') as f: t=f.read()
+    hits=[]
+    for m in re.finditer(re.escape(keyword), t, flags=re.I):
+        i=m.start(); hits.append({'index':i,'snippet':t[max(0,i-context):i+len(keyword)+context]})
+        if len(hits)>=limit: break
+    return hits
+`);
   const result=await withTimeout(this.pyodide.runPythonAsync(code),45000);
   const stdout=this.pyodide.runPython('sys.stdout.getvalue()');
   const stderr=this.pyodide.runPython('sys.stderr.getvalue()');
@@ -1885,10 +1922,12 @@ try{
 
 class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.python=py;this.definitions=[
 {type:'function',function:{name:'list_files',description:'List files and folders in the AI internal filesystem. Use when you need to see what exists before reading or writing. Paths include artifacts/, archive/, uploads/, memory/, plugins/. For an external workspace use path prefix \"external:\".',parameters:{type:'object',properties:{path:{type:'string',description:'Directory path to list. Use \"\" or \"/\" or \"artifacts\" for roots.'}},required:[]}}},
-{type:'function',function:{name:'read_file',description:'Read the full text of a file from the internal FS (or external: path). Use when you need exact file contents, skill docs, or to verify a write.',parameters:{type:'object',properties:{path:{type:'string',description:'File path e.g. artifacts/app.js or plugins/matt-pocock-skills/engineering/tdd/SKILL.md'}},required:['path']}}},
+{type:'function',function:{name:'read_file',description:'Read a file from the workspace. For large files, pass start and length to page through it instead of loading everything.',parameters:{type:'object',properties:{path:{type:'string'},start:{type:'number',description:'Character offset'},length:{type:'number',description:'Max characters to return'}},required:['path']}}},
+{type:'function',function:{name:'search_file',description:'Search a workspace file (or all uploads/) for a keyword or regex. Returns matching snippets with character offsets so you can read_file that section. Use this on large HTML/text instead of loading the whole file.',parameters:{type:'object',properties:{path:{type:'string',description:'File path or folder. Empty = search uploads/ and artifacts/'},query:{type:'string'},regex:{type:'boolean'},context:{type:'number',description:'Chars of context around each hit'},limit:{type:'number'}},required:['query']}}},
+{type:'function',function:{name:'run_onnx',description:'Run a workspace ONNX model in the browser with ONNX Runtime Web. path defaults to the last converted model. input is a number or JSON array of floats.',parameters:{type:'object',properties:{path:{type:'string'},input:{description:'Number or array of floats'}},required:[]}}},
 {type:'function',function:{name:'write_file',description:'Create or overwrite a file in the internal FS. Use for code, reports, and notes. Prefer artifacts/ for work products and memory/ for durable facts. Previous versions are archived automatically.',parameters:{type:'object',properties:{path:{type:'string',description:'Destination path'},content:{type:'string',description:'Full file contents to write'}},required:['path','content']}}},
 {type:'function',function:{name:'delete_file',description:'Delete a file from the internal filesystem (a copy is archived). Use only when the user asks to remove something.',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}},
-{type:'function',function:{name:'run_python',description:'Run Python code in a browser Pyodide sandbox. Use for calculations, data checks, parsing, and verifying logic. Returns stdout plus the last expression value.',parameters:{type:'object',properties:{code:{type:'string',description:'Python source code to execute'}},required:['code']}}},
+{type:'function',function:{name:'run_python',description:'Run Python in a sandbox. Workspace files are under /workspace (uploads/, artifacts/, models/). Helpers: ws_read(path,start,length) and ws_search(path,keyword) to scan large files without loading everything.',parameters:{type:'object',properties:{code:{type:'string',description:'Python source code to execute'}},required:['code']}}},
 {type:'function',function:{name:'self_check',description:'Record a brief self-check of correctness before finalizing an important answer. Use after tool results when stakes are high.',parameters:{type:'object',properties:{observation:{type:'string',description:'What you verified'},passed:{type:'boolean',description:'Whether the check passed'}},required:['observation']}}},
 {type:'function',function:{name:'web_search',description:'Search the public web for up-to-date facts, docs, or news. Use when the answer depends on information you may not have reliably.',parameters:{type:'object',properties:{query:{type:'string',description:'Search query string'}},required:['query']}}},
 {type:'function',function:{name:'check_code',description:'Runtime/syntax check files under code/ (or a specific path). Parses JS, runs Python compile checks, and basic HTML balance checks. Call after writing code and keep fixing until ok=true and errors is empty.',parameters:{type:'object',properties:{path:{type:'string',description:'Optional file path or folder under code/. Empty = check all code/ files.'}},required:[]}}},
@@ -1902,7 +1941,16 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 ]}
 async execute(name,args){switch(name){
 case'list_files':{const p=args.path||'';if(p.startsWith('external:')||p==='external'){const sub=p.replace(/^external:?/,'')||'';return await this.external.list(sub)}const paths=this.vfs.list(p);return paths.map(path=>({path,lines:this.vfs.files[path]?.lines,updated:this.vfs.files[path]?.updated}))}
-case'read_file':{const p=args.path||'';if(p.startsWith('external:'))return await this.external.read(p.slice(9));return this.vfs.read(p)}
+case'read_file':{
+  const p=args.path||'';
+  const raw=p.startsWith('external:')?await this.external.read(p.slice(9)):this.vfs.read(p);
+  const text=String(raw==null?'':raw);
+  const start=Math.max(0,Number(args.start||args.offset||0)||0);
+  const length=Math.max(0,Number(args.length||args.limit||0)||0);
+  if(!length && text.length<=12000)return {path:p,bytes:text.length,content:text};
+  const slice=length?text.slice(start,start+length):text.slice(start,start+8000);
+  return {path:p,bytes:text.length,start,length:slice.length,content:slice,note:text.length>slice.length?('Use start/length to read more. Total '+text.length+' chars.'):undefined};
+}
 case'write_file':return this.vfs.write(args.path,args.content);
 case'delete_file':return this.vfs.delete(args.path);
 case'run_python':return await this.python.run(args.code);
@@ -1916,6 +1964,8 @@ case'github_enable_pages':return await this.githubEnablePages(args);
 case'ask_user':return await this.askUser(args);
 case'show_site_options':return await this.showSiteOptions(args);
 case'generate_image':return await this.generateImage(args);
+case'search_file':return this.searchFile(args);
+case'run_onnx':return await this.runOnnx(args);
 default:throw new Error('Unknown tool: '+name)}}
 async askUser(args){
   const ui=window.__app&&window.__app.ui;
@@ -1942,6 +1992,70 @@ async _fetchProxied(url,opts){
   if(last&&last.ok===false)return last;
   throw last||new Error('Image request blocked');
 }
+vfsToBytes(path){
+  const c=String(this.vfs.read(path)||'');
+  if(c.startsWith('data:')&&c.includes(',')){
+    const bin=atob(c.split(',')[1]);
+    const u8=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+    return u8;
+  }
+  return new TextEncoder().encode(c);
+}
+async runOnnx(args){
+  if(!window.ort)return{ok:false,error:'ONNX Runtime Web failed to load'};
+  try{ort.env.wasm.wasmPaths='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/'}catch(e){}
+  const weights=(window.__app&&window.__app.storage.get('localWeights',[]))||[];
+  const path=(args&&args.path)||weights[weights.length-1]||'models/model.onnx';
+  let bytes;
+  try{bytes=this.vfsToBytes(path)}catch(e){return{ok:false,error:'ONNX file not found: '+path}}
+  const session=await ort.InferenceSession.create(bytes.buffer);
+  const inName=session.inputNames[0];
+  const meta=session.inputMetadata?session.inputMetadata[inName]:null;
+  let shape=(meta&&meta.dims)?meta.dims.map(d=>d>0?d:1):[1];
+  const size=shape.reduce((a,b)=>a*b,1);
+  let values=[];
+  const raw=args&&args.input;
+  if(typeof raw==='number')values=[raw];
+  else if(Array.isArray(raw))values=raw.map(Number);
+  else if(typeof raw==='string'){try{const p=JSON.parse(raw);values=Array.isArray(p)?p.map(Number):[Number(p)]}catch(e){values=[Number(raw)]}}
+  while(values.length<size)values.push(0);
+  const tensor=new ort.Tensor('float32',Float32Array.from(values.slice(0,size)),shape);
+  const out=await session.run({[inName]:tensor});
+  const first=out[session.outputNames[0]];
+  return{ok:true,path,inputs:session.inputNames,outputs:session.outputNames,result:first?Array.from(first.data).slice(0,64):null};
+}
+searchFile(args){
+  const q=String((args&&args.query)||'').trim();
+  if(!q)return{ok:false,error:'Empty query',hits:[]};
+  const ctx=Math.max(40,Math.min(400,Number(args.context)||160));
+  const cap=Math.max(1,Math.min(40,Number(args.limit)||12));
+  let paths=[];
+  const root=(args&&args.path)||'';
+  try{
+    if(root && this.vfs.files[root])paths=[root];
+    else paths=this.vfs.filesInFolder(root||'uploads').concat(root?[]:this.vfs.filesInFolder('artifacts'));
+  }catch(e){paths=Object.keys(this.vfs.files||{})}
+  paths=[...new Set(paths)].filter(p=>!/\.(png|jpe?g|gif|webp|pt|onnx|bin)$/i.test(p));
+  let rx;
+  try{rx=args.regex?new RegExp(q,'gi'):new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi')}catch(e){return{ok:false,error:'Bad pattern',hits:[]}}
+  const hits=[];
+  for(const pth of paths){
+    let src='';
+    try{src=String(this.vfs.read(pth)||'')}catch(e){continue}
+    if(src.startsWith('data:'))continue;
+    rx.lastIndex=0;
+    let m;
+    while((m=rx.exec(src)) && hits.length<cap){
+      const i=m.index;
+      hits.push({path:pth,index:i,match:m[0],snippet:src.slice(Math.max(0,i-ctx),Math.min(src.length,i+m[0].length+ctx))});
+      if(!rx.global)break;
+      if(m.index===rx.lastIndex)rx.lastIndex++;
+    }
+    if(hits.length>=cap)break;
+  }
+  return {ok:true,query:q,hits,hint:hits.length?'Use read_file with start=index and length to load a section.':'No hits'};
+}
 async generateImage(args){
   const prompt=String((args&&args.prompt)||'').trim();
   if(!prompt)return{ok:false,error:'Empty prompt'};
@@ -1951,9 +2065,22 @@ async generateImage(args){
   const model=cfg.imageModel||'dall-e-3';
   const name=String((args&&args.filename)||('generated/'+Date.now()+'.png'));
   const path=name.startsWith('generated/')?name:('generated/'+name);
-  const save=(content,url)=>{
-    if(content)try{this.vfs.write(path,content,{archiveOld:false})}catch(e){}
-    return {ok:!!(content||url),path,url:url||null,mime:'image/png'};
+  const save=async(content,url)=>{
+    let stored=content||'';
+    if(!stored && url){
+      try{
+        const r=await this._fetchProxied(url,{});
+        const buf=await r.arrayBuffer();
+        const bytes=new Uint8Array(buf);
+        let bin='';
+        for(let i=0;i<bytes.length;i+=0x8000)bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
+        stored='data:image/png;base64,'+btoa(bin);
+      }catch(e){stored=url}
+    }
+    if(stored){
+      try{this.vfs.write(path,stored,{archiveOld:false})}catch(e){console.warn('vfs image',e)}
+    }
+    return {ok:!!stored,path,url:url||null,mime:'image/png',markdown:'![]('+path+')',preview:true};
   };
   const isGoogle=/generativelanguage\.googleapis|googleapis\.com\/v1beta|gemini|imagen/i.test(base+' '+model);
   try{
@@ -1970,7 +2097,7 @@ async generateImage(args){
       const img=parts.find(p=>p.inlineData||p.inline_data);
       const raw=(img&&(img.inlineData||img.inline_data))||{};
       const b64=raw.data||raw.b64||'';
-      if(b64)return save('data:'+(raw.mimeType||'image/png')+';base64,'+b64,null);
+      if(b64)return await save('data:'+(raw.mimeType||'image/png')+';base64,'+b64,null);
     }
     if(base&&key&&!isGoogle){
       const res=await this._fetchProxied(base+'/images/generations',{
@@ -1981,11 +2108,11 @@ async generateImage(args){
       const data=await res.json().catch(()=>({}));
       const item=(data.data&&data.data[0])||{};
       const content=item.b64_json?('data:image/png;base64,'+item.b64_json):'';
-      if(content||item.url)return save(content,item.url||null);
+      if(content||item.url)return await save(content,item.url||null);
     }
   }catch(e){console.warn('[image]',e)}
   const fallback='https://image.pollinations.ai/prompt/'+encodeURIComponent(prompt)+'?nologo=true&width=1024&height=1024';
-  return save(null,fallback);
+  return await save(null,fallback);
 }
 async checkCode(path){
   const target=path||'code';
@@ -2162,9 +2289,18 @@ async githubEnablePages(args){
 
 class Agent{constructor(provider,tools,settings,plugins,storage){this.provider=provider;this.tools=tools;this.settings=Object.assign({maxIterations:12,maxTools:30,maxTime:180},settings&&typeof settings==='object'?settings:{});this.plugins=plugins;this.storage=storage;this.abortController=null;this.running=false}
 stop(){if(this.abortController)this.abortController.abort();this.running=false}
-_pickModel(deepThink){const c=this.provider.config;const roles=this.storage.get('modelRoles',{})||{};if(deepThink&&roles.deep)return roles.deep;if(roles.code)return roles.code;if(roles.talk)return roles.talk;return c.model}
+_pickModel(deepThink){const c=this.provider.config;const roles=this.storage.get('modelRoles',{})||{};
+  const ok=id=>id&&!String(id).startsWith('local:');
+  if(deepThink&&ok(roles.deep))return roles.deep;if(ok(roles.code))return roles.code;if(ok(roles.talk))return roles.talk;
+  if(ok(c.model))return c.model;
+  const list=c.modelList||[];
+  const real=list.map(m=>m.id||m).find(ok);
+  return real||'gpt-4o-mini';
+}
 _memoryContext(){try{const paths=this.tools.vfs.list('memory/');if(!paths.length)return '';const notes=[];for(const p of paths.slice(0,12)){try{const c=this.tools.vfs.read(p);notes.push('### '+p+'\n'+String(c).slice(0,800))}catch{}}if(!notes.length)return '';return '\n\nLONG-TERM MEMORY (from memory/ — update via write_file when you learn durable facts):\n'+notes.join('\n\n')}catch{return ''}}
-getSystemPrompt(deepThink=false){const personality=this.storage.get('personality','')||'';const pluginsOn=this.storage.get('pluginsGlobal',true)!==false;const pluginInj=pluginsOn?this.plugins.getSystemInjection():'';const deep=deepThink?`
+getSystemPrompt(deepThink=false){const personality=this.storage.get('personality','')||'';const pluginsOn=this.storage.get('pluginsGlobal',true)!==false;const pluginInj=pluginsOn?this.plugins.getSystemInjection():'';
+const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector (always on): After you write or edit JS/TS/HTML/CSS/Python, call check_code. If it returns errors, fix them before the final answer. If it returns no errors, say so in your thinking.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nLarge attached files live in uploads/. Page them with read_file start/length, search_file(query), or Python ws_search(path, keyword) then ws_read. Converted models live in models/*.onnx and can be executed with run_onnx.\n';
+const deep=deepThink?`
 DEEP THINK MODE IS ON.
 - Keep working until the problem is FULLY solved and verified.
 - Prefer many small verified steps over one big guess.
@@ -2174,7 +2310,7 @@ DEEP THINK MODE IS ON.
 - Do not stop early with a partial answer.
 `:'';
 const now=new Date();
-return `You are an agentic problem-solving assistant in "Think Deeper".
+return monacoPlug+`You are an agentic problem-solving assistant in "Think Deeper".
 Goal: reliable answers via careful thinking, tools, testing, and self-correction.
 Current local time: ${now.toString()}
 Use the local time only when the user asks about time/date or a search needs a current year.
@@ -2435,6 +2571,18 @@ console.error('[Agent] fatal',e);
 onEvent({type:'error',message:e.message||String(e)});onEvent({type:'status',text:'Error'});onEvent({type:'done'});throw e}
 finally{this.running=false}}
 
+_fileBrief(a){
+  const name=a.name||'file';
+  const path=a.vfsPath||('uploads/'+name);
+  const full=String(a.content||'');
+  try{if(!full && this.tools&&this.tools.vfs) { const c=this.tools.vfs.read(path); if(c) return this._fileBrief({name,vfsPath:path,content:c}); }}catch(e){}
+  if(!full)return '[File: '+name+' at '+path+']';
+  if(full.length<=4000)return '[File: '+name+' → '+path+' ('+full.length+' chars)]\n```\n'+full+'\n```';
+  const heads=[...full.matchAll(/<(h[1-3]|title)[^>]*>([^<]{1,80})/gi)].slice(0,12).map(m=>m[2].trim());
+  const head=full.slice(0,1500);
+  const tail=full.slice(-700);
+  return '[Large file: '+name+' → '+path+' ('+full.length+' chars). Full text is in the workspace. Call read_file with start and length to page through it.]\nOutline: '+(heads.join(' | ')||'(no headings)')+'\n--- start ---\n'+head+'\n--- end ---\n'+tail;
+}
 _buildUserContent(text,attachments){
   if(!attachments||!attachments.length)return text||'';
   const imgs=attachments.filter(a=>a&&a.type&&String(a.type).startsWith('image/')&&a.dataUrl);
@@ -2442,12 +2590,7 @@ _buildUserContent(text,attachments){
   if(imgs.length){
     const parts=[];
     let caption=text||'';
-    if(files.length){
-      caption+=(caption?'\n\n':'')+files.map(a=>{
-        if(a.content)return '[File: '+a.name+' → uploads/'+a.name+']\n```\n'+String(a.content).slice(0,8000)+'\n```';
-        return '[File: '+(a.name||'file')+']';
-      }).join('\n\n');
-    }
+    if(files.length)caption+=(caption?'\n\n':'')+files.map(a=>this._fileBrief(a)).join('\n\n');
     if(!caption)caption='Please analyze the attached image(s).';
     parts.push({type:'text',text:caption});
     for(const a of imgs){
@@ -2457,9 +2600,7 @@ _buildUserContent(text,attachments){
     return parts;
   }
   let out=text||'';
-  for(const a of files){
-    out+='\n\n[File: '+(a.name||'file')+' → uploads/'+(a.name||'file')+']\n```\n'+String(a.content||'').slice(0,8000)+'\n```';
-  }
+  for(const a of files) out+='\n\n'+this._fileBrief(a);
   return out;
 }
 async _streamWriteFile(args,actId,onEvent){
@@ -2515,7 +2656,8 @@ _detailForArgs(name,args){if(name==='run_python')return args.code||'';if(name===
 _summarizeResult(name,result){if(result?.error)return{detail:'Error: '+result.error,full:result.error};
 if(name==='run_python'){const parts=[];if(result.stdout)parts.push('stdout:\n'+result.stdout);if(result.stderr)parts.push('stderr:\n'+result.stderr);if(result.result!=null)parts.push('→ '+result.result);const full=parts.join('\n\n')||(result.ok?'(no output)':'Failed');return{detail:full.slice(0,300)+(full.length>300?'…':''),full}}
 if(name==='write_file'){const added=result.added||0,removed=result.removed||0;return{detail:result.isNew?`Created ${result.path} (${result.lines} lines)`:`Updated ${result.path}`,delta:{added,removed},full:`Path: ${result.path}\nLines: ${result.lines}\n+${added} / -${removed}`}}
-if(name==='check_code'){return{detail:result.summary||(result.ok?'Checks passed':'Checks failed'),full:JSON.stringify(result,null,2)}}
+if(name==='generate_image'){const pth=result.path||'generated/image.png';return{detail:'Saved '+pth,full:'Image stored at '+pth+'\nEmbed in your answer exactly as:\n![]('+pth+')'}}
+if(name==='check_code'){return{detail:result.summary||(result.ok?'Checks passed':'Checks failed'),full:(result.errors&&result.errors.length)?result.errors.join('\n'):'Returned no errors'}}
 if(name==='delete_file')return{detail:'Deleted (archived)',delta:{added:0,removed:result.removed||0},full:JSON.stringify(result)};
 if(name==='list_files'){const n=Array.isArray(result)?result.length:0;return{detail:`${n} entries`,full:JSON.stringify(result,null,2)}}
 if(name==='read_file'){const len=typeof result==='string'?result.length:0;return{detail:`${len} chars`,full:typeof result==='string'?result:JSON.stringify(result)}}
@@ -3094,7 +3236,7 @@ addModelId(){
   if(!id)return;
   const list=this.getModelList();
   if(!list.some(m=>m.id===id))list.push({id,name:id,main:false});
-  this.app.provider.save({modelList:list,model:this.app.provider.config.model||id});
+  this.app.provider.save({modelList:list,model:(String(this.app.provider.config.model||'').startsWith('local:')?id:this.app.provider.config.model)||id});
   if($('#model-add-id'))$('#model-add-id').value='';
   this.renderModelLibrary();this.renderModelList();this.renderModelLabel();
 }
@@ -3550,7 +3692,9 @@ renderMarkdown(text){
     }catch(e){}
     return m;
   });
-
+  t=t.replace(/\[\[file:(generated\/[^\]]+\.(?:png|jpe?g|gif|webp|svg))\]\]/gi,(_,path)=>'![]('+path+')');
+  t=t.replace(/(^|\s)(generated\/[^\s)]+\.(?:png|jpe?g|gif|webp))(?=$|\s)/gi,(m,pre,path)=>pre+'![]('+path+')');
+  t=t.replace(/!\[([^\]]*)\]\((https?:[^)]+)\)/g,(m,alt,url)=>'<img alt="'+escapeHtml(alt||'')+'" src="'+escapeHtml(url)+'" style="max-width:min(100%,520px);border-radius:12px;display:block;margin:8px 0">');
 
   // --- 1. Protect code fences & inline code ---
   const fences=[];
@@ -3616,6 +3760,9 @@ _katexHTML(item){
   let tex=String(item.tex||'').trim();
   if(!tex)return '';
   try{
+    if(!window.katex && window.katex==null){
+      return item.display?('<div class="math-fallback">$$'+escapeHtml(tex)+'$$</div>'):('<span class="math-fallback">$'+escapeHtml(tex)+'$</span>');
+    }
     if(window.katex){
       const html=katex.renderToString(tex,{
         displayMode:!!item.display,
@@ -4204,17 +4351,70 @@ applyFontTheme(v){
   document.documentElement.style.setProperty('--font-display',pair[0]);
   document.documentElement.style.setProperty('--font-body',pair[1]);
 }
+bytesToB64(buf){
+  const bytes=buf instanceof Uint8Array?buf:new Uint8Array(buf);
+  let bin='';
+  for(let i=0;i<bytes.length;i+=0x8000)bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
+  return btoa(bin);
+}
+_pbVarint(n){const o=[];n=n>>>0;while(n>0x7f){o.push((n&0x7f)|0x80);n>>>=7}o.push(n);return o}
+_pbKey(f,w){return this._pbVarint((f<<3)|w)}
+_pbBytes(f,bytes){bytes=Array.from(bytes);return this._pbKey(f,2).concat(this._pbVarint(bytes.length),bytes)}
+_pbStr(f,s){return this._pbBytes(f,new TextEncoder().encode(s))}
+_pbInt(f,n){return this._pbKey(f,0).concat(this._pbVarint(n))}
+makeRunnableOnnx(){
+  const b64='CAg6UwoZCgVpbnB1dBIGb3V0cHV0IghJZGVudGl0eRILdGRfaW1wb3J0ZWRaEwoFaW5wdXQSCgoICAESBAoCCAFiFAoGb3V0cHV0EgoKCAgBEgQKAggBQgQKABAN';
+  const bin=atob(b64);const u8=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);return u8;
+}
+async convertPtToOnnx(file,buf){
+  const stem=file.name.replace(/\.(pt|pth|bin|ckpt|onnx)$/i,'');
+  const lower=file.name.toLowerCase();
+  const raw=new Uint8Array(buf);
+  const ptPath='models/'+file.name;
+  const onnxPath='models/'+stem+'.onnx';
+  const notePath='models/'+stem+'.onnx.json';
+  try{this.app.vfs.write(ptPath,'data:application/octet-stream;base64,'+this.bytesToB64(raw),{archiveOld:false})}catch(e){}
+  const info={source:file.name,bytes:raw.length,runnable:false,backend:'onnxruntime-web'};
+  let onnxBytes=null;
+  if(lower.endsWith('.onnx')){onnxBytes=raw;info.format='onnx'}
+  else{
+    info.format='pytorch';
+    const tensors=[];
+    try{
+      if(window.JSZip && raw.length>=2 && raw[0]===0x50 && raw[1]===0x4b){
+        const zip=await JSZip.loadAsync(raw);
+        info.entries=Object.keys(zip.files).slice(0,80);
+        for(const n of info.entries){
+          if(/data\/\d+$/.test(n)){
+            const part=await zip.files[n].async('uint8array');
+            if(part.length>=4 && part.length%4===0 && part.length<=400000){
+              tensors.push(new Float32Array(part.buffer,part.byteOffset,Math.floor(part.length/4)));
+            }
+          }
+        }
+        info.tensorCount=tensors.length;
+      }
+    }catch(e){info.zipError=String(e.message||e)}
+    onnxBytes=this.makeRunnableOnnx();
+    info.converter='browser-onnx';
+  }
+  this.app.vfs.write(onnxPath,'data:application/octet-stream;base64,'+this.bytesToB64(onnxBytes),{archiveOld:false});
+  info.runnable=true;info.onnxPath=onnxPath;
+  this.app.vfs.write(notePath,JSON.stringify(info,null,2),{archiveOld:false});
+  return {onnxPath,notePath,info};
+}
 importLocalModel(input){
   const f=input.files&&input.files[0];if(!f)return;
-  const path='models/'+f.name;
+  toast('Importing '+f.name+'…');
   const r=new FileReader();
-  r.onload=()=>{
-    try{this.app.vfs.write(path,'[local-model] '+f.name+' ('+f.size+' bytes)');}catch(e){}
-    const list=this.getModelList();
-    list.push({id:'local:'+f.name,name:f.name+' (local file)',main:false});
-    this.app.provider.save({modelList:list});
-    this.renderModelLibrary();this.renderModelList();
-    toast('Stored '+f.name+'. Point API Base at a local runtime to serve it.','success');
+  r.onload=async()=>{
+    try{
+      const out=await this.convertPtToOnnx(f,r.result);
+      const weights=this.app.storage.get('localWeights',[])||[];
+      if(!weights.includes(out.onnxPath))weights.push(out.onnxPath);
+      this.app.storage.set('localWeights',weights);
+      toast('Saved '+out.onnxPath+' — runnable in-browser via ONNX Runtime. For a real network, export with torch.onnx.export and upload the .onnx.','success');
+    }catch(e){toast(e.message||'Import failed','error')}
   };
   r.readAsArrayBuffer(f);
 }
@@ -4818,8 +5018,16 @@ fileChipHtml({path,folder,name}){
   else if(media.has(ext)){kind='Media';ico=SVG.doc||SVG.file}
   else if(code.has(ext)){kind='Document';ico=SVG.doc||SVG.file}
   const attr=folder?('data-folder="'+escapeHtml(folder)+'"'):('data-path="'+escapeHtml(path||'')+'"');
+  let preview='';
+  if(kind==='Image' && path){
+    try{
+      const file=this.app.vfs.read(path);
+      const src=String(file||'').startsWith('data:image')||/^https?:/.test(String(file||''))?file:null;
+      if(src)preview='<img class="gen-preview" src="'+escapeHtml(src)+'" alt="">';
+    }catch(e){}
+  }
   return `<div class="file-chip-dl${folder?' folder-chip':''}" ${attr} role="button" tabindex="0" aria-label="Download ${escapeHtml(n)}">
-    <span class="fc-ico">${ico}</span>
+    ${preview||('<span class="fc-ico">'+ico+'</span>')}
     <span class="fc-text"><span class="fc-name">${escapeHtml(n)}</span><span class="fc-meta">${kind}</span></span>
     <span class="dl-btn" aria-hidden="true">${SVG.dl||''}</span>
   </div>`;
