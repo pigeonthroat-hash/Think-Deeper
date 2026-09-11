@@ -738,54 +738,84 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 }
 .gen-preview{display:block;max-width:min(100%,420px);border-radius:12px;margin:0 0 8px}.katex-display{overflow-x:auto;overflow-y:hidden}
 
+
 #swarm-view{display:none;flex:1;min-height:0;background:var(--bg-primary);color:var(--text-primary)}
-#swarm-view.active{display:flex}
-.swarm-shell{display:flex;flex:1;min-height:0;width:100%}
-.swarm-side{width:280px;border-right:1px solid var(--border);padding:14px;overflow:auto;background:var(--bg-sidebar)}
-.swarm-side textarea,.swarm-side input[type=number]{width:100%;margin:4px 0 10px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary)}
-.swarm-row{display:flex;flex-direction:column;margin-bottom:6px}
-.swarm-tests{display:flex;flex-wrap:wrap;gap:4px;margin:10px 0}
-.swarm-tests button{padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);cursor:pointer}
-.swarm-main{flex:1;display:flex;flex-direction:column;min-width:0}
-.swarm-cols,.swarm-bottom{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:8px;min-height:0}
-.swarm-cols{flex:1}
-.swarm-list,.swarm-log,.swarm-graph,.swarm-trace{border:1px solid var(--border);border-radius:10px;background:var(--bg-elevated);min-height:140px;max-height:32vh;overflow:auto;padding:8px;font-size:.78rem}
-.swarm-trace{white-space:pre-wrap}
-.swarm-pill{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border)}
-.st-running{color:var(--accent)}.st-done{color:var(--success)}.st-fail{color:var(--error)}.st-wait{color:var(--text-secondary)}
+#swarm-view.active{display:flex;flex-direction:column}
+.agent-chat-shell{display:flex;flex-direction:column;flex:1;min-height:0;width:100%;max-width:860px;margin:0 auto}
+.agent-chat-top{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--bg-primary);flex-shrink:0}
+.agent-chat-title{display:flex;align-items:center;gap:10px;font-size:.95rem}
+.agent-chat-title strong{font-weight:600;letter-spacing:-.01em}
+.agent-sub{font-size:.78rem;color:var(--text-tertiary);font-weight:400}
+.agent-dot{width:8px;height:8px;border-radius:50%;background:var(--text-tertiary);flex-shrink:0}
+.agent-dot.live{background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);animation:softPulse 1.6s ease infinite}
+.agent-chat-actions{display:flex;gap:8px;align-items:center}
+.agent-stop-btn{padding:6px 12px;font-size:.8rem}
+.agent-chat-body{flex:1;overflow:auto;padding:24px 20px 32px;scroll-behavior:smooth}
+.agent-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:52vh;text-align:center;padding:32px 16px}
+.agent-empty h1{font-family:var(--font-display);font-size:2.2rem;font-weight:400;letter-spacing:-.03em;margin-bottom:10px}
+.agent-empty p{color:var(--text-secondary);font-size:1.02rem;max-width:420px;margin-bottom:24px;line-height:1.55}
+.agent-suggest-row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px}
+.agent-suggest{padding:10px 14px;border-radius:999px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:.82rem;cursor:pointer;transition:border-color .15s,background .15s,color .15s}
+.agent-suggest:hover{border-color:var(--accent);color:var(--text-primary);background:var(--accent-soft)}
+.agent-chat-input-area{padding:12px 16px 18px;border-top:1px solid var(--border);background:var(--bg-primary);flex-shrink:0}
+.agent-input-box{display:flex;align-items:flex-end;gap:10px;padding:10px 12px 10px 16px;border:1px solid var(--border);border-radius:22px;background:var(--bg-input);box-shadow:var(--shadow-sm);transition:border-color .15s,box-shadow .15s}
+.agent-input-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.agent-input-box textarea{flex:1;border:none;background:transparent;resize:none;outline:none;max-height:160px;min-height:28px;line-height:1.45;color:var(--text-primary);padding:6px 0;font-family:inherit}
+.agent-input-box textarea::placeholder{color:var(--text-tertiary)}
+.agent-input-hint{font-size:.72rem;color:var(--text-tertiary);padding:8px 6px 0}
+.agent-msg{margin:0 0 22px;animation:fadeUp .28s ease}
+.agent-msg-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.agent-msg-head .avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:600;background:var(--bg-tertiary);color:var(--text-primary)}
+.agent-msg.user .avatar{background:var(--accent);color:#fff}
+.agent-msg-role{font-size:.8rem;font-weight:600;color:var(--text-secondary)}
+.agent-msg-body{padding-left:38px;font-size:.95rem;line-height:1.65;color:var(--text-primary)}
+.agent-msg.user .agent-msg-body{background:var(--bg-message-user);padding:12px 16px;border-radius:var(--radius-lg);display:inline-block;max-width:100%}
+.agent-work{margin:0 0 14px 38px;border:1px solid var(--border);border-radius:12px;background:var(--bg-tool);overflow:hidden;font-size:.82rem}
+.agent-work-toggle{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;user-select:none;color:var(--text-tertiary);border:none;background:transparent;width:100%;text-align:left;font:inherit}
+.agent-work-toggle:hover{color:var(--text-secondary);background:var(--bg-hover)}
+.agent-work.open .agent-work-body{display:block}
+.agent-work-body{display:none;padding:8px 12px 12px;border-top:1px solid var(--border);max-height:280px;overflow:auto;color:var(--text-secondary)}
+.agent-work-step{padding:6px 0;border-bottom:1px solid var(--border);font-size:.78rem}
+.agent-work-step:last-child{border-bottom:none}
+.agent-work-step .nm{font-weight:600;color:var(--text-primary);font-size:.8rem}
+.agent-work-step pre{white-space:pre-wrap;margin:4px 0 0;font-size:.72rem;opacity:.9;max-height:120px;overflow:auto}
+.agent-setup-panel{max-width:440px}
+.agent-count-row{display:flex;align-items:center;gap:12px}
+.agent-count-row input[type=range]{flex:1;accent-color:var(--accent)}
+.agent-count-row input[type=number]{width:64px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary)}
+.agent-intent-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.agent-intent{padding:12px 12px;border-radius:12px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:.82rem;text-align:left;cursor:pointer;line-height:1.35;transition:border-color .15s,background .15s,color .15s}
+.agent-intent:hover{border-color:var(--accent);color:var(--text-primary)}
+.agent-intent.active{border-color:var(--accent);background:var(--accent-soft);color:var(--text-primary);box-shadow:0 0 0 1px var(--accent)}
+.agent-time-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.agent-time-row input{width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary)}
+.agent-opts{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.agent-check{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--bg-elevated);font-size:.85rem;color:var(--text-primary);cursor:pointer}
+.agent-check:hover{border-color:var(--border-strong)}
+.agent-check input{accent-color:var(--accent);width:16px;height:16px}
+.agent-clock{font-variant-numeric:tabular-nums;font-size:.75rem;color:var(--accent);margin-left:auto}
 @media(max-width:768px){
-  .swarm-shell{flex-direction:column}
-  .swarm-side{width:100%;border-right:none;border-bottom:1px solid var(--border)}
-  .swarm-cols,.swarm-bottom{grid-template-columns:1fr}
+  .agent-chat-shell{max-width:none}
+  .agent-intent-grid{grid-template-columns:1fr}
+  .agent-empty h1{font-size:1.7rem}
+  .agent-msg-body{padding-left:0}
+  .agent-work{margin-left:0}
+  .agent-msg.user .agent-msg-body{padding-left:16px}
 }
 
-.message.assistant .message-body{display:block;width:100%;max-width:100%;background:transparent;padding:4px 0}
-.message-body hr{border:none;border-top:1px solid var(--border);margin:1em 0}
-.message-body strong,.message-body b{font-weight:700;color:var(--text-primary)}
-.message-body em{font-style:italic}
-.message-body h1,.message-body h2,.message-body h3,.message-body h4{display:block}
-.katex,.katex-display{color:var(--text-primary)}
-.katex-display{margin:.75em 0}
-.math-fallback{font-family:var(--font-display);opacity:.9}
-.mode-pop button[data-mode="swarm"]{margin-top:6px;border-top:1px solid var(--border);border-radius:0 0 8px 8px}
-.agent-n-wrap{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);background:var(--bg-elevated);font-size:.72rem;color:var(--text-secondary)}
-.agent-n-wrap input{width:40px;border:none;background:transparent;color:var(--text-primary);font:inherit;text-align:center}
-.agent-n-wrap:hover{border-color:var(--accent);color:var(--text-primary)}
-
-
+/* legacy swarm bits kept minimal */
+.swarm-shell{display:flex;flex:1;min-height:0;width:100%}
 .swarm-think{flex:1;overflow:auto;padding:16px}
 .swarm-branch{border:1px solid var(--border);border-radius:14px;margin:0 0 12px;background:var(--bg-elevated);padding:10px 12px}
 .swarm-branch h3{margin:0 0 8px;font-size:.9rem}
 .swarm-step{border-left:2px solid var(--border);margin:6px 0 6px 8px;padding:4px 8px}
 .swarm-step .nm{font-weight:600;font-size:.8rem}
 .swarm-step pre{white-space:pre-wrap;font-size:.75rem;margin:4px 0 0}
-#chat-agent-n{width:52px;margin-left:6px;background:transparent;border:none;color:var(--text-primary);font:inherit}
-
-.swarm-main{display:flex;flex-direction:column}
 .swarm-chat{border-top:1px solid var(--border);max-height:36%;min-height:140px;display:flex;flex-direction:column;background:var(--bg-primary)}
-.swarm-chat h3{margin:8px 12px 4px;font-size:.85rem}
 .swarm-chat-log{flex:1;overflow:auto;padding:8px 12px}
 .swarm-chat-log .msg{padding:8px 10px;margin:0 0 8px;border-radius:12px;background:var(--bg-elevated);line-height:1.5}
+.st-running{color:var(--accent)}.st-done{color:var(--success)}.st-fail{color:var(--error)}.st-wait{color:var(--text-secondary)}
+
 </style>
 </head>
 <body>
@@ -797,8 +827,7 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <div class="mode-tabs" id="mode-tabs">
 <button type="button" class="mode-tab active" data-mode="chat" id="mode-chat">Chat</button>
 <button type="button" class="mode-tab" data-mode="code" id="mode-code">Code</button>
-<button type="button" class="mode-tab" data-mode="swarm" id="mode-swarm">Agent Mode</button>
-<button type="button" class="mode-tab" data-mode="auto" id="mode-auto">Automations</button>
+<button type="button" class="mode-tab" data-mode="swarm" id="mode-swarm">Agent</button>
 </div>
 <div class="sidebar-section">Projects</div>
 <button type="button" class="btn-new-project" id="new-project-btn">＋ New project</button>
@@ -898,36 +927,85 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
   </div>
 </div>
 <div id="swarm-view">
-  <div class="swarm-shell">
-    <aside class="swarm-side">
-      <h2>Agent Mode</h2>
-      <p class="hint">Supervisor assigns roles, sequences workers, and synthesizes the final answer. One live worker at a time.</p>
-      <div class="swarm-row"><label>Team size</label><input id="swarm-count" type="number" min="1" max="10000" value="5"></div>
-      <label class="hint"><input type="checkbox" id="swarm-mystery"> Mystery — pursue hard / open problems fully</label>
-      <label class="hint"><input type="checkbox" id="swarm-group"> Group — Supervisor forms groups with leaders</label>
-      <label class="hint"><input type="checkbox" id="swarm-debate"> Debate / consensus</label>
-      <label class="hint"><input type="checkbox" id="swarm-live" checked> Use live API</label>
-      <div class="btn-row">
-        <button type="button" class="btn-primary" id="swarm-start">Start</button>
-        <button type="button" class="btn-secondary" id="swarm-stop">Stop</button>
+  <div class="agent-chat-shell">
+    <header class="agent-chat-top">
+      <div class="agent-chat-title">
+        <span class="agent-dot"></span>
+        <strong>Agent</strong>
+        <span class="agent-sub" id="agent-status-line">Supervisor · idle</span>
       </div>
-      <div id="swarm-usage" class="hint"></div>
-    </aside>
-    <section class="swarm-main">
-      <div class="swarm-think" id="swarm-think"></div>
-      <div class="swarm-chat" id="swarm-chat">
-        <h3>Team chat</h3>
-        <div id="swarm-chat-log" class="swarm-chat-log"></div>
-        <div class="swarm-chat-input" style="padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end">
-          <textarea id="swarm-goal" rows="2" placeholder="Message the team… e.g. solve the Collatz conjecture mystery" style="flex:1;min-height:44px;max-height:120px;resize:vertical;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary)"></textarea>
-          <button type="button" class="send-btn" id="swarm-send-btn" aria-label="Send to team" title="Send" style="width:40px;height:40px;border-radius:50%;flex-shrink:0">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </button>
+      <div class="agent-chat-actions">
+        <button type="button" class="btn-secondary agent-stop-btn" id="swarm-stop" style="display:none">Stop</button>
+      </div>
+    </header>
+    <div class="agent-chat-body" id="swarm-think">
+      <div class="agent-empty" id="agent-empty">
+        <h1>Agent</h1>
+        <p>Describe what you need. A Supervisor will assemble a team, assign roles, and keep working until the goal is fully solved.</p>
+        <div class="agent-suggest-row">
+          <button type="button" class="agent-suggest" data-prompt="Prove or disprove a concrete case of the Collatz conjecture with rigorous computation.">Mathematical mystery</button>
+          <button type="button" class="agent-suggest" data-prompt="Design and implement a small production-ready module with tests.">Advanced code</button>
+          <button type="button" class="agent-suggest" data-prompt="Write a polished long-form document with clear structure and citations where needed.">Fancy document</button>
         </div>
       </div>
-    </section>
+    </div>
+    <div class="agent-chat-input-area">
+      <div class="agent-input-box">
+        <textarea id="swarm-goal" rows="1" placeholder="Message Agent…"></textarea>
+        <button type="button" class="send-btn" id="swarm-send-btn" aria-label="Send">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+      <div class="agent-input-hint" id="swarm-usage">Supervisor waits for a complete solution before answering.</div>
+    </div>
   </div>
 </div>
+
+<!-- Agent setup sheet (shown on send) -->
+<div class="overlay" id="agent-setup-overlay" aria-hidden="true">
+  <div class="panel agent-setup-panel">
+    <div class="panel-header">
+      <h2>Set up the team</h2>
+      <button type="button" class="icon-btn" id="agent-setup-close" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="panel-body">
+      <div class="form-group">
+        <label>How many agents?</label>
+        <div class="agent-count-row">
+          <input type="range" id="swarm-count-range" min="1" max="12" value="5">
+          <input type="number" id="swarm-count" min="1" max="100" value="5">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>What do you want to do?</label>
+        <div class="agent-intent-grid">
+          <button type="button" class="agent-intent active" data-intent="mystery">Solve a Mathematical Mystery</button>
+          <button type="button" class="agent-intent" data-intent="code">Create advanced code</button>
+          <button type="button" class="agent-intent" data-intent="document">Write a fancy document</button>
+          <button type="button" class="agent-intent" data-intent="other">Other</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>How long should this take?</label>
+        <div class="agent-time-row">
+          <div><span class="hint">Minutes</span><input type="number" id="swarm-mins" min="0" max="180" value="10"></div>
+          <div><span class="hint">Seconds</span><input type="number" id="swarm-secs" min="0" max="59" value="0"></div>
+        </div>
+        <div class="hint" style="margin-top:6px">Supervisor tracks a live clock and keeps going until the goal is fully solved (or time is exhausted).</div>
+      </div>
+      <div class="form-group agent-opts">
+        <label class="agent-check"><input type="checkbox" id="swarm-group"> Group agents (leaders + teams)</label>
+        <label class="agent-check"><input type="checkbox" id="swarm-debate"> Debate / consensus</label>
+        <label class="agent-check"><input type="checkbox" id="swarm-live" checked> Use live API</label>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn-secondary" id="agent-setup-cancel">Cancel</button>
+        <button type="button" class="btn-primary" id="agent-setup-go">Start team</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="auto-hub">
   <div class="auto-hub-wrap">
     <div class="auto-hub-main">
@@ -2614,7 +2692,14 @@ class AgentManager{
       const txt=String(a.result||'');
       const done=/^SOLVED\s*:/im.test(txt);
       const run=txt.match(/RUN\s+([A-Za-z0-9_-]+)\s*:\s*(.+)/i);
-      if(done||a.rounds>=12){this.k.solved=txt.replace(/^SOLVED\s*:\s*/i,'');return a.result}
+      const maxRounds=this.k.mustFullySolve!==false?48:12;
+      const timedOut=this.k.deadline&&Date.now()>this.k.deadline;
+      if(done){this.k.solved=txt.replace(/^SOLVED\s*:\s*/i,'').trim();this.k.alive=false;return a.result}
+      // Only force-finish on hard timeout or extreme round cap — never treat partial work as SOLVED
+      if(timedOut||a.rounds>=maxRounds){
+        this.k.solved=(txt||'').replace(/^SOLVED\s*:\s*/i,'').trim()||'Time or round limit reached before a complete solution. Partial notes:\n'+this.list().filter(x=>x.result).map(x=>x.id+': '+String(x.result).slice(0,400)).join('\n');
+        this.k.alive=false;return a.result;
+      }
       if(run){
         let w=this.get(run[1]);
         if(!w)w=this.list().find(x=>x.id.toLowerCase()===run[1].toLowerCase());
@@ -2627,7 +2712,7 @@ class AgentManager{
         }
       }
       const next=this.list().find(x=>x.role!=='supervisor'&&x.status==='idle');
-      if(next&&a.rounds<12){
+      if(next&&a.rounds<maxRounds){
         next.task=this.k.goal||a.task;
         a.status='waiting';
         this.k.scheduler.enqueue(next.id,'auto');
@@ -2683,13 +2768,16 @@ class Coordinator{
     this.k.goal=goal;
     const mystery=!!this.k.mystery;
     const groupMode=!!this.k.groupMode;
-    let supPrompt='You are the Supervisor (coordinator). Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nYou may SOLVED early without every worker if evidence is enough. Synthesize by checking each worker result, preferring majority agreement when present.';
+    let supPrompt='You are the Supervisor (coordinator). Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nCRITICAL RULE: Do NOT output SOLVED until the goal is completely solved to the user\'s standard — partial progress is not enough. Keep assigning workers until the work is finished. Only then synthesize the final answer from all agent results (prefer majority when they agree).';
     if(mystery){
-      supPrompt+='\nMYSTERY MODE: The goal may be an open or unsolved problem. Agents must still attempt rigorous progress (proofs, counterexamples, computational search via run_python). Never refuse because something is "unknown" or unsolved — push as far as tools allow and report the strongest partial result.';
+      supPrompt+='\nMYSTERY MODE: Treat this as a hard open problem. Agents must attempt rigorous progress (proofs, counterexamples, computational search via run_python). Never refuse because something is unknown — keep working until a complete answer for the assigned scope is reached.';
     }
     if(groupMode){
       supPrompt+='\nGROUP MODE: First create groups by assigning roles like "leader-A", "member-A". Group leaders may message their members; members report to their leader; leaders report to you. Still only ONE live RUN at a time.';
     }
+    if(this.k.intentNote)supPrompt+='\nUSER INTENT: '+this.k.intentNote;
+    if(this.k.budgetMs)supPrompt+='\nTIME BUDGET: about '+Math.round(this.k.budgetMs/1000)+' seconds. Use the time wisely but do not declare SOLVED early.';
+    if(this.k.mustFullySolve!==false)supPrompt+='\nYou must not SOLVED until the task is fully complete.';
     const sup=this.k.agents.register({id:'coordinator',role:'supervisor',model,fallbacks,task:'Coordinate until solved: '+goal,rounds:0,perms:{python:true,files:true,messaging:true,spawn:true,network:true,sharedWs:true},systemPrompt:supPrompt});
     const count=Math.max(1,Math.min(10000,n||1));
     const roles=['builder','planner','reviewer','researcher','tester'];
@@ -2727,7 +2815,7 @@ class Coordinator{
         group:meta?meta.group:null
       });
     }
-    this.k.memory.add('global','root',{text:'goal: '+goal+(mystery?' [mystery]':'')+(groupMode?' [groups]':'')});
+    this.k.memory.add('global','root',{text:'goal: '+goal+(mystery?' [mystery]':'')+(groupMode?' [groups]':'')+(this.k.intentNote?(' intent: '+this.k.intentNote):'')+(this.k.budgetMs?(' time_budget_ms: '+this.k.budgetMs):'')});
     this.k.scheduler.conc=1; // sequential: one worker at a time so results return to Supervisor immediately
     this.k.scheduler.enqueue('coordinator','start');
     return {configured:count,activated:1,mystery,groupMode};
@@ -2746,6 +2834,11 @@ class SwarmKernel{
   async start(goal,opts){
     this.reset();this.alive=true;this.liveApi=!!(opts&&opts.live);this.debate=!!(opts&&opts.debate);
     this.mystery=!!(opts&&opts.mystery);this.groupMode=!!(opts&&opts.group);
+    this.mustFullySolve=opts&&opts.mustFullySolve!==false;
+    this.intent=opts&&opts.intent||'other';
+    this.intentNote=opts&&opts.intentNote||'';
+    this.deadline=opts&&opts.deadline||0;
+    this.budgetMs=opts&&opts.budgetMs||0;
     this.scheduler.conc=1;
     return this.coordinator.start(goal,Number(opts&&opts.count)||4);
   }
@@ -3268,13 +3361,13 @@ if(name==='web_search'){const n=(result.results||[]).length;return{detail:result
 return{detail:'Done',full:JSON.stringify(result)}}}
 
 class UIManager{constructor(app){this.app=app;this.pendingAttachments=[];this.activityMap=new Map()}
-init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('auto');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
+init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
 initCodeMode(){
   this.mode='chat';this.thoughtRoots=new WeakMap();
   const chatTab=$('#mode-chat'),codeTab=$('#mode-code');
   if(chatTab)chatTab.onclick=()=>this.setMode('chat');
   if(codeTab)codeTab.onclick=()=>this.setMode('code');
-  const autoTab=$('#mode-auto');if(autoTab)autoTab.onclick=()=>this.setMode('canvas');const sw=$('#mode-swarm');if(sw)sw.onclick=()=>this.setMode('swarm');
+  const sw=$('#mode-swarm');if(sw)sw.onclick=()=>this.setMode('swarm');
   const gh=$('#gh-token');if(gh)gh.value=this.app.storage.get('githubToken','')||'';
   const own=$('#gh-owner');if(own)own.value=this.app.storage.get('githubOwner','')||'';
   const save=$('#gh-save-token');
@@ -3411,62 +3504,178 @@ initSwarmUi(){
   if(this._swarmBound)return;this._swarmBound=true;
   const k=this.ensureSwarm();
   k.events.on('*',ev=>this.renderSwarm(ev));
-  const start=$('#swarm-start');if(start)start.onclick=()=>this.startSwarm();
-  const stop=$('#swarm-stop');if(stop)stop.onclick=()=>{k.stop();this.renderSwarm()};
-  const send=$('#swarm-send-btn');if(send)send.onclick=()=>this.startSwarm();
+  const stop=$('#swarm-stop');if(stop)stop.onclick=()=>{k.stop();this._agentDeadline=0;this.renderSwarm();this._setAgentStatus('Stopped')};
+  const send=$('#swarm-send-btn');if(send)send.onclick=()=>this.openAgentSetup();
   const goalEl=$('#swarm-goal');
-  if(goalEl)goalEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.startSwarm()}});
-  document.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>this.testSwarm(Number(b.dataset.st)));
+  if(goalEl){
+    goalEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.openAgentSetup()}});
+    goalEl.addEventListener('input',()=>{goalEl.style.height='auto';goalEl.style.height=Math.min(160,goalEl.scrollHeight)+'px'});
+  }
+  document.querySelectorAll('.agent-suggest').forEach(b=>b.onclick=()=>{
+    const t=$('#swarm-goal');if(t){t.value=b.dataset.prompt||'';t.dispatchEvent(new Event('input'));this.openAgentSetup()}
+  });
+  // setup sheet
+  const ov=$('#agent-setup-overlay');
+  const close=()=>{if(ov){ov.classList.remove('open');ov.setAttribute('aria-hidden','true')}};
+  const cl=$('#agent-setup-close');if(cl)cl.onclick=close;
+  const ca=$('#agent-setup-cancel');if(ca)ca.onclick=close;
+  if(ov)ov.onclick=e=>{if(e.target===ov)close()};
+  const go=$('#agent-setup-go');if(go)go.onclick=()=>this.confirmAgentSetup();
+  const range=$('#swarm-count-range'), num=$('#swarm-count');
+  if(range&&num){
+    range.oninput=()=>{num.value=range.value};
+    num.oninput=()=>{range.value=Math.min(12,Math.max(1,Number(num.value)||1))};
+  }
+  document.querySelectorAll('.agent-intent').forEach(btn=>{
+    btn.onclick=()=>{
+      document.querySelectorAll('.agent-intent').forEach(x=>x.classList.remove('active'));
+      btn.classList.add('active');
+      this._agentIntent=btn.dataset.intent||'other';
+    };
+  });
+  this._agentIntent='mystery';
 }
-async startSwarm(){
-  const k=this.ensureSwarm();
-  const goal=($('#swarm-goal')?.value||'').trim()||'Plan a small safe demo and write notes.';
-  const count=Number($('#swarm-count')?.value||5);
+openAgentSetup(){
+  const goal=($('#swarm-goal')?.value||'').trim();
+  if(!goal){toast('Type a message first','error');return}
+  if(this.app.swarm&&this.app.swarm.alive){toast('Stop the current team first','error');return}
+  const ov=$('#agent-setup-overlay');
+  if(ov){ov.classList.add('open');ov.setAttribute('aria-hidden','false')}
+}
+async confirmAgentSetup(){
+  const ov=$('#agent-setup-overlay');
+  if(ov){ov.classList.remove('open');ov.setAttribute('aria-hidden','true')}
+  const goal=($('#swarm-goal')?.value||'').trim();
+  if(!goal)return;
+  const count=Math.max(1,Math.min(100,Number($('#swarm-count')?.value||5)));
+  const mins=Math.max(0,Number($('#swarm-mins')?.value||0));
+  const secs=Math.max(0,Math.min(59,Number($('#swarm-secs')?.value||0)));
+  const budgetMs=(mins*60+secs)*1000 || 10*60*1000;
+  const intent=this._agentIntent||(document.querySelector('.agent-intent.active')||{}).dataset?.intent||'other';
   const live=$('#swarm-live')?!!$('#swarm-live').checked:true;
   const debate=!!$('#swarm-debate')?.checked;
-  const mystery=!!$('#swarm-mystery')?.checked;
   const group=!!$('#swarm-group')?.checked;
-  // Log user message in team chat
-  const log=$('#swarm-chat-log');
-  if(log){
-    const div=document.createElement('div');div.className='msg';
-    div.innerHTML='<strong>You</strong><div>'+escapeHtml(goal)+'</div>';
-    log.appendChild(div);log.scrollTop=log.scrollHeight;
+  const mystery=intent==='mystery';
+  // clear input like a chat send
+  const t=$('#swarm-goal');if(t){t.value='';t.style.height='auto'}
+  await this.startSwarm({goal,count,live,debate,group,mystery,intent,budgetMs});
+}
+async startSwarm(opts){
+  opts=opts||{};
+  const k=this.ensureSwarm();
+  const goal=opts.goal||($('#swarm-goal')?.value||'').trim()||'Plan a small safe demo and write notes.';
+  const count=Number(opts.count||$('#swarm-count')?.value||5);
+  const live=opts.live!=null?!!opts.live:($('#swarm-live')?!!$('#swarm-live').checked:true);
+  const debate=opts.debate!=null?!!opts.debate:!!$('#swarm-debate')?.checked;
+  const mystery=opts.mystery!=null?!!opts.mystery:true;
+  const group=opts.group!=null?!!opts.group:!!$('#swarm-group')?.checked;
+  const intent=opts.intent||'other';
+  const budgetMs=opts.budgetMs||10*60*1000;
+  this._agentStartedAt=Date.now();
+  this._agentDeadline=Date.now()+budgetMs;
+  this._agentIntent=intent;
+  // Hide empty state and append user bubble
+  const empty=$('#agent-empty');if(empty)empty.style.display='none';
+  const box=$('#swarm-think');
+  if(box){
+    const msg=document.createElement('div');msg.className='agent-msg user';
+    msg.innerHTML='<div class="agent-msg-head"><div class="avatar">Y</div><span class="agent-msg-role">You</span></div><div class="agent-msg-body">'+escapeHtml(goal)+'</div>';
+    box.appendChild(msg);
+    // working block
+    const work=document.createElement('div');work.className='agent-msg assistant';work.id='agent-live-msg';
+    work.innerHTML='<div class="agent-msg-head"><div class="avatar">TD</div><span class="agent-msg-role">Supervisor</span><span class="agent-clock" id="agent-live-clock">0:00</span></div><div class="agent-work open" id="agent-work"><button type="button" class="agent-work-toggle" id="agent-work-toggle"><span class="tp-spin" style="width:12px;height:12px;border-width:2px"></span> <span id="agent-work-label">Working for 0:00</span> <span style="margin-left:auto;opacity:.6" id="agent-work-meta"></span></button><div class="agent-work-body" id="agent-work-body"><div class="hint">Supervisor is assembling the team…</div></div></div><div class="agent-msg-body" id="agent-final-body" style="display:none"></div>';
+    box.appendChild(work);
+    const tog=$('#agent-work-toggle');
+    if(tog)tog.onclick=()=>$('#agent-work')?.classList.toggle('open');
+    box.scrollTop=box.scrollHeight;
   }
-  await k.start(goal,{count,conc:1,live,debate,mystery,group});
+  const stopBtn=$('#swarm-stop');if(stopBtn)stopBtn.style.display='inline-flex';
+  this._setAgentStatus('Running · '+count+' agents');
+  if(this._agentClockTimer)clearInterval(this._agentClockTimer);
+  this._agentClockTimer=setInterval(()=>this._tickAgentClock(),500);
+  const intentNote={mystery:'Mathematical mystery — pursue a complete solution.',code:'Advanced code — implement fully with verification.',document:'Fancy document — polished complete deliverable.',other:'General task — complete solution required.'}[intent]||'';
+  await k.start(goal,{count,conc:1,live,debate,mystery,group,intent,intentNote,budgetMs,deadline:this._agentDeadline,mustFullySolve:true});
   this.renderSwarm();
 }
+_setAgentStatus(t){
+  const el=$('#agent-status-line');if(el)el.textContent=t||'Supervisor · idle';
+  const dot=document.querySelector('.agent-dot');
+  if(dot)dot.classList.toggle('live',!/idle|Stopped|Solved|Ready/i.test(t||''));
+}
+_tickAgentClock(){
+  const start=this._agentStartedAt||Date.now();
+  const elapsed=Math.max(0,Date.now()-start);
+  const fmt=ms=>{const s=Math.floor(ms/1000);const m=Math.floor(s/60);return m+':'+String(s%60).padStart(2,'0')};
+  const lab=$('#agent-work-label');if(lab)lab.textContent='Working for '+fmt(elapsed);
+  const clk=$('#agent-live-clock');if(clk)clk.textContent=fmt(elapsed);
+  const left=Math.max(0,(this._agentDeadline||0)-Date.now());
+  const meta=$('#agent-work-meta');
+  if(meta)meta.textContent=left?('budget '+fmt(left)+' left'):'';
+  const use=$('#swarm-usage');
+  if(use)use.textContent='Live clock · '+fmt(elapsed)+(left?(' · '+fmt(left)+' remaining'):'');
+}
+
 async testSwarm(n){
   const k=this.ensureSwarm();
   toast('Running real self-test with '+n+' logical agents','success');
   await k.selfTest(n);
   this.renderSwarm();
 }
-renderSwarm(){
+renderSwarm(ev){
   const k=this.app.swarm;if(!k)return;
-  const box=$('#swarm-think'),use=$('#swarm-usage');
-  if(box){
-    const list=k.agents.list();
-    box.innerHTML=list.map(a=>{
-      const steps=(a.thoughts||[]).map(s=>`<div class="swarm-step"><div class="nm">${escapeHtml(s.name||'')} · ${escapeHtml(s.status||'')}</div><pre>${escapeHtml(String(s.detail||'')).slice(0,1200)}</pre></div>`).join('');
-      return `<div class="swarm-branch"><h3>${escapeHtml(a.id)} · ${escapeHtml(a.role)} · ${escapeHtml(a.status)}${a.lastModel?(' · '+escapeHtml(a.lastModel)):''}</h3>${steps||'<div class="hint">Waiting for assignment.</div>'}${a.result?('<pre>'+escapeHtml(String(a.result).slice(0,1500))+'</pre>'):''}</div>`;
-    }).join('')||'<div class="hint">Start a goal to see thinking branches.</div>';
-    box.querySelectorAll('.swarm-branch pre').forEach(el=>{if(this._renderMath)this._renderMath(el)});
+  const body=$('#agent-work-body');
+  const list=k.agents.list();
+  if(body){
+    const steps=[];
+    list.forEach(a=>{
+      const st=a.status||'idle';
+      const thoughts=(a.thoughts||[]).slice(-4);
+      let detail=thoughts.map(t=>escapeHtml(String(t.name||'')+' · '+String(t.detail||'').slice(0,280))).join('\n');
+      if(a.result)detail=(detail?detail+'\n':'')+escapeHtml(String(a.result).slice(0,500));
+      steps.push('<div class="agent-work-step"><div class="nm">'+escapeHtml(a.id)+' · '+escapeHtml(a.role)+' · '+escapeHtml(st)+'</div>'+(detail?('<pre>'+detail+'</pre>'):'')+'</div>');
+    });
+    body.innerHTML=steps.join('')||'<div class="hint">Supervisor is assembling the team…</div>';
   }
-  if(use){
-    const t=k.usage.totals;const list=k.agents.list();
-    use.textContent=list.length+' agents · '+k.scheduler.inflight.size+' running · '+k.scheduler.q.length+' queued · '+t.reqs+' reqs · '+t.fails+' fails';
+  const nDone=list.filter(a=>a.role!=='supervisor'&&(a.status==='completed'||a.result)).length;
+  const nWork=list.filter(a=>a.role!=='supervisor').length;
+  const meta=$('#agent-work-meta');
+  if(meta&&!this._agentDeadline)meta.textContent=(nWork?(nDone+'/'+nWork+' agents'):'');
+  else if(meta){/* clock handles budget text */}
+  this._setAgentStatus(k.alive?('Running · '+nDone+'/'+nWork+' complete'):(k.solved?'Solved':'Supervisor · idle'));
+  // Final answer when solved
+  if(k.solved){
+    const finalEl=$('#agent-final-body');
+    const work=$('#agent-work');
+    if(finalEl){
+      finalEl.style.display='block';
+      finalEl.innerHTML=this.renderMarkdown?this.renderMarkdown(String(k.solved)):(escapeHtml(String(k.solved)));
+      if(this._renderMath)this._renderMath(finalEl);
+      if(this.enhanceCodeBlocks)this.enhanceCodeBlocks(finalEl);
+    }
+    if(work){
+      work.classList.remove('open');
+      const lab=$('#agent-work-label');
+      if(lab){
+        const start=this._agentStartedAt||Date.now();
+        const s=Math.floor((Date.now()-start)/1000);const m=Math.floor(s/60);
+        lab.textContent='Worked for '+m+':'+String(s%60).padStart(2,'0');
+      }
+      const spin=work.querySelector('.tp-spin');if(spin)spin.remove();
+    }
+    if(this._agentClockTimer){clearInterval(this._agentClockTimer);this._agentClockTimer=null}
+    const stopBtn=$('#swarm-stop');if(stopBtn)stopBtn.style.display='none';
+    this._setAgentStatus('Solved');
   }
-  const log=$('#swarm-chat-log');
-  if(log){
-    const coord=k.agents.get('coordinator');
-    const bits=[];
-    if(k.goal)bits.push('<div class="msg"><strong>You</strong><div>'+escapeHtml(k.goal)+'</div></div>');
-    if(coord&&coord.result)bits.push('<div class="msg"><strong>Coordinator</strong><div>'+escapeHtml(String(coord.result).slice(0,4000))+'</div></div>');
-    if(k.solved)bits.push('<div class="msg"><strong>Final</strong><div>'+escapeHtml(String(k.solved).slice(0,4000))+'</div></div>');
-    log.innerHTML=bits.join('')||'<div class="hint">The coordinator answer will appear here.</div>';
-    if(this._renderMath)this._renderMath(log);
+  if(!k.alive&&!k.solved){
+    if(this._agentClockTimer){clearInterval(this._agentClockTimer);this._agentClockTimer=null}
+    const stopBtn=$('#swarm-stop');if(stopBtn)stopBtn.style.display='none';
   }
+  const use=$('#swarm-usage');
+  if(use&&k.usage){
+    const t=k.usage.totals||{};
+    use.textContent=(nWork?nWork+' agents · ':'')+(t.reqs||0)+' requests'+(k.alive?' · live':'');
+  }
+  const box=$('#swarm-think');if(box)box.scrollTop=box.scrollHeight;
 }
 openProjectSetup(){
   const ov=$('#proj-setup-overlay');if(!ov)return this.createProject();
@@ -3610,7 +3819,7 @@ setMode(mode){
   this.hideSelToolbar();
   if(this.isPhone&&this.isPhone()&&mode!=='canvas')this.toggleSidebar(true);
   this.mode=mode;this.app.mode=mode;
-  document.querySelectorAll('.mode-tab').forEach(t=>t.classList.toggle('active',t.dataset.mode===mode||(mode==='canvas'&&t.dataset.mode==='auto')));
+  document.querySelectorAll('.mode-tab').forEach(t=>t.classList.toggle('active',t.dataset.mode===mode));
   const code=$('#code-view'),chat=$('#chat-area'),auto=$('#auto-view'),hub=$('#auto-hub');
   const inputArea=document.querySelector('.input-area');
   const intensityChat=$('#intensity-bar-chat');
@@ -4994,7 +5203,7 @@ bindModeMini(){
     const keys=['fast','medium','hard','ultra'].concat(signed?['xultra']:[]);
     const blurb={fast:'Quick replies · ~1.5k tokens',medium:'Balanced · ~4k tokens',hard:'Thorough · ~8k tokens',ultra:'Team of 3 agents · ~16k',xultra:'Signed-in max precision · ~32k'};
     pop.innerHTML=keys.map(k=>`<button type="button" data-intensity="${k}" class="${k===cur?'active':''}">${INTENSITY[k].label}<small>${INTENSITY[k].blurb||blurb[k]||''}</small></button>`).join('')
-      +'<button type="button" data-mode="swarm">Agent Mode<small>Coordinator, bus, real workers</small></button>';
+      +'<button type="button" data-mode="swarm">Agent<small>Multi-agent team with Supervisor</small></button>';
     pop.querySelector('[data-mode="swarm"]').onclick=()=>{pop.classList.remove('open');this.setMode('swarm')};
     pop.querySelectorAll('[data-intensity]').forEach(b=>b.onclick=()=>{
       const k=b.dataset.intensity;
