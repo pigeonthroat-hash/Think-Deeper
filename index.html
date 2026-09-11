@@ -30,7 +30,7 @@ button.phone-only{display:none}
 .main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg-primary)}.main-header{height:var(--header-height);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;background:var(--bg-primary);flex-shrink:0}.model-selector-wrap{position:relative}.model-btn{padding:7px 12px;border-radius:var(--radius-md);border:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:center;gap:8px;font-size:.875rem;font-weight:500;color:var(--text-primary);transition:border-color var(--transition),background var(--transition)}.model-btn:hover{border-color:var(--border-strong);background:var(--bg-hover)}.model-btn .chevron{opacity:.5;width:14px;height:14px}.header-right{margin-left:auto;display:flex;align-items:center;gap:8px}
 .chat-area{flex:1;overflow-y:auto;scroll-behavior:smooth}.chat-inner{max-width:780px;margin:0 auto;padding:24px 20px 40px}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 20px}.empty-state h1{font-family:var(--font-display);font-size:2.4rem;font-weight:400;letter-spacing:-.03em;margin-bottom:12px;color:var(--text-primary)}.empty-state p{color:var(--text-secondary);font-size:1.05rem;max-width:420px;margin-bottom:28px}.suggestion-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;width:100%;max-width:640px}.suggestion{padding:14px 16px;border-radius:var(--radius-md);border:1px solid var(--border);background:var(--bg-elevated);text-align:left;color:var(--text-secondary);font-size:.875rem;transition:background var(--transition),border-color var(--transition);cursor:pointer}.suggestion:hover{background:var(--bg-hover);border-color:var(--border-strong);color:var(--text-primary)}
-.message{margin-bottom:28px;animation:fadeIn .25s ease}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}.message-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}.avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:600;flex-shrink:0}.avatar.user{background:var(--accent);color:var(--text-inverse)}.avatar.ai{background:var(--bg-tertiary);color:var(--text-primary)}.message-role{font-size:.8rem;font-weight:600;color:var(--text-secondary)}.message-time{font-size:.75rem;color:var(--text-tertiary);margin-left:auto}.message-content{padding-left:38px}.message.user .message-body{background:var(--bg-message-user);padding:12px 16px;border-radius:var(--radius-lg);display:inline-block;max-width:100%}
+.message{margin-bottom:28px;animation:fadeIn .25s ease}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}.message-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}.avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:600;flex-shrink:0}.avatar.user{background:var(--accent);color:var(--text-inverse)}.avatar.ai{background:var(--bg-tertiary);color:var(--text-primary)}.message-role{font-size:.8rem;font-weight:600;color:var(--text-secondary)}.message-time{font-size:.75rem;color:var(--text-tertiary);margin-left:auto;display:none}.message-content{padding-left:38px}.message.user .message-body{background:var(--bg-message-user);padding:12px 16px;border-radius:var(--radius-lg);display:inline-block;max-width:100%}
 .message-body{font-size:.95rem;line-height:1.65}.message-body p{margin-bottom:.85em}.message-body p:last-child{margin-bottom:0}.message-body h1,.message-body h2,.message-body h3{font-family:var(--font-display);font-weight:500;margin:1.2em 0 .5em;letter-spacing:-.02em}.message-body h1{font-size:1.5rem}.message-body h2{font-size:1.25rem}.message-body h3{font-size:1.1rem}.message-body ul,.message-body ol{margin:.6em 0 .9em 1.4em}.message-body li{margin-bottom:.3em}.message-body blockquote{border-left:3px solid var(--border-strong);padding-left:14px;margin:.8em 0;color:var(--text-secondary)}.message-body code{font-family:"SF Mono","Fira Code",Menlo,monospace;font-size:.86em;background:var(--bg-tertiary);padding:.15em .4em;border-radius:4px}.message-body pre{position:relative;background:var(--bg-code);border-radius:var(--radius-md);padding:14px 16px;overflow-x:auto;margin:.9em 0;border:1px solid var(--border)}.message-body pre code{background:none;padding:0;font-size:.85rem;color:#e4e4e7}[data-theme=light] .message-body pre code{color:#1e1e22}.code-header{display:flex;justify-content:space-between;align-items:center;padding:6px 12px;background:var(--bg-tertiary);border-radius:var(--radius-md) var(--radius-md) 0 0;font-size:.75rem;color:var(--text-tertiary);margin-bottom:-1px}.copy-btn{padding:3px 8px;border-radius:4px;font-size:.7rem;color:var(--text-secondary)}.copy-btn:hover{background:var(--bg-hover);color:var(--text-primary)}.message-body table{border-collapse:collapse;margin:.9em 0;width:100%;font-size:.9rem}.message-body th,.message-body td{border:1px solid var(--border);padding:8px 12px;text-align:left}.message-body th{background:var(--bg-secondary);font-weight:600}
 .agent-activity{margin:12px 0 16px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-tool);overflow:hidden}.activity-header{padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;font-size:.85rem;color:var(--text-secondary);transition:background var(--transition)}.activity-header:hover{background:var(--bg-hover)}.activity-header .icon{width:16px;height:16px;opacity:.7;flex-shrink:0}.activity-header .label{flex:1;font-weight:500}.activity-header .delta{font-size:.75rem;font-weight:600;font-variant-numeric:tabular-nums}.activity-header .delta .add{color:var(--green-add)}.activity-header .delta .del{color:var(--red-del)}.activity-header .status{font-size:.75rem;padding:2px 8px;border-radius:99px;background:var(--bg-tertiary)}.activity-header .status.running{color:var(--info)}.activity-header .status.done{color:var(--success)}.activity-header .status.error{color:var(--error)}.activity-header .chevron{width:14px;height:14px;transition:transform var(--transition);flex-shrink:0}.activity-header.expanded .chevron{transform:rotate(180deg)}.activity-body{display:none;padding:0 14px 12px;font-size:.85rem;color:var(--text-secondary);border-top:1px solid var(--border)}.activity-body.open{display:block;padding-top:10px}.activity-body pre{background:var(--bg-code);padding:10px;border-radius:6px;overflow-x:auto;font-size:.8rem;margin-top:6px;white-space:pre-wrap}.activity-body .section-label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-tertiary);margin-top:8px;margin-bottom:4px}
 .attachments{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}.attachment{position:relative;border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border);background:var(--bg-elevated)}.attachment img{max-width:180px;max-height:120px;display:block;object-fit:cover}.attachment .file-chip{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:.85rem}.attachment .remove{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px}
@@ -830,6 +830,40 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .sidebar-footer .draft-chat-btn{margin:4px auto 8px}
 
 
+
+/* Agent history + quality + message hover */
+.agent-hist{padding:0 8px 8px;max-height:160px;overflow:auto}
+.agent-hist-item{padding:8px 10px;border-radius:10px;cursor:pointer;font-size:.82rem;color:var(--text-secondary);display:flex;align-items:center;gap:8px;border:1px solid transparent}
+.agent-hist-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+.agent-hist-item.active{background:var(--bg-active);color:var(--text-primary);border-color:var(--border)}
+.agent-hist-item .ah-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agent-hist-item .ah-meta{font-size:.68rem;opacity:.55;flex-shrink:0}
+.agent-quality-btn{font-size:.78rem;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer}
+.agent-quality-btn:hover{border-color:var(--accent);color:var(--text-primary)}
+.quality-grid{display:grid;gap:8px}
+.quality-opt{text-align:left;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:var(--bg-elevated);cursor:pointer;color:var(--text-primary)}
+.quality-opt:hover,.quality-opt.active{border-color:var(--accent);background:var(--accent-soft)}
+.quality-opt strong{display:block;margin-bottom:2px;font-size:.9rem}
+.quality-opt span{font-size:.78rem;color:var(--text-secondary);line-height:1.4}
+.agent-code-card{margin:8px 0;border:1px solid var(--border);border-radius:12px;background:var(--bg-code);overflow:hidden}
+.agent-code-card .acc-bar{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-tertiary);font-size:.72rem;color:var(--text-tertiary)}
+.agent-code-card .acc-bar strong{color:var(--text-secondary);font-weight:600;margin-right:auto}
+.agent-code-card pre{margin:0;padding:10px 12px;max-height:180px;overflow:auto;font-size:.75rem;line-height:1.45;color:#e4e4e7;white-space:pre-wrap}
+.message-hover-actions{display:none;gap:4px;align-items:center;margin-left:8px}
+.message:hover .message-hover-actions,.message:focus-within .message-hover-actions{display:inline-flex}
+.message-hover-actions button{width:28px;height:28px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--text-tertiary);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.message-hover-actions button:hover{background:var(--bg-hover);color:var(--text-primary);border-color:var(--border)}
+.message-hover-actions .msg-time{font-size:.7rem;color:var(--text-tertiary);padding:0 4px}
+.agent-input-actions{display:flex;align-items:center;gap:8px;padding:0 4px 8px;flex-wrap:wrap}
+.agent-stop-inline{width:36px;height:36px;border-radius:50%;background:var(--error);color:#fff;border:none;display:none;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+.agent-stop-inline.visible{display:inline-flex}
+.agent-quick-btn{font-size:.75rem;padding:5px 10px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-tertiary);cursor:pointer}
+.agent-quick-btn:hover,.agent-quick-btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.dev-badge{font-size:.65rem;padding:2px 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent);margin-left:6px}
+#dev-panel-overlay .panel{max-width:560px}
+.dev-model-row{display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;background:var(--bg-elevated)}
+.dev-model-row input,.dev-model-row textarea{flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:.82rem}
+
 </style>
 </head>
 <body>
@@ -846,8 +880,9 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <div class="sidebar-section">Projects</div>
 <button type="button" class="btn-new-project" id="new-project-btn">＋ New project</button>
 <div class="project-list" id="project-list"></div>
+<div class="sidebar-section" id="agent-hist-section" style="display:none">Agent chats</div>
+<div class="agent-hist" id="agent-hist-list" style="display:none"></div>
 <div class="sidebar-section">Conversations</div>
-
 <div class="conv-search"><input type="search" id="conv-search" placeholder="Search chats & messages…"></div>
 <div class="conv-list" id="conv-list"></div>
 <button type="button" class="sidebar-more-btn" id="sidebar-more-btn" aria-label="More tools">More</button>
@@ -855,6 +890,7 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <button id="plugins-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg> Plugins</button>
 <button id="workspace-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> External Workspace</button>
 <button id="automations-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M17.5 14v7M14 17.5h7"/></svg> Build Automations</button>
+<button id="dev-panel-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Dev panel</button>
 <button id="settings-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
 <button class="icon-btn" id="theme-btn" aria-label="Toggle theme" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> Theme</button>
 <button type="button" class="draft-chat-btn" id="new-chat-btn" title="New chat" aria-label="New chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
@@ -947,9 +983,10 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
       <div class="agent-chat-title">
         <span class="agent-dot"></span>
         <strong>Agent</strong>
-        <span class="agent-sub" id="agent-status-line">Supervisor · idle</span>
+        <span class="agent-sub" id="agent-status-line"></span>
       </div>
       <div class="agent-chat-actions">
+        <button type="button" class="agent-quality-btn" id="agent-quality-btn" title="Quality">Auto</button>
         <button type="button" class="btn-secondary agent-stop-btn" id="swarm-stop" style="display:none">Stop</button>
       </div>
     </header>
@@ -965,6 +1002,10 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
       </div>
     </div>
     <div class="agent-chat-input-area">
+      <div class="agent-input-actions">
+        <button type="button" class="agent-quick-btn" id="agent-quick-btn" title="Ask a short question without a full team">Quick ask</button>
+        <button type="button" class="agent-stop-inline" id="agent-stop-inline" aria-label="Pause" title="Pause">■</button>
+      </div>
       <div class="agent-input-box">
         <textarea id="swarm-goal" rows="1" placeholder="Message Agent…"></textarea>
         <button type="button" class="send-btn" id="swarm-send-btn" aria-label="Send">
@@ -1452,7 +1493,7 @@ class CloudSync{
       const setDoc=await base.collection('settings').doc('app').get();
       if(setDoc.exists){
         const s=setDoc.data()||{};
-        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
+        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
       }
       const remoteAutos=await this.pullAutomations(base);
       const deleted=new Set(((out.deletedAutomations)||[]).map(String));
@@ -1469,6 +1510,67 @@ class CloudSync{
     }catch(e){console.error('[CloudSync] pull',e);throw e}
     return out;
   }
+
+  isDevAccount(email){
+    const allow=['monsterbag293@gmail.com','pigeonthroat@gmail.com'];
+    return allow.includes(String(email||'').trim().toLowerCase());
+  }
+  async pullSystemDefaults(){
+    if(!this.ready||!this.db)return null;
+    try{
+      const doc=await this.db.collection('system').doc('defaults').get();
+      if(!doc.exists)return null;
+      return doc.data()||null;
+    }catch(e){console.warn('[CloudSync] system defaults',e);return null}
+  }
+  async pushSystemDefaults(data,devEmail){
+    if(!this.isDevAccount(devEmail))throw new Error('Not a dev account');
+    if(!this.ready||!this.db)throw new Error('Cloud not ready');
+    const payload={
+      baseUrl:String(data.baseUrl||'').trim(),
+      model:String(data.model||'').trim(),
+      fallbackBaseUrl:String(data.fallbackBaseUrl||'').trim(),
+      fallbackModel:String(data.fallbackModel||'').trim(),
+      modelCatalog:Array.isArray(data.modelCatalog)?data.modelCatalog.slice(0,40):[],
+      updatedAt:Date.now(),
+      updatedBy:String(devEmail||'').toLowerCase()
+    };
+    // Keys only written if non-empty new values (never read back into UI)
+    if(data.apiKey&&String(data.apiKey).trim())payload.apiKey=String(data.apiKey).trim();
+    if(data.fallbackApiKey&&String(data.fallbackApiKey).trim())payload.fallbackApiKey=String(data.fallbackApiKey).trim();
+    // merge with existing so we don't wipe keys when fields blank
+    const prev=await this.pullSystemDefaults();
+    const merged=Object.assign({},prev||{},payload);
+    if(!data.apiKey||!String(data.apiKey).trim()){if(prev&&prev.apiKey)merged.apiKey=prev.apiKey}
+    if(!data.fallbackApiKey||!String(data.fallbackApiKey).trim()){if(prev&&prev.fallbackApiKey)merged.fallbackApiKey=prev.fallbackApiKey}
+    await this.db.collection('system').doc('defaults').set(merged,{merge:true});
+    return merged;
+  }
+  applySystemDefaults(app,data){
+    if(!data||!app||!app.provider)return;
+    const c=app.provider.config||{};
+    // Only fill gaps — user keys win if already set
+    if((!c.apiKey||!String(c.apiKey).trim())&&data.apiKey)c.apiKey=data.apiKey;
+    if((!c.baseUrl||c.baseUrl==='https://api.openai.com/v1')&&data.baseUrl)c.baseUrl=data.baseUrl;
+    if(!c.model&&data.model)c.model=data.model;
+    if(!c.fallbackApiKey&&data.fallbackApiKey)c.fallbackApiKey=data.fallbackApiKey;
+    if(!c.fallbackBaseUrl&&data.fallbackBaseUrl)c.fallbackBaseUrl=data.fallbackBaseUrl;
+    if(!c.fallbackModel&&data.fallbackModel)c.fallbackModel=data.fallbackModel;
+    if(Array.isArray(data.modelCatalog)&&data.modelCatalog.length){
+      const lib=app.storage.get('discoveredModels',[])||[];
+      const ids=new Set(lib.map(m=>m.id||m));
+      data.modelCatalog.forEach(m=>{
+        const id=m.id||m;
+        if(id&&!ids.has(id))lib.push(typeof m==='object'?m:{id,description:m.description||''});
+      });
+      app.storage.set('discoveredModels',lib);
+      app.provider.models=lib;
+    }
+    app.provider.save(c);
+    // mark that system defaults applied (do not surface raw keys)
+    app.storage.set('systemDefaultsApplied',true);
+  }
+
   schedulePush(app){
     if(!this.ready){return}
     if(!this.ensureUid()){return}
@@ -1728,7 +1830,7 @@ class CloudSync{
       s.set('conversations',[...map.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0)));
     }
     if(data.currentConvId!==undefined&&data.currentConvId)s.set('currentConvId',data.currentConvId);
-    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations'].forEach(k=>{
+    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality'].forEach(k=>{
       if(data[k]===undefined||data[k]===null)return;
       s.set(k,data[k]);
     });
@@ -2720,15 +2822,18 @@ class AgentManager{
       if(run){
         let w=this.get(run[1]);
         if(!w)w=this.list().find(x=>x.id.toLowerCase()===run[1].toLowerCase());
+        // Allow re-contacting agents that already finished
         if(w){
           w.task=run[2].trim();
+          w.status='idle';
+          w.result=null;
           a.status='waiting';
           this.k.scheduler.enqueue(w.id,'assigned');
           this.k.events.emit('agent.wait',{id:a.id,why:'delegated '+w.id});
           return a.result;
         }
       }
-      const next=this.list().find(x=>x.role!=='supervisor'&&x.status==='idle');
+      const next=this.list().find(x=>x.role!=='supervisor'&&(x.status==='idle'||x.status==='completed'));
       if(next&&a.rounds<maxRounds){
         next.task=this.k.goal||a.task;
         a.status='waiting';
@@ -2770,30 +2875,85 @@ class AgentManager{
       let code=args.code||args.source||args.script||args.python||args.program||'';
       if(code && typeof code==='object')code=code.code||code.source||JSON.stringify(code);
       code=String(code||'');
-      // Supervisor speed-pass: all Pyodide modules available — optimize then run; agents stay idle until result
       a.status='waiting';
-      this.k.events.emit('agent.wait',{id:a.id,why:'python-optimize'});
+      this.k.events.emit('agent.wait',{id:a.id,why:'python-review'});
       a.thoughts=a.thoughts||[];
-      a.thoughts.push({name:'Thought',detail:'Handed Python to Supervisor for a max-speed rewrite.',status:'running'});
-      let fast=code;
-      try{
-        if(this.k.liveApi&&this.k.app.provider){
-          const opt=await this.k.app.provider.chat([
-            {role:'system',content:'You are the Supervisor optimizing Python for Pyodide. Every common scientific module is available (numpy, scipy, sympy, pandas, networkx, mpmath, etc.). Rewrite the code for maximum speed and correctness. Return ONLY executable Python — no markdown fences, no commentary, no titles.'},
-            {role:'user',content:code.slice(0,12000)}
-          ],{temperature:0.1,maxTokens:4000});
-          const raw=((opt&&opt.choices&&opt.choices[0]&&opt.choices[0].message&&opt.choices[0].message.content)||'').trim();
-          const cleaned=raw.replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
-          if(cleaned&&cleaned.length>10)fast=cleaned;
+      a.thoughts.push({name:'Thought',detail:'Supervisor reviewing Python before run.',status:'running'});
+      a.pendingCode=code;
+      this.k.events.emit('agent.code',{id:a.id,code:code,phase:'review'});
+      let attempt=0; let finalCode=code; let out=null;
+      while(attempt<4 && this.k.alive){
+        attempt++;
+        let estimate={safe:true,seconds:5,reason:'ok'};
+        try{
+          if(this.k.liveApi&&this.k.app.provider){
+            const est=await this.k.app.provider.chat([
+              {role:'system',content:'You are the Supervisor reviewing Python for browser Pyodide. Reply ONLY JSON: {"safe":true|false,"seconds":number,"reason":"...","fixedCode":"optional full fixed python if unsafe or slow"}. Reject infinite loops, huge nested allocations, or work likely >90s or that would exhaust RAM. Prefer vectorized numpy/scipy. If unsafe, provide fixedCode that is safe and fast. All common modules are installed.'},
+              {role:'user',content:finalCode.slice(0,12000)}
+            ],{temperature:0.1,maxTokens:5000});
+            const raw=((est&&est.choices&&est.choices[0]&&est.choices[0].message&&est.choices[0].message.content)||'{}');
+            const m=String(raw).match(/\{[\s\S]*\}/);
+            estimate=JSON.parse(m?m[0]:raw);
+          }
+        }catch(e){estimate={safe:true,seconds:10,reason:'estimate failed, proceeding carefully'}}
+        this.k.events.emit('agent.code',{id:a.id,code:finalCode,phase:'estimate',estimate});
+        if(estimate&&estimate.fixedCode&&String(estimate.fixedCode).trim().length>10){
+          finalCode=String(estimate.fixedCode).replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
+          a.pendingCode=finalCode;
+          this.k.events.emit('agent.code',{id:a.id,code:finalCode,phase:'fixed'});
         }
-      }catch(e){}
-      a.thoughts.push({name:'Thought',detail:'Running optimized Python…',status:'running'});
-      this.k.events.emit('agent.tool',{id:a.id,name:'run_python',status:'running'});
-      const res=await this.k.app.tools.execute('run_python',{code:fast});
+        if(estimate&&estimate.safe===false){
+          a.thoughts.push({name:'Thought',detail:'Supervisor rejected code: '+(estimate.reason||'too heavy')+'. Asking agent to revise (pass '+attempt+').',status:'running'});
+          // Ask same agent conceptually — return error so agent revises
+          if(attempt>=3)break;
+          // try optimize pass instead of hard fail
+          try{
+            if(this.k.liveApi&&this.k.app.provider){
+              const opt=await this.k.app.provider.chat([
+                {role:'system',content:'Rewrite this Python to be safe and fast on Pyodide. No infinite loops. Bound iterations. Return ONLY code.'},
+                {role:'user',content:finalCode.slice(0,12000)}
+              ],{temperature:0.1,maxTokens:4000});
+              const raw=((opt&&opt.choices&&opt.choices[0]&&opt.choices[0].message&&opt.choices[0].message.content)||'').trim().replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
+              if(raw.length>10)finalCode=raw;
+            }
+          }catch(e){}
+          continue;
+        }
+        // speed optimize when safe
+        try{
+          if(this.k.liveApi&&this.k.app.provider){
+            const opt=await this.k.app.provider.chat([
+              {role:'system',content:'Optimize this safe Python for maximum Pyodide speed. All modules available. Return ONLY code.'},
+              {role:'user',content:finalCode.slice(0,12000)}
+            ],{temperature:0.1,maxTokens:4000});
+            const raw=((opt&&opt.choices&&opt.choices[0]&&opt.choices[0].message&&opt.choices[0].message.content)||'').trim().replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
+            if(raw.length>10)finalCode=raw;
+          }
+        }catch(e){}
+        a.pendingCode=finalCode;
+        this.k.events.emit('agent.code',{id:a.id,code:finalCode,phase:'run'});
+        a.thoughts.push({name:'Thought',detail:'Running Python (~'+String((estimate&&estimate.seconds)||'?')+'s est.)…',status:'running'});
+        const res=await this.k.app.tools.execute('run_python',{code:finalCode});
+        out=res&&res.ok===false?{ok:false,error:res.error,stdout:res.stdout,stderr:res.stderr}:{...(res||{}),ok:true};
+        if(out.ok!==false)break;
+        a.thoughts.push({name:'Thought',detail:'Python error — Supervisor requesting fix: '+String(out.error||'').slice(0,200),status:'error'});
+        try{
+          if(this.k.liveApi&&this.k.app.provider){
+            const fix=await this.k.app.provider.chat([
+              {role:'system',content:'Fix this Python for Pyodide. Return ONLY corrected code.'},
+              {role:'user',content:'Error:\n'+String(out.error||'')+'\n\nCode:\n'+finalCode.slice(0,10000)}
+            ],{temperature:0.1,maxTokens:4000});
+            const raw=((fix&&fix.choices&&fix.choices[0]&&fix.choices[0].message&&fix.choices[0].message.content)||'').trim().replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
+            if(raw.length>10)finalCode=raw;
+          }
+        }catch(e){break}
+      }
       a.status='running';
-      const out=res&&res.ok===false?{ok:false,error:res.error,stdout:res.stdout,stderr:res.stderr,optimized:fast!==code}:{...(res||{}),optimized:fast!==code};
-      a.thoughts.push({name:'Thought',detail:out.ok===false?('Python error: '+String(out.error||'').slice(0,240)):('Python finished'+(out.optimized?' (Supervisor-optimized)':'')+'.'),status:out.ok===false?'error':'done'});
-      return out;
+      a.pendingCode=null;
+      const ok=out&&out.ok!==false;
+      a.thoughts.push({name:'Thought',detail:ok?'Python finished.':('Python failed: '+String((out&&out.error)||'').slice(0,200)),status:ok?'done':'error'});
+      this.k.events.emit('agent.code',{id:a.id,code:finalCode,phase:ok?'done':'error'});
+      return out||{ok:false,error:'Python aborted'};
     }
     return await this.k.app.tools.execute(name,args||{});
   }
@@ -2873,7 +3033,7 @@ class SwarmKernel{
   async start(goal,opts){
     this.reset();this.alive=true;this.liveApi=!!(opts&&opts.live);this.debate=!!(opts&&opts.debate);
     this.mystery=!!(opts&&opts.mystery);this.groupMode=!!(opts&&opts.group);
-    this.mustFullySolve=opts&&opts.mustFullySolve!==false;
+    this.mustFullySolve=opts&&opts.mustFullySolve!==false;this.quality=(opts&&opts.quality)||'auto';
     this.intent=opts&&opts.intent||'other';
     this.intentNote=opts&&opts.intentNote||'';
     this.deadline=opts&&opts.deadline||0;
@@ -3586,13 +3746,117 @@ initSwarmUi(){
     };
   });
   this._agentIntent='mystery';
+  this._agentQuality=this.app.storage.get('agentQuality','auto')||'auto';
+  this.syncAgentQualityBtn();
+  const qb=$('#agent-quality-btn');if(qb)qb.onclick=()=>this.openAgentQuality();
+  const qc=$('#agent-quality-close');if(qc)qc.onclick=()=>{$('#agent-quality-overlay').classList.remove('open')};
+  const qov=$('#agent-quality-overlay');if(qov)qov.onclick=e=>{if(e.target===qov)qov.classList.remove('open')};
+  document.querySelectorAll('.quality-opt').forEach(b=>{
+    b.classList.toggle('active',b.dataset.q===this._agentQuality);
+    b.onclick=()=>{
+      this._agentQuality=b.dataset.q||'auto';
+      this.app.storage.set('agentQuality',this._agentQuality);
+      document.querySelectorAll('.quality-opt').forEach(x=>x.classList.toggle('active',x.dataset.q===this._agentQuality));
+      this.syncAgentQualityBtn();
+      $('#agent-quality-overlay')?.classList.remove('open');
+      try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+    };
+  });
+  const quick=$('#agent-quick-btn');
+  if(quick)quick.onclick=()=>{this._agentQuick=!this._agentQuick;quick.classList.toggle('on',!!this._agentQuick);toast(this._agentQuick?'Quick ask on — short replies without a full team':'Team mode on','info')};
+  const stopIn=$('#agent-stop-inline');
+  if(stopIn)stopIn.onclick=()=>{const k=this.ensureSwarm();k.stop();this._agentDeadline=0;this.renderSwarm();this._setAgentStatus('');stopIn.classList.remove('visible');$('#swarm-stop')&&($('#swarm-stop').style.display='none')};
+  this.renderAgentHist();
 }
+openAgentQuality(){
+  const ov=$('#agent-quality-overlay');if(ov){ov.classList.add('open');ov.setAttribute('aria-hidden','false')}
+}
+syncAgentQualityBtn(){
+  const labels={fast:'Fast',auto:'Auto',expert:'Expert',heavy:'Heavy'};
+  const b=$('#agent-quality-btn');if(b)b.textContent=labels[this._agentQuality||'auto']||'Auto';
+}
+agentSessions(){return this.app.storage.get('agentSessions',[])||[]}
+saveAgentSession(partial){
+  const list=this.agentSessions();
+  let s=list.find(x=>x.id===partial.id);
+  if(!s){s={id:partial.id||uid(),created:Date.now(),messages:[],title:'Agent chat'};list.unshift(s)}
+  Object.assign(s,partial,{updated:Date.now()});
+  if(s.title)s.title=String(s.title).slice(0,48);
+  const next=list.filter(x=>x.id===s.id).concat(list.filter(x=>x.id!==s.id)).slice(0,40);
+  this.app.storage.set('agentSessions',next);
+  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+  this.renderAgentHist();
+  return s;
+}
+renderAgentHist(){
+  const sec=$('#agent-hist-section'),listEl=$('#agent-hist-list');
+  const inAgent=this.mode==='swarm';
+  if(sec)sec.style.display=inAgent?'':'none';
+  if(listEl)listEl.style.display=inAgent?'':'none';
+  if(!listEl||!inAgent)return;
+  const list=this.agentSessions();
+  listEl.innerHTML=list.slice(0,20).map(s=>'<div class="agent-hist-item'+(s.id===this._currentAgentSessionId?' active':'')+'" data-id="'+s.id+'"><span class="ah-title">'+escapeHtml(s.title||'Agent chat')+'</span><span class="ah-meta"></span></div>').join('')||'<div class="hint" style="padding:8px">No agent chats yet</div>';
+  listEl.querySelectorAll('.agent-hist-item').forEach(el=>el.onclick=()=>this.loadAgentSession(el.dataset.id));
+}
+loadAgentSession(id){
+  const s=this.agentSessions().find(x=>x.id===id);if(!s)return;
+  this._currentAgentSessionId=id;
+  this.setMode('swarm');
+  const box=$('#swarm-think');if(!box)return;
+  box.innerHTML='';
+  (s.messages||[]).forEach(m=>{
+    const div=document.createElement('div');div.className='agent-msg '+m.role;
+    div.innerHTML='<div class="agent-msg-head"><div class="avatar">'+(m.role==='user'?'Y':'TD')+'</div><span class="agent-msg-role">'+(m.role==='user'?'You':'Agent')+'</span></div><div class="agent-msg-body">'+(m.role==='user'?escapeHtml(m.content||''):(this.renderMarkdown?this.renderMarkdown(m.content||''):escapeHtml(m.content||'')))+'</div>';
+    box.appendChild(div);
+  });
+  this.renderAgentHist();
+}
+resetAgentChatView(){
+  this._currentAgentSessionId=null;
+  const box=$('#swarm-think');
+  if(box){
+    box.innerHTML='<div class="agent-empty" id="agent-empty"><h1>Agent</h1><p>Describe what you need. A Supervisor will assemble a team, assign roles, and keep working until the goal is fully solved.</p><div class="agent-suggest-row"><button type="button" class="agent-suggest" data-prompt="Prove or disprove a concrete case of the Collatz conjecture with rigorous computation.">Mathematical mystery</button><button type="button" class="agent-suggest" data-prompt="Design and implement a small production-ready module with tests.">Advanced code</button><button type="button" class="agent-suggest" data-prompt="Write a polished long-form document with clear structure and citations where needed.">Fancy document</button></div></div>';
+    box.querySelectorAll('.agent-suggest').forEach(b=>b.onclick=()=>{const t=$('#swarm-goal');if(t){t.value=b.dataset.prompt||'';t.dispatchEvent(new Event('input'));this.openAgentSetup()}});
+  }
+  this.renderAgentHist();
+}
+
 openAgentSetup(){
   const goal=($('#swarm-goal')?.value||'').trim();
   if(!goal){toast('Type a message first','error');return}
   if(this.app.swarm&&this.app.swarm.alive){toast('Stop the current team first','error');return}
+  if(this._agentQuick){
+    // Normal short chat without full team
+    return this.runAgentQuickAsk(goal);
+  }
   const ov=$('#agent-setup-overlay');
   if(ov){ov.classList.add('open');ov.setAttribute('aria-hidden','false')}
+}
+async runAgentQuickAsk(goal){
+  const t=$('#swarm-goal');if(t){t.value='';t.style.height='auto'}
+  const empty=$('#agent-empty');if(empty)empty.style.display='none';
+  const box=$('#swarm-think');
+  if(box){
+    const msg=document.createElement('div');msg.className='agent-msg user';
+    msg.innerHTML='<div class="agent-msg-head"><div class="avatar">Y</div><span class="agent-msg-role">You</span></div><div class="agent-msg-body">'+escapeHtml(goal)+'</div>';
+    box.appendChild(msg);
+  }
+  const sess=this.saveAgentSession({id:this._currentAgentSessionId||uid(),title:goal.slice(0,40),messages:[{role:'user',content:goal}]});
+  this._currentAgentSessionId=sess.id;
+  try{
+    const data=await this.app.provider.chat([
+      {role:'system',content:'You are Think Deeper in quick-ask mode. Answer clearly and briefly. No multi-agent orchestration.'},
+      {role:'user',content:goal}
+    ],{temperature:0.4,maxTokens:2000});
+    const ans=((data&&data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'').trim()||'(No reply)';
+    if(box){
+      const div=document.createElement('div');div.className='agent-msg assistant';
+      div.innerHTML='<div class="agent-msg-head"><div class="avatar">TD</div><span class="agent-msg-role">Think Deeper</span></div><div class="agent-msg-body">'+(this.renderMarkdown?this.renderMarkdown(ans):escapeHtml(ans))+'</div>';
+      box.appendChild(div);if(this._renderMath)this._renderMath(div);box.scrollTop=box.scrollHeight;
+    }
+    const messages=(sess.messages||[]).concat([{role:'assistant',content:ans}]);
+    this.saveAgentSession({id:sess.id,title:sess.title,messages});
+  }catch(e){toast(e.message||String(e),'error')}
 }
 async confirmAgentSetup(){
   const ov=$('#agent-setup-overlay');
@@ -3625,6 +3889,15 @@ async startSwarm(opts){
   const budgetMs=opts.budgetMs||10*60*1000;
   this._agentStartedAt=Date.now();
   this._agentDeadline=Date.now()+budgetMs;
+  // quality presets
+  const q=this._agentQuality||this.app.storage.get('agentQuality','auto')||'auto';
+  if(q==='fast'){opts.count=Math.min(opts.count||3,3);opts.budgetMs=Math.min(budgetMs,3*60*1000)}
+  else if(q==='expert'){opts.count=Math.max(opts.count||5,5)}
+  else if(q==='heavy'){opts.count=Math.max(opts.count||8,8);opts.budgetMs=Math.max(budgetMs,20*60*1000)}
+  else if(q==='auto'){/* supervisor decides via prompt */}
+  this._agentSession=this.saveAgentSession({id:this._currentAgentSessionId||uid(),title:goal.slice(0,40),messages:[{role:'user',content:goal}]});
+  this._currentAgentSessionId=this._agentSession.id;
+
   this._agentIntent=intent;
   // Hide empty state and append user bubble
   const empty=$('#agent-empty');if(empty)empty.style.display='none';
@@ -3641,12 +3914,12 @@ async startSwarm(opts){
     if(tog)tog.onclick=()=>$('#agent-work')?.classList.toggle('open');
     box.scrollTop=box.scrollHeight;
   }
-  const stopBtn=$('#swarm-stop');if(stopBtn)stopBtn.style.display='inline-flex';
+  const stopBtn=$('#swarm-stop');if(stopBtn)stopBtn.style.display='inline-flex';const si=$('#agent-stop-inline');if(si)si.classList.add('visible');
   this._setAgentStatus('Running · '+count+' agents');
   if(this._agentClockTimer)clearInterval(this._agentClockTimer);
   this._agentClockTimer=setInterval(()=>this._tickAgentClock(),500);
   const intentNote={mystery:'Mathematical mystery — pursue a complete solution.',code:'Advanced code — implement fully with verification.',document:'Fancy document — polished complete deliverable.',other:'General task — complete solution required.'}[intent]||'';
-  await k.start(goal,{count,conc:1,live,debate,mystery,group,intent,intentNote,budgetMs,deadline:this._agentDeadline,mustFullySolve:true});
+  await k.start(goal,{count,conc:1,live,debate,mystery,group,intent,intentNote,budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto'});
   this.renderSwarm();
 }
 _setAgentStatus(t){
@@ -3675,6 +3948,20 @@ async testSwarm(n){
 }
 renderSwarm(ev){
   const k=this.app.swarm;if(!k)return;
+  // Live code preview from supervisor review
+  if(ev&&(ev.t==='agent.code'||ev.type==='agent.code')){
+    const p=ev.p||ev;
+    if(p&&p.code){
+      const body=$('#agent-work-body');
+      if(body){
+        let card=body.querySelector('.agent-code-card');
+        if(!card){card=document.createElement('div');card.className='agent-code-card';body.prepend(card)}
+        const phase=p.phase||'review';
+        const est=p.estimate?(' · ~'+String(p.estimate.seconds||'?')+'s · '+(p.estimate.safe===false?'needs fix':'ok')):'';
+        card.innerHTML='<div class="acc-bar"><strong>Python · '+escapeHtml(phase)+'</strong><span>'+escapeHtml(String(p.id||'')+est)+'</span></div><pre>'+escapeHtml(String(p.code).slice(0,4000))+'</pre>';
+      }
+    }
+  }
   const body=$('#agent-work-body');
   const list=k.agents.list();
   if(body){
@@ -3709,7 +3996,7 @@ renderSwarm(ev){
   const meta=$('#agent-work-meta');
   if(meta&&!this._agentDeadline)meta.textContent=(nWork?(nDone+'/'+nWork+' agents'):'');
   else if(meta){/* clock handles budget text */}
-  this._setAgentStatus(k.alive?('Running · '+nDone+'/'+nWork+' complete'):(k.solved?'Solved':'Supervisor · idle'));
+  this._setAgentStatus(k.alive?(nDone+'/'+nWork):(k.solved?'Done':''));
   // Final answer when solved
   if(k.solved){
     const finalEl=$('#agent-final-body');
@@ -3731,12 +4018,19 @@ renderSwarm(ev){
       const ico=work.querySelector('#agent-work-ico');if(ico){ico.classList.remove('spinning');ico.innerHTML=SVG.bulb||'';}const spin=work.querySelector('.tp-spin');if(spin)spin.remove();
     }
     if(this._agentClockTimer){clearInterval(this._agentClockTimer);this._agentClockTimer=null}
-    const stopBtn=$('#swarm-stop');if(stopBtn)stopBtn.style.display='none';
-    this._setAgentStatus('Solved');
+    const stopBtn=$('#swarm-stop');if(stopBtn)stopBtn.style.display='none';const si=$('#agent-stop-inline');if(si)si.classList.remove('visible');
+    this._setAgentStatus('Done');
+    try{
+      if(this._currentAgentSessionId&&k.solved){
+        const s=this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{id:this._currentAgentSessionId,messages:[]};
+        const messages=(s.messages||[]).concat([{role:'assistant',content:String(k.solved)}]);
+        this.saveAgentSession({id:s.id,title:s.title||'Agent chat',messages});
+      }
+    }catch(e){}
   }
   if(!k.alive&&!k.solved){
     if(this._agentClockTimer){clearInterval(this._agentClockTimer);this._agentClockTimer=null}
-    const stopBtn=$('#swarm-stop');if(stopBtn)stopBtn.style.display='none';
+    const stopBtn=$('#swarm-stop');if(stopBtn)stopBtn.style.display='none';const si=$('#agent-stop-inline');if(si)si.classList.remove('visible');
   }
   const use=$('#swarm-usage');
   if(use&&k.usage){
@@ -3902,7 +4196,7 @@ setMode(mode){
   if(mode==='canvas')this.openAutoBuilder();
   const swarm=$('#swarm-view');
   if(swarm)swarm.classList.toggle('active',mode==='swarm');
-  if(mode==='swarm')this.initSwarmUi();
+  if(mode==='swarm'){this.initSwarmUi();this.renderAgentHist&&this.renderAgentHist()}else{const sec=$('#agent-hist-section');if(sec)sec.style.display='none';const hl=$('#agent-hist-list');if(hl)hl.style.display='none'}
 }
 renderCodeSkills(){
   const el=$('#code-skills-list');if(!el)return;
@@ -4307,7 +4601,18 @@ renderPluginList(){const list=$('#plugin-list');list.innerHTML='';const plugins=
 editPlugin(id){const p=id?this.app.plugins.get(id):{id:uid(),name:'',description:'',instructions:'',knowledge:'',icon:'',enabled:true};$('#plugin-name').value=p.name;$('#plugin-desc').value=p.description||'';$('#plugin-instructions').value=p.instructions||'';$('#plugin-knowledge').value=p.knowledge||'';$('#plugin-icon').value=p.icon||'';$('#plugin-enabled').checked=!!p.enabled;if($('#plugin-training'))$('#plugin-training').checked=!!p.training;$('#plugin-editor').style.display='block';this._editingPlugin=p}
 savePlugin(){const p=this._editingPlugin||{id:uid()};p.name=$('#plugin-name').value.trim()||'Untitled';p.description=$('#plugin-desc').value.trim();p.instructions=$('#plugin-instructions').value;p.knowledge=$('#plugin-knowledge').value;p.icon=$('#plugin-icon').value.trim()||'🧩';p.enabled=$('#plugin-enabled').checked;p.training=!!$('#plugin-training')?.checked;this.app.plugins.save(p);$('#plugin-editor').style.display='none';this.renderPluginList();toast('Plugin saved','success')}
 async importPlugin(file){if(!file)return;try{const text=await file.text();let data;try{data=JSON.parse(text)}catch{data=null}const p=data?{id:uid(),name:data.name||file.name.replace(/\.\w+$/,''),description:data.description||'',instructions:data.instructions||data.prompt||'',knowledge:data.knowledge||'',icon:data.icon||'plugin',enabled:true,training:!!data.training,folder:data.folder||'',files:data.files||null}:{id:uid(),name:file.name.replace(/\.\w+$/,''),description:'Imported text',instructions:text,knowledge:'',icon:'file',enabled:true};this.app.plugins.save(p);this.renderPluginList();toast('Imported','success')}catch(e){toast('Import failed: '+e.message,'error')}$('#import-plugin-file').value=''}
-newChat(){this.hideSelToolbar();const c=this.app.conversations.create();try{this.fireAutomations('onNewChat',{})}catch(e){}const pid=this.app.storage.get('currentProjectId',null);if(pid){c.projectId=pid;this.app.conversations.update(c.id,{projectId:pid});this.attachChatToProject(c.id)}this.app.conversations.setCurrent(c.id);this.renderConversations();this.showEmpty();$('#messages').innerHTML=''}
+newChat(){
+  this.hideSelToolbar();
+  // Do not create a conversation until the user actually sends a message
+  this.app.conversations.currentId=null;
+  this.app.storage.set('currentConvId',null);
+  this._pendingProjectId=this.app.storage.get('currentProjectId',null);
+  try{this.fireAutomations('onNewChat',{})}catch(e){}
+  this.renderConversations();
+  this.showEmpty();
+  const msgs=$('#messages');if(msgs)msgs.innerHTML='';
+  if(this.mode==='swarm')this.resetAgentChatView&&this.resetAgentChatView();
+}
 loadConversation(id){this.hideSelToolbar();if(this.isPhone&&this.isPhone())this.toggleSidebar(true);if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>this.renderMessage(m,false));this.scrollToBottom();this._loadingConv=null}
 renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>p.id===pid):null;let chats=this.app.conversations.list();if(proj){const set=new Set(proj.chatIds||[]);chats=chats.filter(c=>set.has(c.id)||c.projectId===pid)}
   const q=(this._convQuery||'').trim().toLowerCase();
@@ -4369,12 +4674,12 @@ handleFiles(files){[...files].forEach(file=>{const reader=new FileReader();if(fi
 renderAttachments(){const el=$('#attachments');el.innerHTML='';this.pendingAttachments.forEach((a,i)=>{const div=document.createElement('div');div.className='attachment';if(a.dataUrl)div.innerHTML=`<img src="${a.dataUrl}" alt=""><button class="remove">×</button>`;else div.innerHTML=`<div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div><button class="remove">×</button>`;div.querySelector('.remove').onclick=()=>{this.pendingAttachments.splice(i,1);this.renderAttachments()};el.appendChild(div)});$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length}
 getThinkingHtml(){const gif=this.app.storage.get('thinkingGif','');if(gif)return`<div class="thinking-indicator"><img src="${escapeHtml(gif)}" alt="working"><span>Working…</span></div>`;return`<div class="thinking-indicator"><div class="dots"><span></span><span></span><span></span></div> Working…</div>`}
 async send(){this.ensureAgent();const text=$('#user-input').value.trim();if(!text&&!this.pendingAttachments.length)return;if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');this.openSettings();return}if(!this.app.provider.config.model){toast('Select a model','error');this.openSettings();return}
-this.hideEmpty();let conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv){conv=this.app.conversations.create();this.app.conversations.setCurrent(conv.id)}
+this.hideEmpty();let conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv){conv=this.app.conversations.create();const pid=this._pendingProjectId||this.app.storage.get('currentProjectId',null);if(pid){conv.projectId=pid;this.app.conversations.update(conv.id,{projectId:pid});this.attachChatToProject(conv.id)}this._pendingProjectId=null;this.app.conversations.setCurrent(conv.id);this.renderConversations()}
 let sendText=text;
   if(this._referQuote){sendText='User referred to the following statement:\n"'+this._referQuote+'"\n\nUser response: '+text;const bar=$('#refer-bar');if(bar)bar.remove();this._referQuote=null}
   const pins=(this.app.storage.get('pins',[])||[]).slice(0,8);
   const pinCtx=pins.length?('\n\nPINNED CONTEXT (use silently; do not repeat this block in the visible answer unless asked):\n'+pins.map(p=>'- '+p.text).join('\n')):'';
-  this.app.agent.pinCtx=pinCtx;this.app.agent.userProfileCtx=this.profileCtx();
+  this.app.agent.pinCtx=pinCtx;this.app.agent.userProfileCtx=this.profileCtx(!(conv.messages||[]).some(m=>m.role==='user'));
   const merr=this.readMonacoErrors?this.readMonacoErrors():[];
   if(merr.length)sendText+='\n\nEditor diagnostics:\n'+merr.join('\n');
   const savedAtt=this.pendingAttachments.slice().map(a=>{
@@ -4633,9 +4938,56 @@ hydrateThoughts(div,msg){
   if(body){const fc=body.querySelector('.final-content')||body.firstChild;body.insertBefore(root,fc);}
   else div.appendChild(root);
 }
+
+bindMessageHover(div,msg){
+  if(!div||!msg)return;
+  const bar=div.querySelector('.message-hover-actions');if(!bar)return;
+  if(bar.dataset.bound)return;bar.dataset.bound='1';
+  const conv=this.app.conversations.get(this.app.conversations.currentId);
+  const msgs=(conv&&conv.messages)||[];
+  const idx=msgs.findIndex(m=>m.id===msg.id);
+  const isLast=idx===msgs.length-1;
+  const isLastUser=msg.role==='user'&&idx>=0&&!msgs.slice(idx+1).some(m=>m.role==='user');
+  const mk=(title,svg,fn)=>{const b=document.createElement('button');b.type='button';b.title=title;b.innerHTML=svg;b.onclick=e=>{e.stopPropagation();fn()};return b};
+  if(msg.role==='user'&&isLastUser){
+    bar.appendChild(mk('Edit',SVG.edit||'✎',()=>this.editUserMessage(msg.id)));
+    bar.appendChild(mk('Delete',SVG.trash||'🗑',()=>this.deleteUserTurn(msg.id)));
+  } else if(msg.role==='assistant'&&isLast){
+    bar.appendChild(mk('Delete',SVG.trash||'🗑',()=>this.deleteAiTurn(msg.id)));
+    bar.appendChild(mk('Forget this',SVG.draft||'⊘',()=>this.forgetAiTurn(msg.id)));
+  }
+}
+editUserMessage(msgId){
+  const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
+  const msgs=conv.messages;const idx=msgs.findIndex(m=>m.id===msgId);if(idx<0)return;
+  if(msgs.slice(idx+1).some(x=>x.role==='user')){toast('You can only edit the most recent message','error');return}
+  const next=prompt('Edit message',this.visibleUserText(msgs[idx]));if(next===null)return;
+  conv.messages=msgs.slice(0,idx);
+  this.app.conversations.persist();
+  this.loadConversation(conv.id);
+  const box=$('#user-input');if(box){box.value=next;box.dispatchEvent(new Event('input'))}
+  this.send();
+}
+deleteUserTurn(msgId){
+  const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
+  const msgs=conv.messages;const idx=msgs.findIndex(m=>m.id===msgId);if(idx<0)return;
+  if(msgs.slice(idx+1).some(x=>x.role==='user')){toast('Only the latest turn can be deleted','error');return}
+  let end=idx+1;while(end<msgs.length&&msgs[end].role==='assistant')end++;
+  conv.messages=msgs.slice(0,idx).concat(msgs.slice(end));
+  this.app.conversations.persist();this.loadConversation(conv.id);toast('Deleted','success');
+}
+deleteAiTurn(msgId){
+  const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
+  const msgs=conv.messages;const idx=msgs.findIndex(m=>m.id===msgId);if(idx<0)return;
+  if(idx!==msgs.length-1){toast('Only the latest reply can be deleted','error');return}
+  let start=idx;if(start>0&&msgs[start-1].role==='user')start--;
+  conv.messages=msgs.slice(0,start);
+  this.app.conversations.persist();this.loadConversation(conv.id);toast('Deleted','success');
+}
+forgetAiTurn(msgId){this.deleteAiTurn(msgId)}
 renderMessage(msg,isStreaming=false){const container=$('#messages');const div=document.createElement('div');div.className=`message ${msg.role}`;div.dataset.id=msg.id;const who=this.userLabel();const roleLabel=msg.role==='user'?who.label:'Think Deeper';const avatarText=msg.role==='user'?who.initial:'TD';let attachHtml='';if(msg.attachments?.length){attachHtml='<div class="attachments">';msg.attachments.forEach(a=>{if(a.dataUrl)attachHtml+=`<div class="attachment"><img src="${a.dataUrl}" alt=""></div>`;else attachHtml+=`<div class="attachment"><div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div></div>`});attachHtml+='</div>'}
 const bodyContent=msg.role==='user'?escapeHtml(this.visibleUserText(msg)).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
-div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><span class="message-time">${fmtTime(msg.ts)}</span></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);const actions=document.createElement('div');actions.className='message-actions';const tokEst=Math.max(1,Math.round(String((msg&&msg.content)||'').length/4));
+div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);const actions=document.createElement('div');actions.className='message-actions';const tokEst=Math.max(1,Math.round(String((msg&&msg.content)||'').length/4));
 actions.innerHTML=`<span class="token-badge">~${tokEst} tokens</span><button type="button" data-act="copy" title="Copy">${SVG.copy}</button><button type="button" data-act="edit" title="Edit">${SVG.edit}</button><button type="button" data-act="branch" title="Branch chat">${SVG.branch}</button><button type="button" data-act="regen" title="Regenerate">↻</button><button type="button" data-act="continue" title="Continue">→</button><button type="button" data-act="delete" title="Delete">${SVG.trash}</button>`;actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(msg.content);actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(msg.id,div);const rg=actions.querySelector('[data-act=regen]');if(rg)rg.onclick=()=>this.regenerateLast();const ct=actions.querySelector('[data-act=continue]');if(ct)ct.onclick=()=>this.continueLast();const br=actions.querySelector('[data-act=branch]');if(br)br.onclick=()=>this.branchFromMessage(msg.id);const del=actions.querySelector('[data-act=delete]');if(del)del.onclick=()=>this.deleteMessage(msg.id);div.querySelector('.message-content').appendChild(actions)}if(msg.role==='assistant')this.hydrateThoughts(div,msg);this.setupMessageSelection(div);this.scrollToBottom();return div}
 renderMarkdown(text){
   if(!text)return '';
@@ -4910,6 +5262,12 @@ confirmLogout(){
 renderAuth(){
   const area=$('#auth-area');if(!area)return;
   const user=this.app.storage.getActiveUser();
+  const devBtn=$('#dev-panel-btn');
+  if(devBtn){
+    const email=(user&&user.email)||'';
+    const isDev=this.app.cloud&&this.app.cloud.isDevAccount&&this.app.cloud.isDevAccount(email);
+    devBtn.style.display=isDev?'flex':'none';
+  }
   if(user&&user.id){
     const avatar=user.picture?`<img class="auth-avatar" src="${escapeHtml(user.picture)}" alt="">`:`<span class="auth-avatar" style="display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-size:.7rem">${escapeHtml((user.name||user.email||'?')[0]||'?')}</span>`;
     const who=this.userLabel();area.innerHTML=`<button type="button" class="auth-btn" id="btn-account">${avatar}<span style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(who.short)}</span></button><button type="button" class="auth-btn" id="btn-logout">Log out</button>`;
@@ -5426,15 +5784,29 @@ explainApiError(e){
 prettyModelName(id){
   return String(id||'').replace(/[-_]+/g,' ').replace(/\b([a-z])/g,m=>m.toUpperCase());
 }
-profileCtx(){
+profileCtx(firstMessage){
   const p=this.app.storage.get('profile',{})||{};
   const user=this.app.storage.getActiveUser()||{};
   const name=p.name||user.name||'';
   const nick=p.nickname||'';
-  if(!name&&!nick)return '';
-  return '\n\nUSER PROFILE: The user name is '+(name||'unknown')+'. '+(nick?('Always address them as "'+nick+'" in a natural way when you greet or refer to them. '):'')+'Do not ignore this nickname.';
+  const call=nick||name;
+  if(!call)return '';
+  // Only inject on the user's first message in a conversation
+  if(!firstMessage)return '';
+  return '\n\nUSER NAME: This is the user\'s name — "'+call+'". You do not have to refer to it all the time, but this is what the user wants to be called.';
 }
 bindAccountUi(){
+  const db=$('#dev-panel-btn');if(db)db.onclick=()=>this.openDevPanel();
+  const dc=$('#dev-panel-close');if(dc)dc.onclick=()=>$('#dev-panel-overlay')?.classList.remove('open');
+  const dcan=$('#dev-panel-cancel');if(dcan)dcan.onclick=()=>$('#dev-panel-overlay')?.classList.remove('open');
+  const ds=$('#dev-panel-save');if(ds)ds.onclick=()=>this.saveDevPanel();
+  const dma=$('#dev-model-add');if(dma)dma.onclick=()=>{
+    const id=($('#dev-model-id')?.value||'').trim();const desc=($('#dev-model-desc')?.value||'').trim();
+    if(!id)return;this._devCatalog=this._devCatalog||[];this._devCatalog.push({id,description:desc});
+    if($('#dev-model-id'))$('#dev-model-id').value='';if($('#dev-model-desc'))$('#dev-model-desc').value='';
+    this.renderDevCatalog();
+  };
+
   const ly=$('#logout-yes');if(ly)ly.onclick=()=>{$('#logout-confirm').classList.remove('open');this.logoutGoogle()};
   const lc=$('#logout-cancel');if(lc)lc.onclick=()=>$('#logout-confirm').classList.remove('open');
   const more=$('#sidebar-more-btn');if(more)more.onclick=()=>$('#sidebar-footer').classList.toggle('open');
@@ -5463,6 +5835,52 @@ bindAccountUi(){
     const r=new FileReader();r.onload=()=>{$('#acct-preview').src=r.result;$('#acct-pic-url').value='';this._acctPicData=r.result};r.readAsDataURL(f);
   }}
 }
+
+openDevPanel(){
+  const user=this.app.storage.getActiveUser()||{};
+  if(!(this.app.cloud&&this.app.cloud.isDevAccount(user.email))){toast('Dev panel is restricted','error');return}
+  const ov=$('#dev-panel-overlay');if(!ov)return;
+  ov.classList.add('open');
+  (async()=>{
+    const data=await this.app.cloud.pullSystemDefaults();
+    if($('#dev-api-base'))$('#dev-api-base').value=(data&&data.baseUrl)||'';
+    if($('#dev-api-model'))$('#dev-api-model').value=(data&&data.model)||'';
+    if($('#dev-fb-base'))$('#dev-fb-base').value=(data&&data.fallbackBaseUrl)||'';
+    if($('#dev-fb-model'))$('#dev-fb-model').value=(data&&data.fallbackModel)||'';
+    if($('#dev-api-key'))$('#dev-api-key').value='';
+    if($('#dev-fb-key'))$('#dev-fb-key').value='';
+    this._devCatalog=(data&&data.modelCatalog)||[];
+    this.renderDevCatalog();
+  })();
+}
+renderDevCatalog(){
+  const el=$('#dev-model-list');if(!el)return;
+  const list=this._devCatalog||[];
+  el.innerHTML=list.map((m,i)=>'<div class="dev-model-row"><div style="flex:1"><strong style="font-size:.85rem">'+escapeHtml(m.id||'')+'</strong><div class="hint">'+escapeHtml(m.description||'')+'</div></div><button type="button" class="btn-secondary" data-i="'+i+'">Remove</button></div>').join('')||'<div class="hint">No catalog models yet</div>';
+  el.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{this._devCatalog.splice(Number(b.dataset.i),1);this.renderDevCatalog()});
+}
+async saveDevPanel(){
+  const user=this.app.storage.getActiveUser()||{};
+  if(!(this.app.cloud&&this.app.cloud.isDevAccount(user.email))){toast('Not allowed','error');return}
+  try{
+    const payload={
+      baseUrl:($('#dev-api-base')?.value||'').trim(),
+      model:($('#dev-api-model')?.value||'').trim(),
+      fallbackBaseUrl:($('#dev-fb-base')?.value||'').trim(),
+      fallbackModel:($('#dev-fb-model')?.value||'').trim(),
+      apiKey:($('#dev-api-key')?.value||'').trim(),
+      fallbackApiKey:($('#dev-fb-key')?.value||'').trim(),
+      modelCatalog:this._devCatalog||[]
+    };
+    const merged=await this.app.cloud.pushSystemDefaults(payload,user.email);
+    this.app.cloud.applySystemDefaults(this.app,merged);
+    toast('System defaults saved to cloud','success');
+    $('#dev-panel-overlay')?.classList.remove('open');
+    if($('#dev-api-key'))$('#dev-api-key').value='';
+    if($('#dev-fb-key'))$('#dev-fb-key').value='';
+  }catch(e){toast(e.message||String(e),'error')}
+}
+
 openAccountMenu(){
   this.hideSelToolbar();
   const user=this.app.storage.getActiveUser()||{};
@@ -6068,6 +6486,13 @@ start(){
   this.cloud.init();
   this.cloud._app=this;
   this.ui.init();
+  (async()=>{
+    try{
+      if(!this.cloud.ready)this.cloud.init();
+      const sys=await this.cloud.pullSystemDefaults();
+      if(sys)this.cloud.applySystemDefaults(this,sys);
+    }catch(e){console.warn('[system defaults]',e)}
+  })();
   this.ui.scheduleAutomations&&this.ui.scheduleAutomations();
   this.cloud.bindCrossTab&&this.cloud.bindCrossTab(this);
   if(this.cloud._pendingAuthUser)this.cloud._onAuthUser(this.cloud._pendingAuthUser);
@@ -6097,5 +6522,32 @@ async _restoreCloudSession(){
 const app=new App();app.start();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+
+<div class="overlay" id="agent-quality-overlay" aria-hidden="true"><div class="panel" style="max-width:400px">
+<div class="panel-header"><h2>Quality</h2><button type="button" class="icon-btn" id="agent-quality-close" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+<div class="panel-body"><div class="quality-grid" id="quality-grid">
+<button type="button" class="quality-opt" data-q="fast"><strong>Fast</strong><span>Quick team, light verification. Best for simple tasks.</span></button>
+<button type="button" class="quality-opt active" data-q="auto"><strong>Auto</strong><span>Supervisor decides team size, depth, and tools from your goal.</span></button>
+<button type="button" class="quality-opt" data-q="expert"><strong>Expert</strong><span>Thorough roles, stronger checks, careful synthesis.</span></button>
+<button type="button" class="quality-opt" data-q="heavy"><strong>Heavy</strong><span>Maximum rigor, long runs, full verification loops.</span></button>
+</div></div></div></div>
+
+<div class="overlay" id="dev-panel-overlay" aria-hidden="true"><div class="panel wide">
+<div class="panel-header"><h2>Dev panel <span class="dev-badge">restricted</span></h2><button type="button" class="icon-btn" id="dev-panel-close" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+<div class="panel-body">
+<p class="hint" style="margin-bottom:12px">System defaults apply to all guests and accounts. Keys are stored in cloud config (not exposed in the client UI after save). Only verified dev accounts can write.</p>
+<div class="form-group"><label>Default API Base URL</label><input type="text" id="dev-api-base" placeholder="https://api.openai.com/v1"></div>
+<div class="form-group"><label>Default API Key</label><input type="password" id="dev-api-key" placeholder="sk-… (write-only after save)" autocomplete="new-password"></div>
+<div class="form-group"><label>Primary model ID</label><input type="text" id="dev-api-model" placeholder="gpt-4o-mini"></div>
+<div class="form-group"><label>Fallback Base URL</label><input type="text" id="dev-fb-base" placeholder="optional"></div>
+<div class="form-group"><label>Fallback API Key</label><input type="password" id="dev-fb-key" placeholder="optional" autocomplete="new-password"></div>
+<div class="form-group"><label>Fallback model</label><input type="text" id="dev-fb-model" placeholder="optional"></div>
+<div class="form-group"><label>Public model catalog</label>
+<div id="dev-model-list"></div>
+<div class="model-lib-add" style="margin-top:8px"><input type="text" id="dev-model-id" placeholder="model id"><input type="text" id="dev-model-desc" placeholder="short description"><button type="button" class="btn-secondary" id="dev-model-add">Add</button></div>
+</div>
+<div class="btn-row"><button type="button" class="btn-secondary" id="dev-panel-cancel">Cancel</button><button type="button" class="btn-primary" id="dev-panel-save">Save system defaults</button></div>
+</div></div></div>
+
 </body>
 </html>
