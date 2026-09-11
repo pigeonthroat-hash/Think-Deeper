@@ -874,6 +874,17 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .footer-toggle{margin:6px 12px 8px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-tertiary);font-size:.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;width:calc(100% - 24px)}
 .footer-toggle:hover{color:var(--text-primary);border-color:var(--border-strong)}
 
+
+.sidebar-footer-head{display:flex;justify-content:flex-end;padding:4px 10px 0;flex-shrink:0}
+.footer-arrow-btn{width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-tertiary);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.footer-arrow-btn:hover{color:var(--text-primary);border-color:var(--border-strong);background:var(--bg-hover)}
+.footer-arrow-btn .footer-arrow-up{display:none}
+.sidebar-footer.collapsed ~ .footer-arrow-btn .footer-arrow-down,
+.sidebar-footer-head.is-collapsed .footer-arrow-down{display:none}
+.sidebar-footer-head.is-collapsed .footer-arrow-up{display:block}
+.sidebar-footer-head:not(.is-collapsed) .footer-arrow-down{display:block}
+.sidebar-footer-head:not(.is-collapsed) .footer-arrow-up{display:none}
+
 </style>
 </head>
 <body>
@@ -890,15 +901,26 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <div class="sidebar-section">Projects</div>
 <button type="button" class="btn-new-project" id="new-project-btn">＋ New project</button>
 <div class="project-list" id="project-list"></div>
-<div class="sidebar-section" id="agent-hist-section" style="display:none">Agent chats</div>
-<div class="agent-hist" id="agent-hist-list" style="display:none"></div>
-<div class="sidebar-section sidebar-section-row"><span>Conversations</span>
+<div class="sidebar-section sidebar-section-row" id="chat-list-section"><span>Conversations</span>
 <button type="button" class="sec-new-chat" id="new-chat-btn" title="New chat" aria-label="New chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
 </div>
-<div class="conv-search"><input type="search" id="conv-search" placeholder="Search chats & messages…"></div>
+<div class="conv-search" id="chat-search-wrap"><input type="search" id="conv-search" placeholder="Search chats & messages…"></div>
 <div class="conv-list" id="conv-list"></div>
+<div class="sidebar-section sidebar-section-row" id="agent-hist-section" style="display:none"><span>Agent chats</span>
+<button type="button" class="sec-new-chat" id="agent-new-btn" title="New agent chat" aria-label="New agent chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+</div>
+<div class="agent-hist" id="agent-hist-list" style="display:none"></div>
+<div class="sidebar-section sidebar-section-row" id="code-hist-section" style="display:none"><span>Code chats</span>
+<button type="button" class="sec-new-chat" id="code-new-btn" title="New code chat" aria-label="New code chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+</div>
+<div class="agent-hist" id="code-hist-list" style="display:none"></div>
 <button type="button" class="sidebar-more-btn" id="sidebar-more-btn" aria-label="More tools">More</button>
-<button type="button" class="footer-toggle" id="footer-toggle" aria-label="Toggle tools panel" title="Tools">Tools ▾</button>
+<div class="sidebar-footer-head">
+<button type="button" class="footer-arrow-btn" id="footer-toggle" aria-label="Toggle tools panel" title="Toggle tools">
+<svg class="footer-arrow-down" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+<svg class="footer-arrow-up" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+</button>
+</div>
 <div class="sidebar-footer" id="sidebar-footer">
 <button id="plugins-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg> Plugins</button>
 <button id="workspace-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> External Workspace</button>
@@ -2768,33 +2790,92 @@ class TaskManager{
   set(id,f){const t=this.map.get(id);if(!t)return;Object.assign(t,f);this.k.events.emit('task.'+(f.status||'update'),t)}
 }
 class Scheduler{
-  constructor(k){this.k=k;this.q=[];this.inflight=new Set();this.conc=4;this.running=false}
+  constructor(k){this.k=k;this.q=[];this.inflight=new Set();this.conc=1;this._pumping=false}
   enqueue(id,reason){
+    if(!id)return;
     const a=this.k.agents.get(id);
-    if(a&&(a.status==='completed'||a.status==='waiting'||a.status==='failed'))a.status='idle';
-    if(!this.q.includes(id)&&!this.inflight.has(id))this.q.push(id);
-    this.k.events.emit('agent.queued',{id,reason,depth:this.q.length});this.pump()}
+    // Never disturb an agent that is already executing
+    if(this.inflight.has(id)){
+      if(!this.q.includes(id))this.q.push(id);
+      this.k.events.emit('agent.queued',{id,reason:String(reason||'')+'-deferred',depth:this.q.length});
+      this.schedulePump();
+      return;
+    }
+    if(a&&(a.status==='completed'||a.status==='waiting'||a.status==='failed'||a.status==='cancelled')){
+      a.status='idle';
+      a.error=null;
+    }
+    if(!this.q.includes(id))this.q.push(id);
+    this.k.events.emit('agent.queued',{id,reason,depth:this.q.length});
+    this.schedulePump();
+  }
+  schedulePump(){
+    if(this._pumpTimer)return;
+    this._pumpTimer=setTimeout(()=>{this._pumpTimer=null;this.pump()},0);
+  }
   async pump(){
-    if(this.running)return;this.running=true;
+    if(this._pumping)return;
+    this._pumping=true;
     try{
       while(this.q.length && this.inflight.size<this.conc && this.k.alive){
         const id=this.q.shift();
+        if(!id||this.inflight.has(id))continue;
+        const a=this.k.agents.get(id);
+        if(!a)continue;
+        if(a.status==='running')continue;
         this.inflight.add(id);
-        this.runOne(id).finally(()=>{this.inflight.delete(id);this.pump()});
+        this.runOne(id).catch(e=>console.warn('[scheduler]',id,e)).finally(()=>{
+          this.inflight.delete(id);
+          this.schedulePump();
+        });
       }
-    }finally{this.running=false}
+    }finally{this._pumping=false}
   }
   async runOne(id){
-    const a=this.k.agents.get(id);if(!a||a.status==='completed'||a.status==='failed'||a.status==='cancelled')return;
-    const limHit=this.k.usage.ok(id,a.limits||this.k.limits);if(limHit){a.status='failed';a.error=limHit;this.k.events.emit('agent.fail',{id,error:limHit});return}
+    const a=this.k.agents.get(id);
+    if(!a||a.status==='failed'||a.status==='cancelled')return;
+    // Allow re-running completed/waiting agents (supervisor handoff)
+    if(a.status==='completed')a.status='idle';
+    const limHit=this.k.usage.ok(id,a.limits||this.k.limits);
+    if(limHit){a.status='failed';a.error=limHit;this.k.events.emit('agent.fail',{id,error:limHit});
+      if(id!=='coordinator'&&this.k.alive&&!this.k.solved)this.enqueue('coordinator','recover');
+      return}
     a.status='running';a.started=a.started||Date.now();
     this.k.events.emit('agent.start',{id,task:a.task,model:a.model});
     const t0=Date.now();
-    try{await Promise.race([this.k.agents.execute(a),new Promise((_,rej)=>setTimeout(()=>rej(new Error('agent timeout')),30*60*1000))]);if(a.status==='waiting')return;a.status='completed';a.ended=Date.now();this.k.usage.bump(id,{ms:Date.now()-t0});this.k.events.emit('agent.done',{id,result:(a.result||'').slice(0,400)});
-      if(id!=='coordinator'&&this.k.alive)this.enqueue('coordinator','resume')}
-    catch(e){if(e&&e.wait){a.status='waiting';this.k.events.emit('agent.wait',{id,why:e.wait});return}
-      a.status='failed';a.error=String(e.message||e);this.k.usage.bump(id,{fails:1,ms:Date.now()-t0});this.k.events.emit('agent.fail',{id,error:a.error});
-      if(id!=='coordinator'&&this.k.alive)this.enqueue('coordinator','recover')}
+    try{
+      await Promise.race([
+        this.k.agents.execute(a),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('agent timeout')),30*60*1000))
+      ]);
+      if(a.status==='waiting'){
+        // Supervisor delegated — worker was enqueued; do not mark completed
+        this.k.events.emit('agent.wait',{id,why:'delegated'});
+        return;
+      }
+      a.status='completed';a.ended=Date.now();
+      this.k.usage.bump(id,{ms:Date.now()-t0});
+      this.k.events.emit('agent.done',{id,result:String(a.result||'').slice(0,400)});
+      // Always hand control back to supervisor so the chain never stalls
+      if(id!=='coordinator'&&this.k.alive&&!this.k.solved){
+        this.enqueue('coordinator','resume');
+      }else if(id==='coordinator'&&this.k.alive&&!this.k.solved&&a.status==='completed'){
+        // Supervisor finished a round without SOLVED/RUN — try one more pass or stop soft
+        const workers=this.k.agents.list().filter(x=>x.role!=='supervisor');
+        const idle=workers.find(x=>x.status==='idle'||x.status==='completed');
+        if(idle&&(a.rounds||0)<(this.k.mustFullySolve!==false?48:12)){
+          // force another supervisor tick after a microtask so state settles
+          a.status='idle';
+          this.enqueue('coordinator','nudge');
+        }
+      }
+    }catch(e){
+      if(e&&e.wait){a.status='waiting';this.k.events.emit('agent.wait',{id,why:e.wait});return}
+      a.status='failed';a.error=String(e.message||e);
+      this.k.usage.bump(id,{fails:1,ms:Date.now()-t0});
+      this.k.events.emit('agent.fail',{id,error:a.error});
+      if(this.k.alive&&!this.k.solved)this.enqueue('coordinator','recover');
+    }
   }
 }
 class AgentManager{
@@ -2993,10 +3074,10 @@ class Coordinator{
     if(this.k.intentNote)supPrompt+='\nUSER INTENT: '+this.k.intentNote;
     if(this.k.budgetMs)supPrompt+='\nTIME BUDGET: about '+Math.round(this.k.budgetMs/1000)+' seconds. Use the time wisely but do not declare SOLVED early.';
     if(this.k.mustFullySolve!==false)supPrompt+='\nYou must not SOLVED until the task is fully complete.';
-    const sup=this.k.agents.register({id:'coordinator',role:'supervisor',model,fallbacks,task:'Coordinate until solved: '+goal,rounds:0,perms:{python:true,files:true,messaging:true,spawn:true,network:true,sharedWs:true},systemPrompt:supPrompt});
+    const sup=this.k.agents.register({id:'coordinator',role:'supervisor',model,fallbacks,task:'Coordinate until solved: '+goal,rounds:0,perms:{python:true,files:true,messaging:true,spawn:true,network:true,sharedWs:true},systemPrompt:supPrompt,limits:{maxTokens:500000,maxReqs:500},maxTokens:4000});
     const count=Math.max(1,Math.min(10000,n||1));
     const roles=['builder','planner','reviewer','researcher','tester'];
-    const workerLive=this.k.liveApi && count<=4;
+    const workerLive=!!this.k.liveApi;
     // Optional groups: Supervisor-designed partitions
     let groupOf={};
     if(groupMode && count>=4){
@@ -3039,7 +3120,7 @@ class Coordinator{
 class SwarmKernel{
   constructor(app){
     this.app=app;this.alive=false;this.liveApi=false;this.debate=false;
-    this.limits={maxAgents:10000,maxDepth:4,maxSpawnPerAgent:8,maxTokens:8000,maxReqs:20};
+    this.limits={maxAgents:10000,maxDepth:4,maxSpawnPerAgent:8,maxTokens:500000,maxReqs:500};
     this.events=new EventBus();this.usage=new UsageManager(this);this.bus=new MessageBus(this);
     this.memory=new MemoryManager();this.workspace=new WorkspaceManager(app);
     this.router=new ModelRouter(app,this);this.tasks=new TaskManager(this);
@@ -3811,8 +3892,47 @@ renderAgentHist(){
   if(listEl)listEl.style.display=inAgent?'':'none';
   if(!listEl||!inAgent)return;
   const list=this.agentSessions();
-  listEl.innerHTML=list.slice(0,20).map(s=>'<div class="agent-hist-item'+(s.id===this._currentAgentSessionId?' active':'')+'" data-id="'+s.id+'"><span class="ah-title">'+escapeHtml(s.title||'Agent chat')+'</span><span class="ah-meta"></span></div>').join('')||'<div class="hint" style="padding:8px">No agent chats yet</div>';
+  listEl.innerHTML=list.slice(0,30).map(s=>'<div class="agent-hist-item'+(s.id===this._currentAgentSessionId?' active':'')+'" data-id="'+s.id+'"><span class="ah-title">'+escapeHtml(s.title||'Agent chat')+'</span><span class="ah-meta"></span></div>').join('')||'<div class="hint" style="padding:8px">No agent chats yet</div>';
   listEl.querySelectorAll('.agent-hist-item').forEach(el=>el.onclick=()=>this.loadAgentSession(el.dataset.id));
+  const nb=$('#agent-new-btn');if(nb)nb.onclick=()=>{this.resetAgentChatView();toast('New agent chat','success')};
+}
+renderCodeHist(){
+  const sec=$('#code-hist-section'),listEl=$('#code-hist-list');
+  const inCode=this.mode==='code';
+  if(sec)sec.style.display=inCode?'':'none';
+  if(listEl)listEl.style.display=inCode?'':'none';
+  if(!listEl||!inCode)return;
+  const list=this.codeSessions();
+  const cur=this.app.storage.get('currentCodeId',null);
+  listEl.innerHTML=list.slice(0,30).map(s=>'<div class="agent-hist-item'+(s.id===cur?' active':'')+'" data-id="'+s.id+'"><span class="ah-title">'+escapeHtml(s.title||'Code chat')+'</span></div>').join('')||'<div class="hint" style="padding:8px">No code chats yet</div>';
+  listEl.querySelectorAll('.agent-hist-item').forEach(el=>el.onclick=()=>this.loadCodeSession(el.dataset.id));
+  const nb=$('#code-new-btn');if(nb)nb.onclick=()=>this.newCodeSession();
+}
+loadCodeSession(id){
+  const list=this.codeSessions();
+  const s=list.find(x=>x.id===id);if(!s)return;
+  this.app.storage.set('currentCodeId',id);
+  this.setMode('code');
+  const box=$('#code-messages');if(!box)return;
+  box.innerHTML='';
+  (s.messages||[]).forEach(m=>{
+    // lightweight restore
+    const div=document.createElement('div');
+    div.className='code-msg message '+(m.role==='user'?'user':'assistant');
+    div.innerHTML='<div class="message-body">'+(m.role==='user'?escapeHtml(m.content||''):(this.renderMarkdown?this.renderMarkdown(m.content||''):escapeHtml(m.content||'')))+'</div>';
+    box.appendChild(div);
+  });
+  this.renderCodeHist();
+}
+newCodeSession(){
+  const s={id:uid(),title:'Code chat',messages:[],updated:Date.now()};
+  const list=this.codeSessions();
+  list.unshift(s);
+  this.app.storage.set('codeSessions',list.slice(0,40));
+  this.app.storage.set('currentCodeId',s.id);
+  const box=$('#code-messages');if(box)box.innerHTML='';
+  this.renderCodeHist();
+  toast('New code chat','success');
 }
 loadAgentSession(id){
   const s=this.agentSessions().find(x=>x.id===id);if(!s)return;
@@ -4219,6 +4339,7 @@ setMode(mode){
   this.hideSelToolbar();
   if(this.isPhone&&this.isPhone()&&mode!=='canvas')this.toggleSidebar(true);
   this.mode=mode;this.app.mode=mode;
+  try{this.app.storage.set('appMode',mode)}catch(e){}
   document.querySelectorAll('.mode-tab').forEach(t=>t.classList.toggle('active',t.dataset.mode===mode));
   const code=$('#code-view'),chat=$('#chat-area'),auto=$('#auto-view'),hub=$('#auto-hub');
   const inputArea=document.querySelector('.input-area');
@@ -4234,7 +4355,21 @@ setMode(mode){
   if(mode==='canvas')this.openAutoBuilder();
   const swarm=$('#swarm-view');
   if(swarm)swarm.classList.toggle('active',mode==='swarm');
-  if(mode==='swarm'){this.initSwarmUi();this.renderAgentHist&&this.renderAgentHist()}else{const sec=$('#agent-hist-section');if(sec)sec.style.display='none';const hl=$('#agent-hist-list');if(hl)hl.style.display='none'}
+  // Lists never overlap: chat / agent / code each own the sidebar list area
+  const showChat=mode==='chat';
+  const showAgent=mode==='swarm';
+  const showCode=mode==='code';
+  const setDisp=(sel,on)=>{const el=$(sel);if(el)el.style.display=on?'':'none'};
+  setDisp('#chat-list-section',showChat);
+  setDisp('#chat-search-wrap',showChat);
+  setDisp('#conv-list',showChat);
+  setDisp('#agent-hist-section',showAgent);
+  setDisp('#agent-hist-list',showAgent);
+  setDisp('#code-hist-section',showCode);
+  setDisp('#code-hist-list',showCode);
+  if(showAgent){this.initSwarmUi();this.renderAgentHist&&this.renderAgentHist()}
+  if(showCode){this.renderCodeHist&&this.renderCodeHist()}
+  if(showChat){this.renderConversations&&this.renderConversations()}
 }
 renderCodeSkills(){
   const el=$('#code-skills-list');if(!el)return;
@@ -5849,17 +5984,23 @@ bindAccountUi(){
   const lc=$('#logout-cancel');if(lc)lc.onclick=()=>$('#logout-confirm').classList.remove('open');
   const more=$('#sidebar-more-btn');if(more)more.onclick=()=>$('#sidebar-footer').classList.toggle('open');
   const footerToggle=$('#footer-toggle');
+  const footerHead=document.querySelector('.sidebar-footer-head');
+  const syncFooterArrow=()=>{
+    const f=$('#sidebar-footer');
+    const on=f&&f.classList.contains('collapsed');
+    if(footerHead)footerHead.classList.toggle('is-collapsed',!!on);
+  };
   if(footerToggle)footerToggle.onclick=()=>{
     const f=$('#sidebar-footer');if(!f)return;
     const on=f.classList.toggle('collapsed');
-    footerToggle.textContent=on?'Tools ▸':'Tools ▾';
     this.app.storage.set('footerCollapsed',on);
+    syncFooterArrow();
   };
   try{
     if(this.app.storage.get('footerCollapsed',false)){
       const f=$('#sidebar-footer');if(f)f.classList.add('collapsed');
-      if(footerToggle)footerToggle.textContent='Tools ▸';
     }
+    syncFooterArrow();
   }catch(e){}
 
 
@@ -5977,10 +6118,56 @@ async saveDevPanel(){
   }
 }
 
+
+renderAccountMemory(){
+  const el=$('#acct-memory');if(!el)return;
+  const items=[];
+  // memory/ files in VFS
+  try{
+    const paths=(this.app.vfs.list('memory/')||[]).slice(0,12);
+    paths.forEach(p=>{
+      try{
+        const c=String(this.app.vfs.read(p)||'').trim();
+        if(c)items.push({title:p.replace(/^memory\//,''),text:c.slice(0,280)});
+      }catch(e){}
+    });
+  }catch(e){}
+  // Recent conversation digests
+  try{
+    (this.app.conversations.list()||[]).slice(0,8).forEach(c=>{
+      const last=(c.messages||[]).filter(m=>m.role==='assistant').slice(-1)[0];
+      const snippet=last?String(last.content||'').replace(/\s+/g,' ').slice(0,160):'';
+      if(snippet)items.push({title:'Chat · '+(c.title||'Untitled'),text:snippet});
+    });
+  }catch(e){}
+  // Agent session digests
+  try{
+    const sessions=this.app.storage.get('agentSessions',[])||[];
+    sessions.slice(0,6).forEach(s=>{
+      const last=(s.messages||[]).filter(m=>m.role==='assistant').slice(-1)[0];
+      const snippet=last?String(last.content||'').replace(/\s+/g,' ').slice(0,160):'';
+      if(snippet)items.push({title:'Agent · '+(s.title||'session'),text:snippet});
+    });
+  }catch(e){}
+  // Pins as durable memory
+  try{
+    (this.app.storage.get('pins',[])||[]).slice(0,6).forEach(p=>{
+      if(p&&p.text)items.push({title:'Pinned',text:String(p.text).slice(0,200)});
+    });
+  }catch(e){}
+  if(!items.length){
+    el.innerHTML='<div class="mem-empty">No stored memory yet. As you chat, summaries and memory/ notes will show up here.</div>';
+    return;
+  }
+  el.innerHTML=items.slice(0,20).map(it=>'<div class="mem-item"><strong>'+escapeHtml(it.title)+'</strong>'+escapeHtml(it.text)+'</div>').join('');
+}
+
 openAccountMenu(){
   this.hideSelToolbar();
   const user=this.app.storage.getActiveUser()||{};
   const p=this.app.storage.get('profile',{})||{};
+  this.renderAccountMemory();
+  const mr=$('#acct-memory-refresh');if(mr)mr.onclick=()=>this.renderAccountMemory();
   if($('#acct-name'))$('#acct-name').value=p.name||user.name||'';
   if($('#acct-nickname'))$('#acct-nickname').value=p.nickname||'';
   const pic=p.picture||user.picture||'';
