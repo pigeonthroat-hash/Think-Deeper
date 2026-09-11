@@ -768,6 +768,14 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .katex-display{margin:.75em 0}
 .math-fallback{font-family:var(--font-display);opacity:.9}
 .mode-pop button[data-mode="swarm"]{margin-top:6px;border-top:1px solid var(--border);border-radius:0 0 8px 8px}
+
+.swarm-think{flex:1;overflow:auto;padding:16px}
+.swarm-branch{border:1px solid var(--border);border-radius:14px;margin:0 0 12px;background:var(--bg-elevated);padding:10px 12px}
+.swarm-branch h3{margin:0 0 8px;font-size:.9rem}
+.swarm-step{border-left:2px solid var(--border);margin:6px 0 6px 8px;padding:4px 8px}
+.swarm-step .nm{font-weight:600;font-size:.8rem}
+.swarm-step pre{white-space:pre-wrap;font-size:.75rem;margin:4px 0 0}
+#chat-agent-n{width:52px;margin-left:6px;background:transparent;border:none;color:var(--text-primary);font:inherit}
 </style>
 </head>
 <body>
@@ -883,38 +891,20 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
   <div class="swarm-shell">
     <aside class="swarm-side">
       <h2>Agent Mode</h2>
-      <p class="hint">Real queued agents. Only active workers call models. 10,000 configured does not mean 10,000 API calls.</p>
+      <p class="hint">Coordinator picks one worker, waits, then continues until SOLVED. One live request at a time.</p>
       <label>Goal</label>
       <textarea id="swarm-goal" rows="3" placeholder="What should the team do?"></textarea>
-      <div class="swarm-row"><label>Agents</label><input id="swarm-count" type="number" min="1" max="10000" value="4"></div>
-      <div class="swarm-row"><label>Concurrent workers</label><input id="swarm-conc" type="number" min="1" max="16" value="4"></div>
+      <div class="swarm-row"><label>Team size</label><input id="swarm-count" type="number" min="1" max="10000" value="3"></div>
       <label class="hint"><input type="checkbox" id="swarm-debate"> Debate / consensus</label>
-      <label class="hint"><input type="checkbox" id="swarm-live"> Use live API (off = local echo provider)</label>
+      <label class="hint"><input type="checkbox" id="swarm-live" checked> Use live API</label>
       <div class="btn-row">
-        <button type="button" class="btn-primary" id="swarm-start">Start coordinator</button>
+        <button type="button" class="btn-primary" id="swarm-start">Start</button>
         <button type="button" class="btn-secondary" id="swarm-stop">Stop</button>
-      </div>
-      <div class="swarm-tests">
-        <span>Self-test</span>
-        <button type="button" data-st="2">2</button>
-        <button type="button" data-st="10">10</button>
-        <button type="button" data-st="100">100</button>
-        <button type="button" data-st="1000">1k</button>
-        <button type="button" data-st="10000">10k</button>
       </div>
       <div id="swarm-usage" class="hint"></div>
     </aside>
     <section class="swarm-main">
-      <div class="swarm-cols">
-        <div><h3>Agents</h3><div id="swarm-agents" class="swarm-list"></div></div>
-        <div><h3>Tasks</h3><div id="swarm-tasks" class="swarm-list"></div></div>
-        <div><h3>Bus</h3><div id="swarm-bus" class="swarm-list"></div></div>
-      </div>
-      <div class="swarm-bottom">
-        <div><h3>Events</h3><div id="swarm-events" class="swarm-log"></div></div>
-        <div><h3>Graph</h3><div id="swarm-graph" class="swarm-graph"></div></div>
-        <div><h3>Trace</h3><pre id="swarm-trace" class="swarm-trace"></pre></div>
-      </div>
+      <div class="swarm-think" id="swarm-think"></div>
     </section>
   </div>
 </div>
@@ -969,6 +959,7 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <button type="button" class="deep-think-mini" id="deep-think-mini" aria-label="Toggle Deep Think" title="Deep Think">Deep Think</button>
 <div style="position:relative">
 <button type="button" class="mode-mini" id="mode-mini-btn" aria-label="Choose mode"><span id="mode-mini-label">Medium</span> <span class="mode-caret">▾</span></button>
+<label class="mode-mini" title="How many sequential agents in this chat">Agents <input id="chat-agent-n" type="number" min="1" max="8" value="1" aria-label="Agent count"></label>
 <div class="mode-pop" id="mode-mini-pop"></div>
 </div>
 <button class="stop-btn" id="stop-btn" aria-label="Stop"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
@@ -1914,7 +1905,7 @@ async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTo
     let msg=(data&&(data.message||data.error?.message||data.error))||rawText;
     if(typeof msg==='object')msg=JSON.stringify(msg);
     console.error('[API] error',res.status,rawText.slice(0,2000));
-    const rateLimit=/rate limit|quota|resource_exhausted|tokens per minute|TPM|429/i.test(String(msg))||res.status===429;
+    const rateLimit=/rate limit|quota|resource_exhausted|tokens per minute|TPM|overloaded|unavailable/i.test(String(msg))||res.status===429||res.status===503||res.status===502;
     if(rateLimit){
       const raw=String(msg);
       let waitMs=1000;
@@ -1925,7 +1916,7 @@ async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTo
       waitMs=Math.max(1000,Math.min(20000,waitMs));
       const attempt=arguments[1]&&arguments[1]._retry||0;
       if(attempt<3){
-        console.warn('[API] 429 — waiting',waitMs,'ms then retry',attempt+1);
+        console.warn('[API] '+res.status+' — waiting',waitMs,'ms then retry',attempt+1);
         await new Promise(r=>setTimeout(r,waitMs));
         return await this.chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTokens,_retry:attempt+1});
       }
@@ -2470,6 +2461,12 @@ class ModelRouter{
       }catch(e){
         last=e;this.k.usage.bump(agent.id,{retries:1,fails:1});
         this.k.events.emit('agent.retry',{id:agent.id,model,error:String(e.message||e),fallback:i});
+        const busy=/429|503|502|quota|overloaded|rate/i.test(String(e.message||e)+e.status);
+        if(busy){await new Promise(r=>setTimeout(r,1500));try{
+          const data=await prov.chat(messages,{model:model==='echo'?undefined:model,tools,temperature:0.3,maxTokens:agent.maxTokens||800});
+          this.k.usage.bump(agent.id,{reqs:1,tokens:(data&&data.usage&&data.usage.total_tokens)||32});
+          return {data,model:data&&data.model||model,provider:live&&model!=='echo'?'remote':'echo',fallback:i};
+        }catch(e2){last=e2}}
       }
     }
     throw last||new Error('all models failed');
@@ -2496,7 +2493,11 @@ class TaskManager{
 }
 class Scheduler{
   constructor(k){this.k=k;this.q=[];this.inflight=new Set();this.conc=4;this.running=false}
-  enqueue(id,reason){if(!this.q.includes(id)&&!this.inflight.has(id))this.q.push(id);this.k.events.emit('agent.queued',{id,reason,depth:this.q.length});this.pump()}
+  enqueue(id,reason){
+    const a=this.k.agents.get(id);
+    if(a&&(a.status==='completed'||a.status==='waiting'||a.status==='failed'))a.status='idle';
+    if(!this.q.includes(id)&&!this.inflight.has(id))this.q.push(id);
+    this.k.events.emit('agent.queued',{id,reason,depth:this.q.length});this.pump()}
   async pump(){
     if(this.running)return;this.running=true;
     try{
@@ -2513,9 +2514,11 @@ class Scheduler{
     a.status='running';a.started=a.started||Date.now();
     this.k.events.emit('agent.start',{id,task:a.task,model:a.model});
     const t0=Date.now();
-    try{await this.k.agents.execute(a);a.status='completed';a.ended=Date.now();this.k.usage.bump(id,{ms:Date.now()-t0});this.k.events.emit('agent.done',{id,result:(a.result||'').slice(0,400)})}
+    try{await this.k.agents.execute(a);if(a.status==='waiting')return;a.status='completed';a.ended=Date.now();this.k.usage.bump(id,{ms:Date.now()-t0});this.k.events.emit('agent.done',{id,result:(a.result||'').slice(0,400)});
+      if(id!=='coordinator'&&this.k.alive)this.enqueue('coordinator','resume')}
     catch(e){if(e&&e.wait){a.status='waiting';this.k.events.emit('agent.wait',{id,why:e.wait});return}
-      a.status='failed';a.error=String(e.message||e);this.k.usage.bump(id,{fails:1,ms:Date.now()-t0});this.k.events.emit('agent.fail',{id,error:a.error})}
+      a.status='failed';a.error=String(e.message||e);this.k.usage.bump(id,{fails:1,ms:Date.now()-t0});this.k.events.emit('agent.fail',{id,error:a.error});
+      if(id!=='coordinator'&&this.k.alive)this.enqueue('coordinator','recover')}
   }
 }
 class AgentManager{
@@ -2546,34 +2549,65 @@ class AgentManager{
   }
   cancel(id){const a=this.get(id);if(!a)return;a.status='cancelled';this.k.events.emit('agent.cancel',{id});(a.children||[]).forEach(cid=>this.cancel(cid))}
   async execute(a){
+    a.thoughts=a.thoughts||[];
+    a.thoughts.push({name:'Thinking',detail:a.task||'',status:'running'});
     this.k.events.emit('agent.think',{id:a.id,task:a.task});
     const inbox=this.k.bus.take(a.id);
     const mem=this.k.memory.pack(a.id,a.taskId);
     const tools=this._tools(a);
+    const roster=this.list().filter(x=>x.id!==a.id).slice(0,12).map(x=>x.id+':'+x.role+':'+x.status).join(', ');
     const messages=[
-      {role:'system',content:a.systemPrompt+'\n'+mem+'\nPerms: '+JSON.stringify(a.perms)},
+      {role:'system',content:a.systemPrompt+'\nMemory:\n'+mem+'\nTeam: '+roster+'\nYou may use run_python, read_file, write_file when needed.'},
       {role:'user',content:(a.task||'Stand by.')+(inbox.length?('\n\nInbox:\n'+inbox.map(m=>m.from+': '+m.text).join('\n')):'')}
     ];
-    const out=await this.k.router.chat(a,messages,tools);
-    const msg=out.data&&out.data.choices&&out.data.choices[0]&&out.data.choices[0].message||{};
-    a.lastModel=out.model;a.lastProvider=out.provider;a.fallbackUsed=out.fallback;
-    if(msg.tool_calls&&msg.tool_calls.length){
-      for(const tc of msg.tool_calls){
+    for(let step=0;step<8 && this.k.alive;step++){
+      const out=await this.k.router.chat(a,messages,tools);
+      const msg=out.data&&out.data.choices&&out.data.choices[0]&&out.data.choices[0].message||{};
+      a.lastModel=out.model;a.lastProvider=out.provider;a.fallbackUsed=out.fallback;
+      if(msg.content)a.thoughts.push({name:'Note',detail:String(msg.content).slice(0,800),status:'done'});
+      const calls=msg.tool_calls||[];
+      if(!calls.length){a.result=msg.content||a.result||'';break}
+      messages.push({role:'assistant',content:msg.content||'',tool_calls:calls});
+      for(const tc of calls){
         const name=tc.function&&tc.function.name;
         let args={};try{args=JSON.parse(tc.function.arguments||'{}')}catch(e){}
         this.k.events.emit('agent.tool',{id:a.id,name,args,task:a.task});
+        a.thoughts.push({name:name||'tool',detail:JSON.stringify(args).slice(0,400),status:'running'});
         const res=await this._execTool(a,name,args);
+        a.thoughts.push({name:name||'tool',detail:JSON.stringify(res).slice(0,800),status:'done'});
         this.k.memory.add('private',a.id,{text:name+' → '+JSON.stringify(res).slice(0,240)});
-        messages.push(msg);messages.push({role:'tool',tool_call_id:tc.id,name,content:JSON.stringify(res).slice(0,4000)});
+        messages.push({role:'tool',tool_call_id:tc.id,name,content:JSON.stringify(res).slice(0,8000)});
       }
-      const out2=await this.k.router.chat(a,messages,undefined);
-      const msg2=out2.data&&out2.data.choices&&out2.data.choices[0]&&out2.data.choices[0].message||{};
-      a.result=msg2.content||a.result;
-    }else a.result=msg.content||'';
+    }
     if(a.perms.files){
       try{this.k.workspace.write(this.k.workspace.path('private',a.id,'result.md'),String(a.result||''),a.id)}catch(e){}
     }
-    this.k.memory.add('task',a.taskId||a.id,{text:(a.result||'').slice(0,400)});
+    this.k.memory.add('task',a.taskId||a.id,{text:String(a.result||'').slice(0,400)});
+    if(a.role==='supervisor'){
+      a.rounds=(a.rounds||0)+1;
+      const txt=String(a.result||'');
+      const done=/^SOLVED\s*:/im.test(txt);
+      const run=txt.match(/RUN\s+([A-Za-z0-9_-]+)\s*:\s*(.+)/i);
+      if(done||a.rounds>=12){this.k.solved=txt.replace(/^SOLVED\s*:\s*/i,'');return a.result}
+      if(run){
+        let w=this.get(run[1]);
+        if(!w)w=this.list().find(x=>x.id.toLowerCase()===run[1].toLowerCase());
+        if(w){
+          w.task=run[2].trim();
+          a.status='waiting';
+          this.k.scheduler.enqueue(w.id,'assigned');
+          this.k.events.emit('agent.wait',{id:a.id,why:'delegated '+w.id});
+          return a.result;
+        }
+      }
+      const next=this.list().find(x=>x.role!=='supervisor'&&x.status==='idle');
+      if(next&&a.rounds<12){
+        next.task=this.k.goal||a.task;
+        a.status='waiting';
+        this.k.scheduler.enqueue(next.id,'auto');
+        return a.result;
+      }
+    }
     return a.result;
   }
   _tools(a){
@@ -2600,27 +2634,27 @@ class AgentManager{
     if(name==='run_python' && !a.perms.python)return {error:'no python'};
     if((name==='write_file'||name==='read_file') && !a.perms.files)return {error:'no files'};
     if(name==='write_file' && args.path && String(args.path).startsWith('swarm/shared') && !a.perms.sharedWs)return {error:'no shared ws'};
+    if(name==='run_python'){const code=args.code||args.source||args.script||args.python||'';return await this.k.app.tools.execute('run_python',{code})}
     return await this.k.app.tools.execute(name,args||{});
   }
 }
 class Coordinator{
   constructor(k){this.k=k}
   async start(goal,n){
-    const sup=this.k.agents.register({id:'coordinator',role:'supervisor',model:this.k.liveApi?(this.k.app.provider.config.model||'echo'):'echo',fallbacks:this.k.liveApi?[this.k.app.provider.config.fallbackModel].filter(Boolean):['echo'],task:'Coordinate: '+goal,perms:{python:true,files:true,messaging:true,spawn:true,network:true,sharedWs:true},systemPrompt:'You are the coordinator. Break the goal into small tasks. Spawn workers only when needed. Combine results. Do not claim work you did not run.'});
-    const count=Math.max(1,Math.min(10000,n||4));
-    const activate=Math.min(count,Math.max(this.k.scheduler.conc*3,8));
+    const cfg=this.k.app.provider.config||{};
+    const model=this.k.liveApi?(cfg.model||'echo'):'echo';
+    const fallbacks=this.k.liveApi?[cfg.fallbackModel].filter(Boolean):['echo'];
+    this.k.goal=goal;
+    const sup=this.k.agents.register({id:'coordinator',role:'supervisor',model,fallbacks,task:'Coordinate until solved: '+goal,rounds:0,perms:{python:true,files:true,messaging:true,spawn:true,network:true,sharedWs:true},systemPrompt:'You are the coordinator. Pick ONE worker at a time. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nDo not run everything at once. Keep going until the goal is solved.'});
+    const count=Math.max(1,Math.min(10000,n||1));
+    const roles=['builder','planner','reviewer','researcher','tester'];
     for(let i=0;i<count;i++){
-      const spec={id:'w'+String(i+1).padStart(4,'0'),role:i%5===0?'reviewer':(i%3===0?'planner':'builder'),task:i<activate?('Help with: '+goal):'Stand by until assigned.',model:sup.model,fallbacks:sup.fallbacks,parent:'coordinator',perms:{python:true,files:true,messaging:true,spawn:false,network:this.k.liveApi,sharedWs:true}};
-      this.k.agents.register(spec);
+      this.k.agents.register({id:'w'+String(i+1).padStart(4,'0'),role:roles[i%roles.length],task:'Idle until the coordinator assigns you.',model,fallbacks,parent:'coordinator',perms:{python:true,files:true,messaging:true,spawn:false,network:true,sharedWs:true}});
     }
     this.k.memory.add('global','root',{text:'goal: '+goal});
+    this.k.scheduler.conc=1;
     this.k.scheduler.enqueue('coordinator','start');
-    for(let i=0;i<activate;i++)this.k.scheduler.enqueue('w'+String(i+1).padStart(4,'0'),'wave');
-    if(this.k.debate){
-      const ids=['w0001','w0002','w0003'].filter(id=>this.k.agents.get(id));
-      ids.forEach(id=>{const a=this.k.agents.get(id);a.task='Independent solution for: '+goal;this.k.scheduler.enqueue(id,'debate')});
-    }
-    return {configured:count,activated:activate+1};
+    return {configured:count,activated:1};
   }
 }
 class SwarmKernel{
@@ -2926,12 +2960,43 @@ if(deepThink||(this.storage.get('intensity','')==='ultra')||this.storage.get('in
   }catch(e){console.warn('team',e)}
 }
 if(!finalContent)finalContent='Stopped before a final answer. Press Stop to cancel a long run, or send again if the model returned nothing.';
+if((this.teamSize||1)>1){try{finalContent=await this.runTeamFollowups(this.teamSize,userMessage,finalContent,onEvent)}catch(e){console.warn('team',e)}}
 onEvent({type:'final',content:finalContent});onEvent({type:'status',text:''});onEvent({type:'done'});return finalContent}
 catch(e){if(e.name==='AbortError'){onEvent({type:'status',text:'Stopped'});onEvent({type:'final',content:finalContent||'*(Stopped)*'});onEvent({type:'done'});return finalContent}
 console.error('[Agent] fatal',e);
 onEvent({type:'error',message:e.message||String(e)});onEvent({type:'status',text:'Error'});onEvent({type:'done'});throw e}
 finally{this.running=false}}
 
+
+async runTeamFollowups(n,goal,first,onEvent){
+  let last=first||'';
+  for(let i=2;i<=n && this.running;i++){
+    onEvent({type:'activity',name:'Agent '+i,agent:'Agent '+i,status:'running',detail:'Reviewing previous work'});
+    await new Promise(r=>setTimeout(r,1200));
+    try{
+      const data=await this.provider.chat([
+        {role:'system',content:'You are Agent '+i+' of '+n+'. Verify or improve the previous agent. Use tools if needed. You may run_python.'},
+        {role:'user',content:'Goal:\n'+goal+'\n\nPrevious:\n'+String(last).slice(0,6000)}
+      ],{tools:this.tools.definitions,temperature:0.3,maxTokens:this.maxTokens||2000});
+      const msg=data&&data.choices&&data.choices[0]&&data.choices[0].message||{};
+      if(msg.tool_calls&&msg.tool_calls.length){
+        const messages=[{role:'system',content:'Agent '+i},{role:'user',content:goal},{role:'assistant',content:msg.content||'',tool_calls:msg.tool_calls}];
+        for(const tc of msg.tool_calls){
+          const name=tc.function&&tc.function.name;let args={};try{args=JSON.parse(tc.function.arguments||'{}')}catch(e){}
+          onEvent({type:'activity',name:name||'tool',agent:'Agent '+i,status:'running'});
+          const payload=Object.assign({},args,{code:args.code||args.source||args.script||args.python||''});
+          const res=await this.tools.execute(name,payload);
+          onEvent({type:'activity',name:name||'tool',agent:'Agent '+i,status:'done',detail:JSON.stringify(res).slice(0,400)});
+          messages.push({role:'tool',tool_call_id:tc.id,name,content:JSON.stringify(res).slice(0,6000)});
+        }
+        const data2=await this.provider.chat(messages,{temperature:0.3,maxTokens:this.maxTokens||2000});
+        last=(data2&&data2.choices&&data2.choices[0]&&data2.choices[0].message&&data2.choices[0].message.content)||last;
+      }else last=msg.content||last;
+      onEvent({type:'activity',name:'Agent '+i,agent:'Agent '+i,status:'done',detail:String(last).slice(0,400)});
+    }catch(e){onEvent({type:'activity',name:'Agent '+i,agent:'Agent '+i,status:'error',detail:e.message||String(e)});await new Promise(r=>setTimeout(r,1500))}
+  }
+  return last;
+}
 _fileBrief(a){
   const name=a.name||'file';
   const path=a.vfsPath||('uploads/'+name);
@@ -3178,10 +3243,9 @@ async startSwarm(){
   const k=this.ensureSwarm();
   const goal=($('#swarm-goal')?.value||'').trim()||'Plan a small safe demo and write notes.';
   const count=Number($('#swarm-count')?.value||4);
-  const conc=Number($('#swarm-conc')?.value||4);
-  const live=!!$('#swarm-live')?.checked;
+  const live=$('#swarm-live')?!!$('#swarm-live').checked:true;
   const debate=!!$('#swarm-debate')?.checked;
-  await k.start(goal,{count,conc,live,debate});
+  await k.start(goal,{count,conc:1,live,debate});
   this.renderSwarm();
 }
 async testSwarm(n){
@@ -3192,23 +3256,18 @@ async testSwarm(n){
 }
 renderSwarm(){
   const k=this.app.swarm;if(!k)return;
-  const agents=$('#swarm-agents'),tasks=$('#swarm-tasks'),bus=$('#swarm-bus'),ev=$('#swarm-events'),graph=$('#swarm-graph'),trace=$('#swarm-trace'),use=$('#swarm-usage');
-  const list=k.agents.list();
-  if(agents)agents.innerHTML=list.slice(0,80).map(a=>`<div class="swarm-pill"><span>${a.id} · ${a.role}</span><span class="st-${a.status==='completed'?'done':a.status==='failed'?'fail':a.status==='waiting'?'wait':'running'}">${a.status}${a.lastModel?' · '+a.lastModel:''}</span></div>`).join('')+(list.length>80?('<div class="hint">+'+(list.length-80)+' more</div>'):'');
-  if(tasks)tasks.innerHTML=[...k.tasks.map.values()].slice(0,40).map(t=>`<div class="swarm-pill"><span>${t.title}</span><span>${t.status}</span></div>`).join('')||'<div class="hint">Tasks appear when the coordinator splits work.</div>';
-  if(bus)bus.innerHTML=k.bus.log.slice(-40).reverse().map(m=>`<div class="swarm-pill"><span>${m.from} → ${m.to}</span><span>${escapeHtml(String(m.text||'').slice(0,80))}</span></div>`).join('')||'<div class="hint">No bus messages yet.</div>';
-  if(ev)ev.innerHTML=k.events.hist.slice(-50).reverse().map(e=>`<div>${e.t}</div>`).join('');
-  if(graph){
-    const nodes=list.slice(0,40);
-    graph.innerHTML=nodes.map(a=>`<div>${a.parent||'root'} → ${a.id}</div>`).join('');
-  }
-  if(trace){
-    const last=list.filter(a=>a.status!=='idle').slice(0,12);
-    trace.textContent=last.map(a=>[a.id,a.role,a.status,a.lastProvider||'',a.lastModel||'',a.fallbackUsed||0,a.error||''].join(' | ')).join('\n');
+  const box=$('#swarm-think'),use=$('#swarm-usage');
+  if(box){
+    const list=k.agents.list();
+    box.innerHTML=list.map(a=>{
+      const steps=(a.thoughts||[]).map(s=>`<div class="swarm-step"><div class="nm">${escapeHtml(s.name||'')} · ${escapeHtml(s.status||'')}</div><pre>${escapeHtml(String(s.detail||'')).slice(0,1200)}</pre></div>`).join('');
+      return `<div class="swarm-branch"><h3>${escapeHtml(a.id)} · ${escapeHtml(a.role)} · ${escapeHtml(a.status)}${a.lastModel?(' · '+escapeHtml(a.lastModel)):''}</h3>${steps||'<div class="hint">Waiting for assignment.</div>'}${a.result?('<pre>'+escapeHtml(String(a.result).slice(0,1500))+'</pre>'):''}</div>`;
+    }).join('')||'<div class="hint">Start a goal to see thinking branches.</div>';
+    box.querySelectorAll('.swarm-branch pre').forEach(el=>{if(this._renderMath)this._renderMath(el)});
   }
   if(use){
-    const t=k.usage.totals;
-    use.textContent=list.length+' agents · '+k.scheduler.inflight.size+' running · '+k.scheduler.q.length+' queued · '+t.reqs+' reqs · '+t.tokens+' tokens · '+t.fails+' fails';
+    const t=k.usage.totals;const list=k.agents.list();
+    use.textContent=list.length+' agents · '+k.scheduler.inflight.size+' running · '+k.scheduler.q.length+' queued · '+t.reqs+' reqs · '+t.fails+' fails';
   }
 }
 openProjectSetup(){
@@ -3857,7 +3916,8 @@ this.app.agent.settings.maxTime=Number.POSITIVE_INFINITY;
 this.app.agent.temperature=inten.temperature;
 this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: use tools heavily, verify, and do not stop early.':'');
 try{
-  await this.app.agent.run(sendText,history,userMsg.attachments,ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!(this.isDeepThink&&this.isDeepThink())||!!inten.team});
+  this.app.agent.teamSize=Math.max(1,Math.min(8,Number(($('#chat-agent-n')||{}).value||1)));
+   await this.app.agent.run(sendText,history,userMsg.attachments,ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!(this.isDeepThink&&this.isDeepThink())||!!inten.team||this.app.agent.teamSize>1});
   if(aiMsg.content&&(conv.needsAiTitle||conv.messages.filter(m=>m.role==='user').length<=1))this.generateChatTitle(conv.id,text,aiMsg.content);
 }catch(e){toast(e.message,'error');const body=aiEl.querySelector('.message-body');if(body&&!body.querySelector('.final-content')?.textContent.trim())body.innerHTML+=`<p style="color:var(--error)">Error: ${escapeHtml(e.message)}</p>`}
 finally{
@@ -4206,24 +4266,39 @@ _texToPlain(tex){
   return s;
 }
 _renderMath(el){
-  if(!el||!window.renderMathInElement)return;
+  if(!el)return;
   try{
-    renderMathInElement(el,{
-      delimiters:[
-        {left:'$$',right:'$$',display:true},
-        {left:'\\[',right:'\\]',display:true},
-        {left:'$',right:'$',display:false},
-        {left:'\\(',right:'\\)',display:false}
-      ],
-      throwOnError:false,
-      strict:false,
-      ignoredTags:['script','noscript','style','textarea','pre','code'],
-      ignoredClasses:['katex','math-plain','canvas-doc']
-    });
+    if(window.renderMathInElement){
+      renderMathInElement(el,{
+        delimiters:[
+          {left:'$$',right:'$$',display:true},
+          {left:'\\[',right:'\\]',display:true},
+          {left:'$',right:'$',display:false},
+          {left:'\\(',right:'\\)',display:false}
+        ],
+        throwOnError:false,
+        strict:false,
+        ignoredTags:['script','noscript','style','textarea','pre','code'],
+        ignoredClasses:['katex','math-plain','canvas-doc']
+      });
+    }else if(window.katex){
+      const rxDisp=/\$\$([\s\S]+?)\$\$/g;
+      const rxIn=/\$([^\n$]+)\$/g;
+      const paint=html=>{
+        let s=String(html);
+        s=s.replace(rxDisp,(m,tex)=>{try{return katex.renderToString(tex,{displayMode:true,throwOnError:false})}catch(e){return m}});
+        s=s.replace(rxIn,(m,tex)=>{try{return katex.renderToString(tex,{displayMode:false,throwOnError:false})}catch(e){return m}});
+        return s;
+      };
+      el.querySelectorAll('p,li,h1,h2,h3,h4,td,th,div,span').forEach(node=>{
+        if(node.querySelector('.katex'))return;
+        if(/\$/.test(node.innerHTML))node.innerHTML=paint(node.innerHTML);
+      });
+    }
     el.querySelectorAll('.katex-error').forEach(node=>{
       node.className='math-plain';
       node.removeAttribute('title');
-      node.textContent=this._texToPlain(node.textContent||'');
+      if(this._texToPlain)node.textContent=this._texToPlain(node.textContent||'');
     });
   }catch(e){}
 }
@@ -5441,6 +5516,7 @@ revealAnswer(el,html){
   if(el.dataset.revealed==='1'){el.innerHTML=html||'';return}
   el.dataset.revealed='1';
   el.innerHTML=html||'';
+  if(this._renderMath)this._renderMath(el);
   const kids=[...el.querySelectorAll('p,li,h1,h2,h3,pre,td')];
   (kids.length?kids:[el]).forEach((n,i)=>{
     n.classList.add('fade-in-right');
