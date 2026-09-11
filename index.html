@@ -885,6 +885,38 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .sidebar-footer-head:not(.is-collapsed) .footer-arrow-down{display:block}
 .sidebar-footer-head:not(.is-collapsed) .footer-arrow-up{display:none}
 
+
+/* Tools panel collapse animation */
+.sidebar-footer-head{display:flex;justify-content:flex-end;padding:4px 10px 2px;flex-shrink:0;z-index:2}
+.sidebar-footer{
+  display:flex;flex-direction:column;gap:4px;
+  max-height:320px;opacity:1;overflow:hidden;
+  transform-origin:bottom center;
+  transition:max-height .32s cubic-bezier(.4,0,.2,1),opacity .22s ease,padding .28s ease,border-color .2s ease;
+  padding:12px;border-top:1px solid var(--border);
+}
+.sidebar-footer.collapsed{
+  max-height:0!important;opacity:0;padding-top:0;padding-bottom:0;border-top-color:transparent;
+  pointer-events:none;
+}
+.footer-arrow-btn{width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-tertiary);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:color .15s,border-color .15s,background .15s,transform .2s}
+.footer-arrow-btn:hover{color:var(--text-primary);border-color:var(--border-strong);background:var(--bg-hover)}
+.sidebar-footer-head.is-collapsed .footer-arrow-down{display:none}
+.sidebar-footer-head.is-collapsed .footer-arrow-up{display:block}
+.sidebar-footer-head:not(.is-collapsed) .footer-arrow-down{display:block}
+.sidebar-footer-head:not(.is-collapsed) .footer-arrow-up{display:none}
+/* Agent: stop replaces send */
+.agent-input-box{position:relative}
+.agent-input-box .send-btn.hidden-by-stop{display:none!important}
+.agent-input-box .agent-stop-in-send{
+  width:36px;height:36px;border-radius:50%;background:var(--error);color:#fff;border:none;
+  display:none;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;
+  transition:transform .15s,opacity .15s;
+}
+.agent-input-box .agent-stop-in-send.visible{display:inline-flex}
+.agent-input-box .agent-stop-in-send:hover{filter:brightness(1.08);transform:scale(1.04)}
+.agent-input-actions .agent-stop-inline{display:none!important} /* use in-box stop only */
+
 </style>
 </head>
 <body>
@@ -915,13 +947,13 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 </div>
 <div class="agent-hist" id="code-hist-list" style="display:none"></div>
 <button type="button" class="sidebar-more-btn" id="sidebar-more-btn" aria-label="More tools">More</button>
-<div class="sidebar-footer-head">
+<div class="sidebar-footer-head is-collapsed">
 <button type="button" class="footer-arrow-btn" id="footer-toggle" aria-label="Toggle tools panel" title="Toggle tools">
 <svg class="footer-arrow-down" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
 <svg class="footer-arrow-up" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
 </button>
 </div>
-<div class="sidebar-footer" id="sidebar-footer">
+<div class="sidebar-footer collapsed" id="sidebar-footer">
 <button id="plugins-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg> Plugins</button>
 <button id="workspace-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> External Workspace</button>
 <button id="automations-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M17.5 14v7M14 17.5h7"/></svg> Build Automations</button>
@@ -1038,12 +1070,14 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
     <div class="agent-chat-input-area">
       <div class="agent-input-actions">
         <button type="button" class="agent-quick-btn" id="agent-quick-btn" title="Ask a short question without a full team">Quick ask</button>
-        <button type="button" class="agent-stop-inline" id="agent-stop-inline" aria-label="Pause" title="Pause">■</button>
       </div>
       <div class="agent-input-box">
-        <textarea id="swarm-goal" rows="1" placeholder="Message Agent…"></textarea>
+        <textarea id="swarm-goal" rows="1" placeholder="Message Agent…" data-i18n-placeholder="agent.placeholder"></textarea>
         <button type="button" class="send-btn" id="swarm-send-btn" aria-label="Send">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+        <button type="button" class="agent-stop-in-send" id="agent-stop-inline" aria-label="Stop" title="Stop">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
         </button>
       </div>
       <div class="agent-input-hint" id="swarm-usage">Supervisor waits for a complete solution before answering.</div>
@@ -1164,13 +1198,13 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 </div>
 
 <div class="overlay" id="settings-overlay" aria-hidden="true"><div class="panel">
-<div class="panel-header"><h2>Settings</h2><button class="icon-btn" id="close-settings" aria-label="Close settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+<div class="panel-header"><h2 data-i18n="settings.title">Settings</h2><button class="icon-btn" id="close-settings" aria-label="Close settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
 <div class="panel-body">
 <div class="tabs" id="settings-tabs">
-<button class="tab active" data-tab="api">API</button>
-<button class="tab" data-tab="agent">Agent</button>
-<button class="tab" data-tab="personality">Personality</button>
-<button class="tab" data-tab="ui">UI</button>
+<button class="tab active" data-tab="api" data-i18n="settings.tabApi">API</button>
+<button class="tab" data-tab="agent" data-i18n="settings.tabAgent">Agent</button>
+<button class="tab" data-tab="personality" data-i18n="settings.tabPersonality">Personality</button>
+<button class="tab" data-tab="ui" data-i18n="settings.tabUi">UI</button>
 </div>
 <div id="tab-api">
 <div class="preset-grid">
@@ -1222,8 +1256,33 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <div class="btn-row"><button class="btn-primary" id="save-personality">Save Personality</button></div>
 </div>
 <div id="tab-ui" style="display:none">
-<div class="form-group"><label>Working animation GIF URL</label><input type="text" id="thinking-gif" placeholder="https://…/loading.gif or leave empty"><div class="hint">Leave blank for default dots.</div></div>
-<div class="btn-row"><button class="btn-primary" id="save-ui">Save UI Settings</button></div>
+<div class="form-group"><label data-i18n="settings.language">Language</label>
+<select id="ui-language">
+<option value="en">English</option>
+<option value="es">Español</option>
+<option value="fr">Français</option>
+<option value="de">Deutsch</option>
+<option value="pt">Português</option>
+<option value="zh-Hans">简体中文</option>
+<option value="zh-Hant">繁體中文</option>
+<option value="ja">日本語</option>
+<option value="ko">한국어</option>
+<option value="ru">Русский</option>
+<option value="ar">العربية</option>
+<option value="hi">हिन्दी</option>
+<option value="it">Italiano</option>
+<option value="nl">Nederlands</option>
+<option value="pl">Polski</option>
+<option value="tr">Türkçe</option>
+<option value="uk">Українська</option>
+<option value="vi">Tiếng Việt</option>
+<option value="id">Bahasa Indonesia</option>
+<option value="sv">Svenska</option>
+</select>
+<div class="hint">Loads translations from the Think Deeper Weblate catalog (<code>locales/&lt;lang&gt;.json</code>). Falls back to English if a language is incomplete.</div>
+</div>
+<div class="form-group"><label data-i18n="settings.thinkingGif">Working animation GIF URL</label><input type="text" id="thinking-gif" placeholder="https://…/loading.gif or leave empty"><div class="hint">Leave blank for default dots.</div></div>
+<div class="btn-row"><button class="btn-primary" id="save-ui" data-i18n="settings.saveUi">Save UI Settings</button></div>
 </div>
 </div></div></div>
 
@@ -1417,6 +1476,94 @@ function escapeHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'
 function countLines(t){return t?t.split('\n').length:0}
 
 
+
+class I18n{
+  constructor(storage){
+    this.storage=storage;
+    this.lng=storage.get('uiLanguage','en')||'en';
+    this.dict={};
+    this.fallback={};
+    this.base='https://raw.githubusercontent.com/pigeonthroat-hash/Think-Deeper/main/locales';
+    this.ready=false;
+  }
+  t(key,vars){
+    let s=(this.dict&&this.dict[key])||(this.fallback&&this.fallback[key])||key;
+    if(vars&&typeof vars==='object'){
+      Object.keys(vars).forEach(k=>{s=String(s).replace(new RegExp('\\{\\{'+k+'\\}\\}','g'),vars[k])});
+    }
+    return s;
+  }
+  async load(lng){
+    const lang=String(lng||this.lng||'en').trim()||'en';
+    this.lng=lang;
+    this.storage.set('uiLanguage',lang);
+    // Always load English fallback first
+    try{
+      if(!Object.keys(this.fallback).length){
+        const en=await fetch(this.base+'/en.json',{cache:'no-cache'}).then(r=>r.ok?r.json():{}).catch(()=>({}));
+        this.fallback=en||{};
+      }
+    }catch(e){this.fallback=this.fallback||{}}
+    if(lang==='en'){
+      this.dict=Object.assign({},this.fallback);
+    }else{
+      try{
+        const data=await fetch(this.base+'/'+encodeURIComponent(lang)+'.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null);
+        this.dict=Object.assign({},this.fallback,data||{});
+      }catch(e){this.dict=Object.assign({},this.fallback)}
+    }
+    this.ready=true;
+    this.applyDom();
+    try{document.documentElement.lang=lang.split('-')[0]}catch(e){}
+    try{document.documentElement.dir=/^ar|he|fa|ur/i.test(lang)?'rtl':'ltr'}catch(e){}
+    return this.dict;
+  }
+  applyDom(root){
+    const scope=root||document;
+    scope.querySelectorAll('[data-i18n]').forEach(el=>{
+      const key=el.getAttribute('data-i18n');
+      if(!key)return;
+      const val=this.t(key);
+      if(val&&val!==key){
+        if(el.tagName==='INPUT'||el.tagName==='TEXTAREA'){
+          /* keep values */
+        }else el.textContent=val;
+      }
+    });
+    scope.querySelectorAll('[data-i18n-placeholder]').forEach(el=>{
+      const key=el.getAttribute('data-i18n-placeholder');
+      const val=this.t(key);
+      if(val&&val!==key)el.setAttribute('placeholder',val);
+    });
+    scope.querySelectorAll('[data-i18n-title]').forEach(el=>{
+      const key=el.getAttribute('data-i18n-title');
+      const val=this.t(key);
+      if(val&&val!==key)el.setAttribute('title',val);
+    });
+    // Built-in labels that may not have attributes yet
+    const map=[
+      ['#settings-btn','settings.title'],
+      ['#mode-chat','mode.chat'],
+      ['#mode-code','mode.code'],
+      ['#mode-swarm','mode.agent'],
+      ['#new-chat-btn','chat.new'],
+    ];
+    map.forEach(([sel,key])=>{
+      const el=document.querySelector(sel);
+      if(!el)return;
+      const val=this.t(key);
+      if(!val||val===key)return;
+      // Prefer last text node
+      if(el.childNodes.length){
+        const texts=[...el.childNodes].filter(n=>n.nodeType===3&&n.textContent.trim());
+        if(texts.length)texts[texts.length-1].textContent=' '+val;
+        else if(!el.querySelector('svg'))el.textContent=val;
+      }
+    });
+  }
+}
+
+
 class CloudSync{
   constructor(){
     this.ready=false;this.uid=null;this.db=null;this.auth=null;
@@ -1553,7 +1700,7 @@ class CloudSync{
       const setDoc=await base.collection('settings').doc('app').get();
       if(setDoc.exists){
         const s=setDoc.data()||{};
-        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
+        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','uiLanguage'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
       }
       const remoteAutos=await this.pullAutomations(base);
       const deleted=new Set(((out.deletedAutomations)||[]).map(String));
@@ -1890,7 +2037,7 @@ class CloudSync{
       s.set('conversations',[...map.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0)));
     }
     if(data.currentConvId!==undefined&&data.currentConvId)s.set('currentConvId',data.currentConvId);
-    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality'].forEach(k=>{
+    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','uiLanguage'].forEach(k=>{
       if(data[k]===undefined||data[k]===null)return;
       s.set(k,data[k]);
     });
@@ -3003,7 +3150,35 @@ class AgentManager{
       const run=txt.match(/RUN\s+([A-Za-z0-9_-]+)\s*:\s*(.+)/i);
       const maxRounds=this.k.mustFullySolve!==false?48:12;
       const timedOut=this.k.deadline&&Date.now()>this.k.deadline;
-      if(done){this.k.solved=txt.replace(/^SOLVED\s*:\s*/i,'').trim();this.k.alive=false;return a.result}
+      if(done){
+        const answer=txt.replace(/^SOLVED\s*:\s*/i,'').trim();
+        // Mystery novelty gate: refuse empty/restatement answers
+        if(this.k.mystery){
+          const goal=String(this.k.goal||'').toLowerCase();
+          const prior=this.list().filter(x=>x.role!=='supervisor'&&x.result).map(x=>String(x.result)).join('\n').toLowerCase();
+          const ans=answer.toLowerCase();
+          const tooShort=ans.length<40;
+          const restates=goal&&ans.length>20&&(goal.includes(ans.slice(0,80))||ans.includes(goal.slice(0,80)));
+          const noNew=/\b(unknown|unsolved|open problem|cannot (be )?solved|as stated|restate)\b/i.test(answer)&&!/\b(theorem|proof|counterexample|computed|found|shows that)\b/i.test(answer);
+          const overlapsPrior=prior&&ans.length>30&&prior.includes(ans.slice(0,100));
+          if(tooShort||restates||noNew||overlapsPrior){
+            a.thoughts=a.thoughts||[];
+            a.thoughts.push({name:'Thought',detail:'SOLVED rejected — not enough new content. Continuing swarm.',status:'running'});
+            a.rounds=(a.rounds||0); // keep going
+            const workers=this.list().filter(x=>x.role!=='supervisor');
+            let next=workers.find(x=>x.status==='idle'&&!x.ended)||workers.find(x=>x.status==='completed'||x.status==='idle')||workers[0];
+            if(next&&(a.rounds||0)<(this.k.mustFullySolve!==false?48:12)){
+              next.task='Mystery continuation: previous conclusion lacked novelty. Produce a NEW concrete result (proof step, computation, bound, or counterexample) for: '+(this.k.goal||'').slice(0,800);
+              next.status='idle';next.result=null;next.thoughts=[];
+              a.status='waiting';
+              this.k.scheduler.enqueue(next.id,'mystery-continue');
+              this.k.events.emit('agent.wait',{id:a.id,why:'mystery-continue'});
+              return a.result;
+            }
+          }
+        }
+        this.k.solved=answer;this.k.alive=false;return a.result;
+      }
       // Only force-finish on hard timeout or extreme round cap — never treat partial work as SOLVED
       if(timedOut||a.rounds>=maxRounds){
         this.k.solved=(txt||'').replace(/^SOLVED\s*:\s*/i,'').trim()||'Time or round limit reached before a complete solution. Partial notes:\n'+this.list().filter(x=>x.result).map(x=>x.id+': '+String(x.result).slice(0,400)).join('\n');
@@ -3175,7 +3350,7 @@ class Coordinator{
           ?(' You are group leader of '+meta.group+'. Coordinate members of '+meta.group+' via swarm_send, then report a group summary to the Supervisor.')
           :(' You are a member of '+meta.group+'. Discuss only with your leader and Supervisor. Use your agent id only.');
       }
-      const workerPrompt='You are '+('w'+String(i+1).padStart(4,'0'))+', role '+role+'. Stay in scope. Speak only to the Supervisor (and your group leader if any) by agent id. Never address the human user by name. Never claim other agents used a human name for you. Use tools only if permitted. THINKING STYLE: write a short plain thought only — no titles or headings. Math may use LaTeX. Do not echo the user message. Use tools (especially run_python) when the task needs computation or verification — do not only restate the task.'+extra+(mystery?' Mystery mode: attempt the problem fully; use run_python for long searches; do not stop merely because the problem is open.':'');
+      const workerPrompt='You are '+('w'+String(i+1).padStart(4,'0'))+', role '+role+'. Stay in scope. Speak only to the Supervisor (and your group leader if any) by agent id. Never address the human user by name. Never claim other agents used a human name for you. Use tools only if permitted. THINKING STYLE: write a short plain thought only — no titles or headings. Math may use LaTeX. Do not echo the user message. Use tools (especially run_python) when the task needs computation or verification — do not only restate the task.'+extra+(mystery?' Mystery mode: solve the part of the mystery the user asked about. Deliver NEW concrete progress (computation, partial proof, counterexample). Never only restate the problem. Use run_python.':'');
       this.k.agents.register({
         id:'w'+String(i+1).padStart(4,'0'),
         role,
@@ -3747,7 +3922,10 @@ if(name==='web_search'){const n=(result.results||[]).length;return{detail:result
 return{detail:'Done',full:JSON.stringify(result)}}}
 
 class UIManager{constructor(app){this.app=app;this.pendingAttachments=[];this.activityMap=new Map()}
-init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
+init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;
+  this.t=(k,v)=>this.app.i18n?this.app.i18n.t(k,v):k;
+  try{this.app.i18n.load(this.app.storage.get('uiLanguage','en')||'en')}catch(e){}
+  this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
 initCodeMode(){
   this.mode='chat';this.thoughtRoots=new WeakMap();
   const chatTab=$('#mode-chat'),codeTab=$('#mode-code');
@@ -3939,7 +4117,8 @@ initSwarmUi(){
   const quick=$('#agent-quick-btn');
   if(quick)quick.onclick=()=>{this._agentQuick=!this._agentQuick;quick.classList.toggle('on',!!this._agentQuick);toast(this._agentQuick?'Quick ask on — short replies without a full team':'Team mode on','info')};
   const stopIn=$('#agent-stop-inline');
-  if(stopIn)stopIn.onclick=()=>{const k=this.ensureSwarm();k.stop();this._agentDeadline=0;this.renderSwarm();this._setAgentStatus('');stopIn.classList.remove('visible');$('#swarm-stop')&&($('#swarm-stop').style.display='none')};
+  if(stopIn)stopIn.onclick=()=>this.stopAgentRun();
+
   this.renderAgentHist();
 }
 openAgentQuality(){
@@ -4101,6 +4280,32 @@ async confirmAgentSetup(followup){
   const t=$('#swarm-goal');if(t){t.value='';t.style.height='auto'}
   await this.startSwarm({goal,count,live,debate,group,mystery,intent,budgetMs,followup:!!followup});
 }
+
+stopAgentRun(){
+  try{const k=this.ensureSwarm();k.stop()}catch(e){}
+  this._agentDeadline=0;
+  this.setAgentRunningUi(false);
+  this._setAgentStatus('');
+  this.renderSwarm();
+}
+setAgentRunningUi(running){
+  const send=$('#swarm-send-btn');
+  const stop=$('#agent-stop-inline');
+  const ta=$('#swarm-goal');
+  const topStop=$('#swarm-stop');
+  if(running){
+    if(send)send.classList.add('hidden-by-stop');
+    if(stop)stop.classList.add('visible');
+    if(ta){ta.disabled=true;ta.placeholder='Working…'}
+    if(topStop)topStop.style.display='none';
+  }else{
+    if(send)send.classList.remove('hidden-by-stop');
+    if(stop)stop.classList.remove('visible');
+    if(ta){ta.disabled=false;ta.placeholder=(this.t&&this.t('agent.placeholder'))||'Message Agent…'}
+    if(topStop)topStop.style.display='none';
+  }
+}
+
 async startSwarm(opts){
   opts=opts||{};
   const k=this.ensureSwarm();
@@ -4150,7 +4355,7 @@ async startSwarm(opts){
     if(tog)tog.onclick=()=>$('#agent-work')?.classList.toggle('open');
     box.scrollTop=box.scrollHeight;
   }
-  const stopBtn=$('#swarm-stop');if(stopBtn)stopBtn.style.display='inline-flex';const si=$('#agent-stop-inline');if(si)si.classList.add('visible');
+  this.setAgentRunningUi(true);
   this._setAgentStatus('Running · '+count+' agents');
   if(this._agentClockTimer)clearInterval(this._agentClockTimer);
   this._agentClockTimer=setInterval(()=>this._tickAgentClock(),500);
@@ -4259,8 +4464,8 @@ renderSwarm(ev){
       const ico=work.querySelector('#agent-work-ico');if(ico){ico.classList.remove('spinning');ico.innerHTML=SVG.bulb||'';}const spin=work.querySelector('.tp-spin');if(spin)spin.remove();
     }
     if(this._agentClockTimer){clearInterval(this._agentClockTimer);this._agentClockTimer=null}
-    const stopBtn=$('#swarm-stop');if(stopBtn)stopBtn.style.display='none';const si=$('#agent-stop-inline');if(si)si.classList.remove('visible');
-    this._setAgentStatus('Done');
+    this.setAgentRunningUi(false);
+    this._setAgentStatus('Done');this.setAgentRunningUi(false);
     try{
       if(this._currentAgentSessionId&&k.solved){
         const s=this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{id:this._currentAgentSessionId,messages:[]};
@@ -4271,7 +4476,7 @@ renderSwarm(ev){
   }
   if(!k.alive&&!k.solved){
     if(this._agentClockTimer){clearInterval(this._agentClockTimer);this._agentClockTimer=null}
-    const stopBtn=$('#swarm-stop');if(stopBtn)stopBtn.style.display='none';const si=$('#agent-stop-inline');if(si)si.classList.remove('visible');
+    this.setAgentRunningUi(false);
   }
   const use=$('#swarm-usage');
   if(use&&k.usage){
@@ -4679,7 +4884,18 @@ $$('.suggestion').forEach(btn=>{btn.onclick=()=>{$('#user-input').value=btn.data
 $$('.preset-btn').forEach(btn=>{btn.onclick=()=>this.applyPreset(btn.dataset.preset)});
 $('#save-api').onclick=()=>this.saveApi();$('#discover-models').onclick=()=>this.discoverModels();const mab=$('#model-add-btn');if(mab)mab.onclick=()=>this.addModelId();$('#save-agent').onclick=()=>this.saveAgentSettings();
 $('#save-personality').onclick=()=>{this.app.storage.set('personality',$('#personality').value);toast('Personality saved','success');try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}};
-$('#save-ui').onclick=()=>{this.app.storage.set('thinkingGif',$('#thinking-gif').value.trim());toast('UI settings saved','success');try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}};
+$('#save-ui').onclick=()=>{
+  this.app.storage.set('thinkingGif',$('#thinking-gif').value.trim());
+  const lng=($('#ui-language')&&$('#ui-language').value)||'en';
+  this.app.storage.set('uiLanguage',lng);
+  (async()=>{
+    try{
+      if(this.app.i18n)await this.app.i18n.load(lng);
+      toast('UI settings saved','success');
+    }catch(e){toast('Saved language, but catalog failed to load','error')}
+    try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+  })();
+};
 $$('#settings-tabs .tab').forEach(tab=>{tab.onclick=()=>{$$('#settings-tabs .tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');['api','agent','personality','ui'].forEach(id=>{$(`#tab-${id}`).style.display=tab.dataset.tab===id?'block':'none'})}})}
 isPhone(){return window.matchMedia&&window.matchMedia('(max-width:768px)').matches}
 toggleSidebar(c){
@@ -6080,9 +6296,12 @@ bindAccountUi(){
     syncFooterArrow();
   };
   try{
-    if(this.app.storage.get('footerCollapsed',false)){
-      const f=$('#sidebar-footer');if(f)f.classList.add('collapsed');
-    }
+    // Default closed unless user explicitly opened it before
+    const stored=this.app.storage.get('footerCollapsed',null);
+    const collapsed=stored===null?true:!!stored;
+    const f=$('#sidebar-footer');
+    if(f){if(collapsed)f.classList.add('collapsed');else f.classList.remove('collapsed')}
+    this.app.storage.set('footerCollapsed',collapsed);
     syncFooterArrow();
   }catch(e){}
 
@@ -6812,7 +7031,7 @@ scrollToBottom(){
   });
 }}
 
-class App{constructor(){this.storage=new StorageManager();this.cloud=new CloudSync();this.cloud.init();this.conversations=new ConversationManager(this.storage);this.provider=new ProviderManager(this.storage);this.vfs=new VirtualFS(this.storage);this.external=new ExternalFS();this.python=new PythonTool();this.tools=new ToolManager(this.vfs,this.external,this.python);this.swarm=null;this.plugins=new PluginManager(this.storage);
+class App{constructor(){this.storage=new StorageManager();this.i18n=new I18n(this.storage);this.cloud=new CloudSync();this.cloud.init();this.conversations=new ConversationManager(this.storage);this.provider=new ProviderManager(this.storage);this.vfs=new VirtualFS(this.storage);this.external=new ExternalFS();this.python=new PythonTool();this.tools=new ToolManager(this.vfs,this.external,this.python);this.swarm=null;this.plugins=new PluginManager(this.storage);
 this.plugins.onSave=(p)=>this.materializePlugin(p);
 this.plugins.list().forEach(p=>this.materializePlugin(p));
 this.ensureDefaultPlugins=function(){
@@ -6888,5 +7107,6 @@ async _restoreCloudSession(){
 const app=new App();app.start();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+
 </body>
 </html>
