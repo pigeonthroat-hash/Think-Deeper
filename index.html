@@ -1775,19 +1775,41 @@ class CloudSync{
 
   isDevAccount(email){
     const allow=['monsterbag293@gmail.com','pigeonthroat@gmail.com'];
-    return allow.includes(String(email||'').trim().toLowerCase());
+    const e=String(email||'').trim().toLowerCase();
+    if(allow.includes(e))return true;
+    // Also accept if active Google user matches
+    try{
+      const u=JSON.parse(localStorage.getItem('thinkdeeper_v2_activeUser')||'null');
+      if(u&&u.email&&allow.includes(String(u.email).trim().toLowerCase()))return true;
+    }catch(err){}
+    return false;
   }
   async pullSystemDefaults(){
-    if(!this.ready||!this.db)return null;
+    let local=null;
+    try{local=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'null')}catch(e){}
+    if(!this.ready||!this.db)return local;
     try{
       const doc=await this.db.collection('system').doc('defaults').get();
-      if(!doc.exists)return null;
-      return doc.data()||null;
-    }catch(e){console.warn('[CloudSync] system defaults',e);return null}
+      if(doc.exists){
+        const remote=doc.data()||null;
+        // Prefer newer of remote vs local
+        if(remote&&local&&(local.updatedAt||0)>(remote.updatedAt||0))return Object.assign({},remote,local);
+        return remote||local;
+      }
+      return local;
+    }catch(e){console.warn('[CloudSync] system defaults',e);return local}
   }
   async pushSystemDefaults(data,devEmail){
     if(!this.isDevAccount(devEmail))throw new Error('Not a dev account');
-    if(!this.ready||!this.db)throw new Error('Cloud not ready');
+    // Always persist device-wide first so Save never silently fails
+    try{
+      const local=Object.assign({},data||{},{updatedAt:Date.now(),updatedBy:String(devEmail||'').toLowerCase()});
+      localStorage.setItem('thinkdeeper_v2_systemDefaults',JSON.stringify(local));
+    }catch(e){}
+    if(!this.ready||!this.db){
+      // Cloud optional — local already saved
+      return data;
+    }
     const payload={
       baseUrl:String(data.baseUrl||'').trim(),
       model:String(data.model||'').trim(),
@@ -2980,11 +3002,13 @@ class ModelRouter{
         try{
           this.k.events.emit('agent.model',{id:agent.id,model,fallback:i,provider:'remote'});
           const useTools=!(agent.perms&&agent.perms.network===false);
+          if(this.k&&this.k.alive===false)throw new Error('Stopped');
           const data=await this.app.provider.chat(messages,{
             model,
             tools:useTools?tools:undefined,
             temperature:0.3,
-            maxTokens:agent.maxTokens||2500
+            maxTokens:agent.maxTokens||2500,
+            signal:this.k&&this.k.signal
           });
           const used=(data&&data.model)||model;
           this.k.usage.bump(agent.id,{reqs:1,tokens:(data&&data.usage&&data.usage.total_tokens)||32,cost:0.0});
@@ -2997,7 +3021,7 @@ class ModelRouter{
           if(busy){
             await new Promise(r=>setTimeout(r,1500));
             try{
-              const data=await this.app.provider.chat(messages,{model,tools,temperature:0.3,maxTokens:agent.maxTokens||2500});
+              const data=await this.app.provider.chat(messages,{model,tools,temperature:0.3,maxTokens:agent.maxTokens||2500,signal:this.k&&this.k.signal});
               this.k.usage.bump(agent.id,{reqs:1,tokens:(data&&data.usage&&data.usage.total_tokens)||32});
               return {data,model:(data&&data.model)||model,provider:'remote',fallback:i};
             }catch(e2){last=e2}
@@ -3129,7 +3153,13 @@ class Scheduler{
       }
     }catch(e){
       if(e&&e.wait){a.status='waiting';this.k.events.emit('agent.wait',{id,why:e.wait});return}
-      a.status='failed';a.error=String(e.message||e);
+      const msg=String(e&&e.message||e);
+      if(/abort|stopp?ed|The user aborted/i.test(msg)||!this.k.alive){
+        a.status='cancelled';
+        this.k.events.emit('agent.cancel',{id});
+        return;
+      }
+      a.status='failed';a.error=msg;
       this.k.usage.bump(id,{fails:1,ms:Date.now()-t0});
       this.k.events.emit('agent.fail',{id,error:a.error});
       if(this.k.alive&&!this.k.solved)this.enqueue('coordinator','recover');
@@ -3440,7 +3470,7 @@ class SwarmKernel{
   }
   reset(){this.alive=false;this.usage.reset();this.agents.map.clear();this.tasks.map.clear();this.bus.log=[];this.events.hist=[];this.scheduler.q=[];this.scheduler.inflight.clear()}
   async start(goal,opts){
-    this.reset();this.alive=true;this.liveApi=!!(opts&&opts.live);this.debate=!!(opts&&opts.debate);
+    this.reset();this.alive=true;this._abort=new AbortController();this.liveApi=!!(opts&&opts.live);this.debate=!!(opts&&opts.debate);
     this.mystery=!!(opts&&opts.mystery);this.groupMode=!!(opts&&opts.group);
     this.mustFullySolve=opts&&opts.mustFullySolve!==false;this.quality=(opts&&opts.quality)||'auto';
     this.intent=opts&&opts.intent||'other';
@@ -3450,7 +3480,23 @@ class SwarmKernel{
     this.scheduler.conc=1;
     return this.coordinator.start(goal,Number(opts&&opts.count)||4);
   }
-  stop(){this.alive=false;this.agents.list().forEach(a=>{if(a.status==='running'||a.status==='waiting'||a.status==='idle')a.status='cancelled'})}
+  stop(){
+    this.alive=false;
+    this.solved=this.solved||null;
+    try{if(this._abort)this._abort.abort()}catch(e){}
+    this._abort=null;
+    try{this.scheduler.q=[];this.scheduler.inflight.clear();this.scheduler._pumping=false}catch(e){}
+    this.agents.list().forEach(a=>{
+      if(a.status==='running'||a.status==='waiting'||a.status==='idle')a.status='cancelled';
+    });
+    this.events.emit('swarm.stop',{ts:Date.now()});
+  }
+  get signal(){
+    if(!this._abort||this._abort.signal.aborted){
+      this._abort=new AbortController();
+    }
+    return this._abort.signal;
+  }
   async selfTest(n){
     n=Math.max(1,Math.min(10000,n));
     const r=await this.start('Self-test with '+n+' agents: ping neighbor and write a one-line result.',{count:n,conc:n>=1000?8:4,live:false,debate:n<=10});
@@ -4128,7 +4174,7 @@ initSwarmUi(){
   if(this._swarmBound)return;this._swarmBound=true;
   const k=this.ensureSwarm();
   k.events.on('*',ev=>this.renderSwarm(ev));
-  const stop=$('#swarm-stop');if(stop)stop.onclick=()=>{k.stop();this._agentDeadline=0;this.renderSwarm();this._setAgentStatus('Stopped')};
+  const stop=$('#swarm-stop');if(stop)stop.onclick=()=>this.stopAgentRun();
   const send=$('#swarm-send-btn');if(send)send.onclick=()=>this.openAgentSetup();
   const goalEl=$('#swarm-goal');
   if(goalEl){
@@ -4140,7 +4186,12 @@ initSwarmUi(){
   });
   // setup sheet
   const ov=$('#agent-setup-overlay');
-  const close=()=>{if(ov){ov.classList.remove('open');ov.setAttribute('aria-hidden','true')}};
+  const close=()=>{
+    if(!ov)return;
+    try{const ae=document.activeElement;if(ae&&ov.contains(ae)&&ae.blur)ae.blur()}catch(e){}
+    ov.classList.remove('open');
+    ov.setAttribute('aria-hidden','true');
+  };
   const cl=$('#agent-setup-close');if(cl)cl.onclick=close;
   const ca=$('#agent-setup-cancel');if(ca)ca.onclick=close;
   if(ov)ov.onclick=e=>{if(e.target===ov)close()};
@@ -4308,34 +4359,48 @@ openAgentSetup(){
   if(ov){ov.classList.add('open');ov.setAttribute('aria-hidden','false')}
 }
 async runAgentQuickAsk(goal){
+  if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');return}
+  if(!this.app.provider.config.model){toast('Select a model in Settings','error');return}
   const t=$('#swarm-goal');if(t){t.value='';t.style.height='auto'}
   const empty=$('#agent-empty');if(empty)empty.style.display='none';
   const box=$('#swarm-think');
+  const who=this.userLabel();
   if(box){
     const msg=document.createElement('div');msg.className='agent-msg user';
-    {const who=this.userLabel();msg.innerHTML='<div class="agent-msg-head"><div class="avatar user"'+(who.bg?(' style="'+who.bg+'"'):'')+'>'+(who.img||who.initial)+'</div><span class="agent-msg-role">'+escapeHtml(who.label)+'</span></div><div class="agent-msg-body">'+escapeHtml(goal)+'</div>';}
+    msg.innerHTML='<div class="agent-msg-head"><div class="avatar user">'+(who.img||who.initial)+'</div><span class="agent-msg-role">'+escapeHtml(who.label)+'</span></div><div class="agent-msg-body">'+escapeHtml(goal)+'</div>';
     box.appendChild(msg);
   }
   const sess=this.saveAgentSession({id:this._currentAgentSessionId||uid(),title:goal.slice(0,40),messages:[{role:'user',content:goal}]});
   this._currentAgentSessionId=sess.id;
+  this.setAgentRunningUi(true);
+  this._quickAbort=new AbortController();
   try{
     const data=await this.app.provider.chat([
-      {role:'system',content:'You are Think Deeper in quick-ask mode. Answer clearly and briefly. No multi-agent orchestration.'},
+      {role:'system',content:'You are Think Deeper in quick-ask mode. Answer clearly and briefly. No multi-agent orchestration. Markdown and LaTeX are fine.'},
       {role:'user',content:goal}
-    ],{temperature:0.4,maxTokens:2000});
+    ],{temperature:0.4,maxTokens:2000,signal:this._quickAbort.signal});
     const ans=((data&&data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'').trim()||'(No reply)';
     if(box){
       const div=document.createElement('div');div.className='agent-msg assistant supervisor';
-      div.innerHTML='<div class="agent-msg-head"><div class="avatar">TD</div><span class="agent-msg-role">Supervisor</span></div><div class="agent-msg-body">'+(this.renderMarkdown?this.renderMarkdown(ans):escapeHtml(ans))+'</div>';
+      div.innerHTML='<div class="agent-msg-head"><div class="avatar">S</div><span class="agent-msg-role">Supervisor</span></div><div class="agent-msg-body">'+(this.renderMarkdown?this.renderMarkdown(ans):escapeHtml(ans))+'</div>';
       box.appendChild(div);if(this._renderMath)this._renderMath(div);box.scrollTop=box.scrollHeight;
     }
-    const messages=(sess.messages||[]).concat([{role:'assistant',content:ans}]);
+    const messages=(sess.messages||[]).concat([{role:'assistant',speaker:'Supervisor',content:ans}]);
     this.saveAgentSession({id:sess.id,title:sess.title,messages});
-  }catch(e){toast(e.message||String(e),'error')}
+  }catch(e){
+    if(e&&e.name==='AbortError')toast('Stopped','info');
+    else toast(e.message||String(e),'error');
+  }
+  this.setAgentRunningUi(false);
+  this._quickAbort=null;
 }
 async confirmAgentSetup(followup){
   const ov=$('#agent-setup-overlay');
-  if(ov){ov.classList.remove('open');ov.setAttribute('aria-hidden','true')}
+  if(ov){
+    try{const ae=document.activeElement;if(ae&&ov.contains(ae)&&ae.blur)ae.blur()}catch(e){}
+    ov.classList.remove('open');
+    ov.setAttribute('aria-hidden','true');
+  }
   const goal=($('#swarm-goal')?.value||'').trim();
   if(!goal)return;
   let count,budgetMs,intent,live,debate,group,mystery;
@@ -4358,11 +4423,18 @@ async confirmAgentSetup(followup){
 }
 
 stopAgentRun(){
-  try{const k=this.ensureSwarm();k.stop()}catch(e){}
+  try{
+    const k=this.app.swarm||this.ensureSwarm();
+    k.stop();
+  }catch(e){console.warn('stop',e)}
+  try{if(this._quickAbort)this._quickAbort.abort()}catch(e){}
+  this._quickAbort=null;
   this._agentDeadline=0;
+  if(this._agentClockTimer){clearInterval(this._agentClockTimer);this._agentClockTimer=null}
   this.setAgentRunningUi(false);
-  this._setAgentStatus('');
-  this.renderSwarm();
+  this._setAgentStatus('Stopped');
+  try{this.renderSwarm({t:'swarm.stop'})}catch(e){}
+  toast('Stopped','info');
 }
 setAgentRunningUi(running){
   const send=$('#swarm-send-btn');
@@ -6486,7 +6558,11 @@ renderDevCatalog(){
 }
 async saveDevPanel(){
   const user=this.app.storage.getActiveUser()||{};
-  if(!(this.app.cloud&&this.app.cloud.isDevAccount(user.email))){toast('Not allowed','error');return}
+  const email=user.email||'';
+  if(!(this.app.cloud&&this.app.cloud.isDevAccount(email))){
+    toast('Not a dev account ('+(email||'not signed in')+')','error');
+    return;
+  }
   const payload={
     baseUrl:($('#dev-api-base')&&$('#dev-api-base').value||'').trim(),
     model:($('#dev-api-model')&&$('#dev-api-model').value||'').trim(),
@@ -6496,23 +6572,38 @@ async saveDevPanel(){
     fallbackApiKey:($('#dev-fb-key')&&$('#dev-fb-key').value||'').trim(),
     modelCatalog:this._devCatalog||[]
   };
+  // Always write device-wide local defaults first
+  try{
+    const prev=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'{}')||{};
+    const local=Object.assign({},prev,payload,{updatedAt:Date.now(),updatedBy:String(email).toLowerCase()});
+    if(!payload.apiKey)local.apiKey=prev.apiKey||'';
+    if(!payload.fallbackApiKey)local.fallbackApiKey=prev.fallbackApiKey||'';
+    localStorage.setItem('thinkdeeper_v2_systemDefaults',JSON.stringify(local));
+    if(this.app.cloud&&this.app.cloud.applySystemDefaults)this.app.cloud.applySystemDefaults(this.app,local);
+    else{
+      // direct apply
+      const c=this.app.provider.config||{};
+      if(local.apiKey)c.apiKey=local.apiKey;
+      if(local.baseUrl)c.baseUrl=local.baseUrl;
+      if(local.model)c.model=local.model;
+      if(local.fallbackApiKey)c.fallbackApiKey=local.fallbackApiKey;
+      if(local.fallbackBaseUrl)c.fallbackBaseUrl=local.fallbackBaseUrl;
+      if(local.fallbackModel)c.fallbackModel=local.fallbackModel;
+      this.app.provider.save(c);
+    }
+  }catch(e){console.warn(e)}
+  let cloudOk=false;
   try{
     if(!this.app.cloud.ready)this.app.cloud.init();
-    const merged=await this.app.cloud.pushSystemDefaults(payload,user.email);
-    this.app.cloud.applySystemDefaults(this.app,merged);
-    toast('System defaults saved to cloud','success');
-    if($('#dev-api-key'))$('#dev-api-key').value='';
-    if($('#dev-fb-key'))$('#dev-fb-key').value='';
-    this.closeDevPanel();
+    await this.app.cloud.pushSystemDefaults(payload,email);
+    cloudOk=true;
   }catch(e){
-    console.error(e);
-    // Still apply locally so guests benefit on this device if cloud write fails
-    try{
-      this.app.cloud.applySystemDefaults(this.app,Object.assign({},payload));
-      toast('Saved locally (cloud write failed: '+(e.message||e)+')','error');
-      this.closeDevPanel();
-    }catch(e2){toast(e.message||String(e),'error')}
+    console.warn('[dev save cloud]',e);
   }
+  if($('#dev-api-key'))$('#dev-api-key').value='';
+  if($('#dev-fb-key'))$('#dev-fb-key').value='';
+  this.closeDevPanel();
+  toast(cloudOk?'System defaults saved (device + cloud)':'System defaults saved on this device (cloud rules blocked write — publish Firestore rules for system/defaults)','success');
 }
 
 
@@ -7253,6 +7344,10 @@ start(){
   this.ui.init();
   (async()=>{
     try{
+      // Device-wide defaults (dev panel) even before/without Firebase
+      let local=null;
+      try{local=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'null')}catch(e){}
+      if(local)this.cloud.applySystemDefaults(this,local);
       if(!this.cloud.ready)this.cloud.init();
       const sys=await this.cloud.pullSystemDefaults();
       if(sys)this.cloud.applySystemDefaults(this,sys);
