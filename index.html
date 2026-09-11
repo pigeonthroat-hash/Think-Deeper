@@ -768,6 +768,10 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .katex-display{margin:.75em 0}
 .math-fallback{font-family:var(--font-display);opacity:.9}
 .mode-pop button[data-mode="swarm"]{margin-top:6px;border-top:1px solid var(--border);border-radius:0 0 8px 8px}
+.agent-n-wrap{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);background:var(--bg-elevated);font-size:.72rem;color:var(--text-secondary)}
+.agent-n-wrap input{width:40px;border:none;background:transparent;color:var(--text-primary);font:inherit;text-align:center}
+.agent-n-wrap:hover{border-color:var(--accent);color:var(--text-primary)}
+
 
 .swarm-think{flex:1;overflow:auto;padding:16px}
 .swarm-branch{border:1px solid var(--border);border-radius:14px;margin:0 0 12px;background:var(--bg-elevated);padding:10px 12px}
@@ -897,10 +901,10 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
   <div class="swarm-shell">
     <aside class="swarm-side">
       <h2>Agent Mode</h2>
-      <p class="hint">Coordinator picks one worker, waits, then continues until SOLVED. One live request at a time.</p>
-      <label>Goal</label>
-      <textarea id="swarm-goal" rows="3" placeholder="What should the team do?"></textarea>
-      <div class="swarm-row"><label>Team size</label><input id="swarm-count" type="number" min="1" max="10000" value="3"></div>
+      <p class="hint">Supervisor assigns roles, sequences workers, and synthesizes the final answer. One live worker at a time.</p>
+      <div class="swarm-row"><label>Team size</label><input id="swarm-count" type="number" min="1" max="10000" value="5"></div>
+      <label class="hint"><input type="checkbox" id="swarm-mystery"> Mystery — pursue hard / open problems fully</label>
+      <label class="hint"><input type="checkbox" id="swarm-group"> Group — Supervisor forms groups with leaders</label>
       <label class="hint"><input type="checkbox" id="swarm-debate"> Debate / consensus</label>
       <label class="hint"><input type="checkbox" id="swarm-live" checked> Use live API</label>
       <div class="btn-row">
@@ -912,8 +916,14 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
     <section class="swarm-main">
       <div class="swarm-think" id="swarm-think"></div>
       <div class="swarm-chat" id="swarm-chat">
-        <h3>Coordinator chat</h3>
+        <h3>Team chat</h3>
         <div id="swarm-chat-log" class="swarm-chat-log"></div>
+        <div class="swarm-chat-input" style="padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end">
+          <textarea id="swarm-goal" rows="2" placeholder="Message the team… e.g. solve the Collatz conjecture mystery" style="flex:1;min-height:44px;max-height:120px;resize:vertical;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary)"></textarea>
+          <button type="button" class="send-btn" id="swarm-send-btn" aria-label="Send to team" title="Send" style="width:40px;height:40px;border-radius:50%;flex-shrink:0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
       </div>
     </section>
   </div>
@@ -969,7 +979,7 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <button type="button" class="deep-think-mini" id="deep-think-mini" aria-label="Toggle Deep Think" title="Deep Think">Deep Think</button>
 <div style="position:relative">
 <button type="button" class="mode-mini" id="mode-mini-btn" aria-label="Choose mode"><span id="mode-mini-label">Medium</span> <span class="mode-caret">▾</span></button>
-<label class="mode-mini" title="How many sequential agents in this chat">Agents <input id="chat-agent-n" type="number" min="1" max="8" value="1" aria-label="Agent count"></label>
+<label class="mode-mini agent-n-wrap" id="agent-n-wrap" title="Ultra team size — Supervisor sequences agents" style="display:none">Team <input id="chat-agent-n" type="number" min="1" max="8" value="3" aria-label="Agent count"></label>
 <div class="mode-pop" id="mode-mini-pop"></div>
 </div>
 <button class="stop-btn" id="stop-btn" aria-label="Stop"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
@@ -1979,15 +1989,33 @@ async run(code){
   const src=String(code==null?'':code).replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
   if(!src)return{ok:false,error:'No Python code'};
   try{await this.init()}catch(e){return{ok:false,error:'Pyodide failed to load: '+(e.message||e)}}
-  const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('Python timed out after '+ms/1000+'s')),ms))]);
   try{await this.syncWorkspace()}catch(e){}
-  try{await this.pyodide.runPythonAsync("import sys\\nfrom io import StringIO\\nsys.stdout=StringIO()\\nsys.stderr=StringIO()")}catch(e){return{ok:false,error:'Python bootstrap failed'}}
+  // No hard timeout — agents may wait as long as needed (idle while Python runs).
   try{
-    const result=await withTimeout(this.pyodide.runPythonAsync(src),90000);
+    await this.pyodide.runPythonAsync("import sys\nfrom io import StringIO\nsys.stdout=StringIO()\nsys.stderr=StringIO()");
+  }catch(e){return{ok:false,error:'Python bootstrap failed'}}
+  // Best-effort: load micropip and any packages the code mentions (numpy, scipy, sympy, pandas, …)
+  try{
+    await this.pyodide.loadPackage(['micropip']);
+    const needed=[];
+    const hits=src.matchAll(/\b(?:import|from)\s+([a-zA-Z_][\w]*)/g);
+    const allow=new Set(['numpy','scipy','sympy','pandas','matplotlib','networkx','scikit-learn','sklearn','mpmath','statsmodels','seaborn','pillow','PIL','regex','lxml','beautifulsoup4','bs4','requests','aiohttp','cryptography','pytz','dateutil','yaml','jsonschema','typing_extensions','packaging']);
+    for(const m of hits){const n=m[1];if(allow.has(n)||allow.has(n.toLowerCase()))needed.push(n==='sklearn'?'scikit-learn':n==='PIL'?'pillow':n==='bs4'?'beautifulsoup4':n);}
+    if(needed.length){
+      const uniq=[...new Set(needed)];
+      try{await this.pyodide.loadPackage(uniq)}catch(e){
+        try{
+          await this.pyodide.runPythonAsync('import micropip\nawait micropip.install('+JSON.stringify(uniq)+')');
+        }catch(e2){}
+      }
+    }
+  }catch(e){}
+  try{
+    const result=await this.pyodide.runPythonAsync(src);
     let stdout='',stderr='';
     try{stdout=this.pyodide.runPython('sys.stdout.getvalue()')}catch(e){}
     try{stderr=this.pyodide.runPython('sys.stderr.getvalue()')}catch(e){}
-    return{ok:true,result:result!=null?String(result):null,stdout:String(stdout||'').slice(0,20000),stderr:String(stderr||'').slice(0,5000)}
+    return{ok:true,result:result!=null?String(result):null,stdout:String(stdout||'').slice(0,50000),stderr:String(stderr||'').slice(0,20000)}
   }catch(e){return{ok:false,error:e.message||String(e)}}
 }
 }
@@ -2512,7 +2540,7 @@ class Scheduler{
     a.status='running';a.started=a.started||Date.now();
     this.k.events.emit('agent.start',{id,task:a.task,model:a.model});
     const t0=Date.now();
-    try{await Promise.race([this.k.agents.execute(a),new Promise((_,rej)=>setTimeout(()=>rej(new Error('agent timeout')),90000))]);if(a.status==='waiting')return;a.status='completed';a.ended=Date.now();this.k.usage.bump(id,{ms:Date.now()-t0});this.k.events.emit('agent.done',{id,result:(a.result||'').slice(0,400)});
+    try{await Promise.race([this.k.agents.execute(a),new Promise((_,rej)=>setTimeout(()=>rej(new Error('agent timeout')),30*60*1000))]);if(a.status==='waiting')return;a.status='completed';a.ended=Date.now();this.k.usage.bump(id,{ms:Date.now()-t0});this.k.events.emit('agent.done',{id,result:(a.result||'').slice(0,400)});
       if(id!=='coordinator'&&this.k.alive)this.enqueue('coordinator','resume')}
     catch(e){if(e&&e.wait){a.status='waiting';this.k.events.emit('agent.wait',{id,why:e.wait});return}
       a.status='failed';a.error=String(e.message||e);this.k.usage.bump(id,{fails:1,ms:Date.now()-t0});this.k.events.emit('agent.fail',{id,error:a.error});
@@ -2553,9 +2581,9 @@ class AgentManager{
     const inbox=this.k.bus.take(a.id);
     const mem=this.k.memory.pack(a.id,a.taskId);
     const tools=this._tools(a);
-    const roster=this.list().filter(x=>x.id!==a.id).slice(0,12).map(x=>x.id+':'+x.role+':'+x.status).join(', ');
+    const roster=this.list().filter(x=>x.id!==a.id).slice(0,12).map(x=>x.id+'('+x.role+')='+x.status).join(', ');
     const messages=[
-      {role:'system',content:a.systemPrompt+'\nMemory:\n'+mem+'\nTeam: '+roster+'\nYou may use run_python, read_file, write_file when needed.'},
+      {role:'system',content:a.systemPrompt+'\nMemory:\n'+mem+'\nTeam roster (agent ids only, not human names): '+roster+'\nAddress teammates only by agent id. Never use a human display name. Report results to the Supervisor. You may use run_python, read_file, write_file when needed.'},
       {role:'user',content:(a.task||'Stand by.')+(inbox.length?('\n\nInbox:\n'+inbox.map(m=>m.from+': '+m.text).join('\n')):'')}
     ];
     for(let step=0;step<8 && this.k.alive;step++){
@@ -2653,17 +2681,56 @@ class Coordinator{
     const model=this.k.liveApi?(cfg.model||'echo'):'echo';
     const fallbacks=this.k.liveApi?[cfg.fallbackModel].filter(Boolean):['echo'];
     this.k.goal=goal;
-    const sup=this.k.agents.register({id:'coordinator',role:'supervisor',model,fallbacks,task:'Coordinate until solved: '+goal,rounds:0,perms:{python:true,files:true,messaging:true,spawn:true,network:true,sharedWs:true},systemPrompt:'You are the coordinator. Pick ONE worker at a time. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nDo not run everything at once. Keep going until the goal is solved.'});
+    const mystery=!!this.k.mystery;
+    const groupMode=!!this.k.groupMode;
+    let supPrompt='You are the Supervisor (coordinator). Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nYou may SOLVED early without every worker if evidence is enough. Synthesize by checking each worker result, preferring majority agreement when present.';
+    if(mystery){
+      supPrompt+='\nMYSTERY MODE: The goal may be an open or unsolved problem. Agents must still attempt rigorous progress (proofs, counterexamples, computational search via run_python). Never refuse because something is "unknown" or unsolved — push as far as tools allow and report the strongest partial result.';
+    }
+    if(groupMode){
+      supPrompt+='\nGROUP MODE: First create groups by assigning roles like "leader-A", "member-A". Group leaders may message their members; members report to their leader; leaders report to you. Still only ONE live RUN at a time.';
+    }
+    const sup=this.k.agents.register({id:'coordinator',role:'supervisor',model,fallbacks,task:'Coordinate until solved: '+goal,rounds:0,perms:{python:true,files:true,messaging:true,spawn:true,network:true,sharedWs:true},systemPrompt:supPrompt});
     const count=Math.max(1,Math.min(10000,n||1));
     const roles=['builder','planner','reviewer','researcher','tester'];
     const workerLive=this.k.liveApi && count<=4;
-    for(let i=0;i<count;i++){
-      this.k.agents.register({id:'w'+String(i+1).padStart(4,'0'),role:roles[i%roles.length],task:'Idle until the coordinator assigns you.',model:workerLive?model:'echo',fallbacks:workerLive?fallbacks:['echo'],parent:'coordinator',perms:{python:true,files:true,messaging:true,spawn:false,network:true,sharedWs:true}});
+    // Optional groups: Supervisor-designed partitions
+    let groupOf={};
+    if(groupMode && count>=4){
+      const gCount=Math.min(4,Math.max(2,Math.floor(Math.sqrt(count))));
+      const per=Math.ceil(count/gCount);
+      for(let i=0;i<count;i++){
+        const g=Math.floor(i/per);
+        groupOf[i]={group:'G'+(g+1),isLeader:(i%per===0)};
+      }
     }
-    this.k.memory.add('global','root',{text:'goal: '+goal});
-    this.k.scheduler.conc=workerLive?1:Math.min(12,Math.max(1,Math.ceil(Math.log2(count+1))));
+    for(let i=0;i<count;i++){
+      const meta=groupOf[i];
+      let role=roles[i%roles.length];
+      let extra='';
+      if(meta){
+        role=meta.isLeader?('leader-'+meta.group):('member-'+meta.group);
+        extra=meta.isLeader
+          ?(' You are group leader of '+meta.group+'. Coordinate members of '+meta.group+' via swarm_send, then report a group summary to the Supervisor.')
+          :(' You are a member of '+meta.group+'. Discuss only with your leader and Supervisor. Use your agent id only.');
+      }
+      const workerPrompt='You are '+('w'+String(i+1).padStart(4,'0'))+', role '+role+'. Stay in scope. Speak only to the Supervisor (and your group leader if any) by agent id. Never address the human user by name. Never claim other agents used a human name for you. Use tools only if permitted.'+extra+(mystery?' Mystery mode: attempt the problem fully; use run_python for long searches; do not stop merely because the problem is open.':'');
+      this.k.agents.register({
+        id:'w'+String(i+1).padStart(4,'0'),
+        role,
+        task:'Idle until the Supervisor assigns you.',
+        model:workerLive?model:'echo',
+        fallbacks:workerLive?fallbacks:['echo'],
+        parent:'coordinator',
+        perms:{python:true,files:true,messaging:true,spawn:false,network:true,sharedWs:true},
+        systemPrompt:workerPrompt,
+        group:meta?meta.group:null
+      });
+    }
+    this.k.memory.add('global','root',{text:'goal: '+goal+(mystery?' [mystery]':'')+(groupMode?' [groups]':'')});
+    this.k.scheduler.conc=1; // sequential: one worker at a time so results return to Supervisor immediately
     this.k.scheduler.enqueue('coordinator','start');
-    return {configured:count,activated:1};
+    return {configured:count,activated:1,mystery,groupMode};
   }
 }
 class SwarmKernel{
@@ -2678,7 +2745,8 @@ class SwarmKernel{
   reset(){this.alive=false;this.usage.reset();this.agents.map.clear();this.tasks.map.clear();this.bus.log=[];this.events.hist=[];this.scheduler.q=[];this.scheduler.inflight.clear()}
   async start(goal,opts){
     this.reset();this.alive=true;this.liveApi=!!(opts&&opts.live);this.debate=!!(opts&&opts.debate);
-    this.scheduler.conc=Math.max(1,Math.min(16,Number(opts&&opts.conc)||4));
+    this.mystery=!!(opts&&opts.mystery);this.groupMode=!!(opts&&opts.group);
+    this.scheduler.conc=1;
     return this.coordinator.start(goal,Number(opts&&opts.count)||4);
   }
   stop(){this.alive=false;this.agents.list().forEach(a=>{if(a.status==='running'||a.status==='waiting'||a.status==='idle')a.status='cancelled'})}
@@ -2978,33 +3046,132 @@ finally{this.running=false}}
 
 
 async runTeamFollowups(n,goal,first,onEvent){
+  // Supervisor-orchestrated sequential team. Agents never address the human user by name;
+  // they only talk to the Supervisor via structured handoff. Supervisor may stop early.
+  n=Math.max(1,Math.min(8,Number(n)||1));
+  const rolePool=[
+    {id:'Builder',sys:'You are Builder. Design and implement concrete solutions. Prefer tools (run_python, write_file). Report findings only to the Supervisor. Never address the end user. Never invent agent names for other people.'},
+    {id:'Reviewer',sys:'You are Reviewer. Find errors, gaps, and unsafe claims. Be concise. Speak only to the Supervisor. Do not role-play as other agents.'},
+    {id:'Researcher',sys:'You are Researcher. Gather facts, run calculations with run_python, and cite tool results. Speak only to the Supervisor.'},
+    {id:'Verifier',sys:'You are Verifier. Independently check previous work with tools when possible. Speak only to the Supervisor.'},
+    {id:'Critic',sys:'You are Critic. Stress-test assumptions and edge cases. Speak only to the Supervisor.'},
+    {id:'Synthesizer',sys:'You are Synthesizer. Merge prior agent notes into a coherent draft for the Supervisor. Speak only to the Supervisor.'},
+    {id:'Archivist',sys:'You are Archivist. Track files, paths, and reproducibility. Speak only to the Supervisor.'},
+    {id:'Tester',sys:'You are Tester. Propose and run checks (especially run_python). Speak only to the Supervisor.'}
+  ];
+  const results=[{agent:'Agent 1',role:'Primary',content:String(first||'').slice(0,12000)}];
   let last=first||'';
-  for(let i=2;i<=n && this.running;i++){
-    onEvent({type:'activity',name:'Agent '+i,agent:'Agent '+i,status:'running',detail:'Reviewing previous work'});
-    await new Promise(r=>setTimeout(r,1200));
+  onEvent({type:'activity',name:'Supervisor',agent:'Supervisor',status:'running',detail:'Assigning roles and sequencing agents ('+n+' total).'});
+  // Supervisor picks roles for agents 2..n
+  let assignments=[];
+  try{
+    const pick=await this.provider.chat([
+      {role:'system',content:'You are the Supervisor. Assign distinct roles to Agent 2 through Agent '+n+'. Reply ONLY JSON: {"agents":[{"i":2,"role":"Reviewer","task":"..."}],"earlyStop":false,"reason":""}. Roles must be from: '+rolePool.map(r=>r.id).join(', ')+'. Tasks are short directives. Set earlyStop true only if Agent 1 already fully solved the goal.'},
+      {role:'user',content:'Goal:\\n'+String(goal).slice(0,4000)+'\\n\\nAgent 1 result:\\n'+String(first||'').slice(0,5000)}
+    ],{temperature:0.2,maxTokens:900});
+    const raw=(pick&&pick.choices&&pick.choices[0]&&pick.choices[0].message&&pick.choices[0].message.content)||'{}';
+    const m=String(raw).match(/\{[\s\S]*\}/);
+    const data=JSON.parse(m?m[0]:raw);
+    if(data.earlyStop){
+      onEvent({type:'activity',name:'Supervisor',agent:'Supervisor',status:'done',detail:'Early stop — Agent 1 sufficient. '+(data.reason||'')});
+      return first;
+    }
+    assignments=Array.isArray(data.agents)?data.agents:[];
+  }catch(e){
+    assignments=[];
+    for(let i=2;i<=n;i++)assignments.push({i,role:rolePool[(i-2)%rolePool.length].id,task:'Improve or verify prior work for the goal.'});
+  }
+  onEvent({type:'activity',name:'Supervisor',agent:'Supervisor',status:'done',detail:'Roles assigned: '+assignments.map(a=>'Agent '+a.i+'='+(a.role||'?')).join(', ')});
+
+  for(const asg of assignments){
+    if(!this.running)break;
+    const i=Number(asg.i)||0;
+    if(i<2||i>n)continue;
+    const roleName=String(asg.role||rolePool[(i-2)%rolePool.length].id);
+    const roleDef=rolePool.find(r=>r.id.toLowerCase()===roleName.toLowerCase())||rolePool[(i-2)%rolePool.length];
+    const agentLabel='Agent '+i+' ('+roleDef.id+')';
+    const task=String(asg.task||'Verify and improve prior work.');
+    onEvent({type:'activity',name:agentLabel,agent:agentLabel,status:'running',detail:task});
     try{
-      const data=await this.provider.chat([
-        {role:'system',content:'You are Agent '+i+' of '+n+'. Verify or improve the previous agent. Use tools if needed. You may run_python.'},
-        {role:'user',content:'Goal:\n'+goal+'\n\nPrevious:\n'+String(last).slice(0,6000)}
-      ],{tools:this.tools.definitions,temperature:0.3,maxTokens:this.maxTokens||2000});
-      const msg=data&&data.choices&&data.choices[0]&&data.choices[0].message||{};
-      if(msg.tool_calls&&msg.tool_calls.length){
-        const messages=[{role:'system',content:'Agent '+i},{role:'user',content:goal},{role:'assistant',content:msg.content||'',tool_calls:msg.tool_calls}];
+      const sys=roleDef.sys+'\nYour code name is "'+roleDef.id+'". The Supervisor is your only contact. Never greet or name the human user. Never claim other agents called you by a human name. When done, summarize your result for the Supervisor only.';
+      const userMsg='Supervisor assignment:\\n'+task+'\\n\\nOriginal goal:\\n'+String(goal).slice(0,3500)+'\\n\\nPrior handoff (from Supervisor):\\n'+String(last).slice(0,6000);
+      let data=await this.provider.chat([
+        {role:'system',content:sys},
+        {role:'user',content:userMsg}
+      ],{tools:this.tools.definitions,temperature:0.3,maxTokens:this.maxTokens||2500});
+      let msg=(data&&data.choices&&data.choices[0]&&data.choices[0].message)||{};
+      // Tool loop (especially python) — agent stays "busy" until tools finish
+      let guard=0;
+      const messages=[{role:'system',content:sys},{role:'user',content:userMsg}];
+      while(msg.tool_calls&&msg.tool_calls.length&&guard++<8&&this.running){
+        messages.push({role:'assistant',content:msg.content||'',tool_calls:msg.tool_calls});
         for(const tc of msg.tool_calls){
           const name=tc.function&&tc.function.name;let args={};try{args=JSON.parse(tc.function.arguments||'{}')}catch(e){}
-          onEvent({type:'activity',name:name||'tool',agent:'Agent '+i,status:'running'});
+          onEvent({type:'activity',name:(name||'tool')+' · '+roleDef.id,agent:agentLabel,status:'running'});
           const payload=Object.assign({},args,{code:args.code||args.source||args.script||args.python||''});
-          const res=await this.tools.execute(name,payload);
-          onEvent({type:'activity',name:name||'tool',agent:'Agent '+i,status:'done',detail:JSON.stringify(res).slice(0,400)});
-          messages.push({role:'tool',tool_call_id:tc.id,name,content:JSON.stringify(res).slice(0,6000)});
+          let res=await this.tools.execute(name,payload);
+          // On python error, Supervisor issues a fix pass to the SAME agent
+          if(name==='run_python'&&res&&res.ok===false){
+            onEvent({type:'activity',name:'Supervisor fix · '+roleDef.id,agent:'Supervisor',status:'running',detail:String(res.error||'Python error').slice(0,500)});
+            try{
+              const fix=await this.provider.chat([
+                {role:'system',content:'You are the Supervisor patching broken Python for agent '+roleDef.id+'. Return ONLY corrected Python code, no markdown.'},
+                {role:'user',content:'Error:\\n'+String(res.error||'')+'\\n\\nCode:\\n'+String(payload.code||'').slice(0,8000)}
+              ],{temperature:0.1,maxTokens:2500});
+              const fixed=((fix&&fix.choices&&fix.choices[0]&&fix.choices[0].message&&fix.choices[0].message.content)||'').replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
+              if(fixed){
+                res=await this.tools.execute('run_python',{code:fixed});
+                onEvent({type:'activity',name:'Supervisor fix · '+roleDef.id,agent:'Supervisor',status:'done',detail:res.ok?'Fixed and re-ran':'Still failing: '+String(res.error||'').slice(0,200)});
+              }
+            }catch(fe){onEvent({type:'activity',name:'Supervisor fix · '+roleDef.id,agent:'Supervisor',status:'error',detail:fe.message||String(fe)})}
+          }
+          onEvent({type:'activity',name:(name||'tool')+' · '+roleDef.id,agent:agentLabel,status:res&&res.ok===false?'error':'done',detail:JSON.stringify(res).slice(0,500)});
+          messages.push({role:'tool',tool_call_id:tc.id,name,content:JSON.stringify(res).slice(0,8000)});
         }
-        const data2=await this.provider.chat(messages,{temperature:0.3,maxTokens:this.maxTokens||2000});
-        last=(data2&&data2.choices&&data2.choices[0]&&data2.choices[0].message&&data2.choices[0].message.content)||last;
-      }else last=msg.content||last;
-      onEvent({type:'activity',name:'Agent '+i,agent:'Agent '+i,status:'done',detail:String(last).slice(0,400)});
-    }catch(e){onEvent({type:'activity',name:'Agent '+i,agent:'Agent '+i,status:'error',detail:e.message||String(e)});await new Promise(r=>setTimeout(r,1500))}
+        data=await this.provider.chat(messages,{tools:this.tools.definitions,temperature:0.3,maxTokens:this.maxTokens||2500});
+        msg=(data&&data.choices&&data.choices[0]&&data.choices[0].message)||{};
+      }
+      last=msg.content||last;
+      results.push({agent:agentLabel,role:roleDef.id,content:String(last).slice(0,8000)});
+      // Immediate report back to Supervisor
+      onEvent({type:'activity',name:agentLabel,agent:agentLabel,status:'done',detail:String(last).slice(0,500)});
+      onEvent({type:'activity',name:'Supervisor received · '+roleDef.id,agent:'Supervisor',status:'done',detail:'Handoff stored. Next agent (if any) will be briefed.'});
+
+      // Supervisor may stop early after this agent
+      if(i<n){
+        try{
+          const gate=await this.provider.chat([
+            {role:'system',content:'You are the Supervisor. Given the goal and accumulated agent results, reply ONLY JSON: {"continue":true|false,"reason":"..."}. continue=false if the goal is already well solved.'},
+            {role:'user',content:'Goal:\\n'+String(goal).slice(0,2500)+'\\n\\nResults so far:\\n'+results.map(r=>r.agent+':\\n'+r.content.slice(0,1200)).join('\\n---\\n')}
+          ],{temperature:0.1,maxTokens:300});
+          const graw=(gate&&gate.choices&&gate.choices[0]&&gate.choices[0].message&&gate.choices[0].message.content)||'{}';
+          const gm=String(graw).match(/\{[\s\S]*\}/);
+          const gd=JSON.parse(gm?gm[0]:graw);
+          if(gd&&gd.continue===false){
+            onEvent({type:'activity',name:'Supervisor',agent:'Supervisor',status:'done',detail:'Stopping early after '+agentLabel+'. '+(gd.reason||'')});
+            break;
+          }
+        }catch(e){}
+      }
+    }catch(e){
+      onEvent({type:'activity',name:agentLabel,agent:agentLabel,status:'error',detail:e.message||String(e)});
+    }
   }
-  return last;
+
+  // Final Supervisor synthesis (majority / quality check)
+  onEvent({type:'activity',name:'Supervisor synthesis',agent:'Supervisor',status:'running',detail:'Checking every agent answer and forming final response.'});
+  try{
+    const syn=await this.provider.chat([
+      {role:'system',content:'You are the Supervisor. Read every agent result. Prefer the majority-consistent conclusion when agents agree; otherwise pick the best-supported answer and note dissent briefly. You may complete without every agent if evidence is enough. Output the final user-facing answer only (markdown ok). Do not mention internal agent codenames unless useful.'},
+      {role:'user',content:'Goal:\\n'+String(goal).slice(0,4000)+'\\n\\nAgent results:\\n'+results.map(r=>'### '+r.agent+' ('+r.role+')\\n'+r.content).join('\\n\\n')}
+    ],{temperature:0.25,maxTokens:this.maxTokens||4000});
+    const final=(syn&&syn.choices&&syn.choices[0]&&syn.choices[0].message&&syn.choices[0].message.content)||last;
+    onEvent({type:'activity',name:'Supervisor synthesis',agent:'Supervisor',status:'done',detail:String(final).slice(0,400)});
+    return final;
+  }catch(e){
+    onEvent({type:'activity',name:'Supervisor synthesis',agent:'Supervisor',status:'error',detail:e.message||String(e)});
+    return last;
+  }
 }
 _fileBrief(a){
   const name=a.name||'file';
@@ -3246,15 +3413,27 @@ initSwarmUi(){
   k.events.on('*',ev=>this.renderSwarm(ev));
   const start=$('#swarm-start');if(start)start.onclick=()=>this.startSwarm();
   const stop=$('#swarm-stop');if(stop)stop.onclick=()=>{k.stop();this.renderSwarm()};
+  const send=$('#swarm-send-btn');if(send)send.onclick=()=>this.startSwarm();
+  const goalEl=$('#swarm-goal');
+  if(goalEl)goalEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.startSwarm()}});
   document.querySelectorAll('[data-st]').forEach(b=>b.onclick=()=>this.testSwarm(Number(b.dataset.st)));
 }
 async startSwarm(){
   const k=this.ensureSwarm();
   const goal=($('#swarm-goal')?.value||'').trim()||'Plan a small safe demo and write notes.';
-  const count=Number($('#swarm-count')?.value||4);
+  const count=Number($('#swarm-count')?.value||5);
   const live=$('#swarm-live')?!!$('#swarm-live').checked:true;
   const debate=!!$('#swarm-debate')?.checked;
-  await k.start(goal,{count,conc:1,live,debate});
+  const mystery=!!$('#swarm-mystery')?.checked;
+  const group=!!$('#swarm-group')?.checked;
+  // Log user message in team chat
+  const log=$('#swarm-chat-log');
+  if(log){
+    const div=document.createElement('div');div.className='msg';
+    div.innerHTML='<strong>You</strong><div>'+escapeHtml(goal)+'</div>';
+    log.appendChild(div);log.scrollTop=log.scrollHeight;
+  }
+  await k.start(goal,{count,conc:1,live,debate,mystery,group});
   this.renderSwarm();
 }
 async testSwarm(n){
@@ -3388,15 +3567,23 @@ updateGitHubStatus(){
 }
 bindIntensityBars(){
   const saved=this.app.storage.get('intensity','medium')||'medium';
+  const syncAgentN=()=>{
+    const k=this.app.storage.get('intensity','medium')||'medium';
+    const wrap=$('#agent-n-wrap');
+    if(wrap)wrap.style.display=(k==='ultra'||k==='xultra')?'inline-flex':'none';
+  };
   document.querySelectorAll('.intensity-chip').forEach(btn=>{
     btn.classList.toggle('active',btn.dataset.intensity===saved);
     btn.onclick=()=>{
       const v=btn.dataset.intensity||'medium';
       this.app.storage.set('intensity',v);
       document.querySelectorAll('.intensity-chip').forEach(b=>b.classList.toggle('active',b.dataset.intensity===v));
+      syncAgentN();
+      this.syncModeMini&&this.syncModeMini();
       toast(INTENSITY[v]?.label||v+' mode','success');
     };
   });
+  syncAgentN();
 }
 getIntensity(){
   const k=this.app.storage.get('intensity','medium')||'medium';
@@ -3935,7 +4122,7 @@ this.app.agent.settings.maxTime=Number.POSITIVE_INFINITY;
 this.app.agent.temperature=inten.temperature;
 this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: use tools heavily, verify, and do not stop early.':'');
 try{
-  this.app.agent.teamSize=Math.max(1,Math.min(8,Number(($('#chat-agent-n')||{}).value||1)));
+  {const inten=this.app.storage.get('intensity','medium')||'medium';const ultra=(inten==='ultra'||inten==='xultra');this.app.agent.teamSize=ultra?Math.max(1,Math.min(8,Number(($('#chat-agent-n')||{}).value||3))):1;}
    await this.app.agent.run(sendText,history,userMsg.attachments,ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!(this.isDeepThink&&this.isDeepThink())||!!inten.team||this.app.agent.teamSize>1});
   if(aiMsg.content&&(conv.needsAiTitle||conv.messages.filter(m=>m.role==='user').length<=1))this.generateChatTitle(conv.id,text,aiMsg.content);
 }catch(e){toast(e.message,'error');const body=aiEl.querySelector('.message-body');if(body&&!body.querySelector('.final-content')?.textContent.trim())body.innerHTML+=`<p style="color:var(--error)">Error: ${escapeHtml(e.message)}</p>`}
@@ -4835,11 +5022,14 @@ toggleDeepThink(){
   
 }
 syncModeMini(){
-  const lab=(INTENSITY[this.app.storage.get('intensity','medium')||'medium']||{}).label||'Medium';
+  const inten=this.app.storage.get('intensity','medium')||'medium';
+  const lab=(INTENSITY[inten]||{}).label||'Medium';
   const a=$('#mode-mini-label');if(a)a.textContent=lab;
   const b=$('#mode-mini-label-code');if(b)b.textContent=lab;
   const on=this.isDeepThink();
   ['deep-think-mini','deep-think-mini-code'].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.toggle('on',on);});
+  const wrap=$('#agent-n-wrap');
+  if(wrap)wrap.style.display=(inten==='ultra'||inten==='xultra')?'inline-flex':'none';
 }
 applyFontTheme(v){
   v=v||this.app.storage.get('fontTheme','default');
