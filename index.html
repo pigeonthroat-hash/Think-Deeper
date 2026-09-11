@@ -864,6 +864,16 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .dev-model-row{display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;background:var(--bg-elevated)}
 .dev-model-row input,.dev-model-row textarea{flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:.82rem}
 
+
+.sidebar-section-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-right:10px}
+.sidebar-section-row span{flex:1}
+.sec-new-chat{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;transition:border-color .15s,color .15s,background .15s}
+.sec-new-chat:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.sec-new-chat svg{width:15px;height:15px}
+.sidebar-footer.collapsed{display:none!important}
+.footer-toggle{margin:6px 12px 8px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-tertiary);font-size:.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;width:calc(100% - 24px)}
+.footer-toggle:hover{color:var(--text-primary);border-color:var(--border-strong)}
+
 </style>
 </head>
 <body>
@@ -882,10 +892,13 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <div class="project-list" id="project-list"></div>
 <div class="sidebar-section" id="agent-hist-section" style="display:none">Agent chats</div>
 <div class="agent-hist" id="agent-hist-list" style="display:none"></div>
-<div class="sidebar-section">Conversations</div>
+<div class="sidebar-section sidebar-section-row"><span>Conversations</span>
+<button type="button" class="sec-new-chat" id="new-chat-btn" title="New chat" aria-label="New chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+</div>
 <div class="conv-search"><input type="search" id="conv-search" placeholder="Search chats & messages…"></div>
 <div class="conv-list" id="conv-list"></div>
 <button type="button" class="sidebar-more-btn" id="sidebar-more-btn" aria-label="More tools">More</button>
+<button type="button" class="footer-toggle" id="footer-toggle" aria-label="Toggle tools panel" title="Tools">Tools ▾</button>
 <div class="sidebar-footer" id="sidebar-footer">
 <button id="plugins-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg> Plugins</button>
 <button id="workspace-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> External Workspace</button>
@@ -893,7 +906,6 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <button id="dev-panel-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Dev panel</button>
 <button id="settings-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
 <button class="icon-btn" id="theme-btn" aria-label="Toggle theme" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> Theme</button>
-<button type="button" class="draft-chat-btn" id="new-chat-btn" title="New chat" aria-label="New chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
 </div>
 </aside>
 <main class="main">
@@ -1302,6 +1314,32 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <input type="file" id="file-input" multiple accept="image/*,.png,.jpg,.jpeg,.gif,.webp,.txt,.md,.py,.js,.ts,.json,.csv,.html,.css,.pdf" style="display:none">
 
 <!-- Option A: local secrets (gitignored). Copy from config.local.js.example -->
+<div class="overlay" id="agent-quality-overlay" aria-hidden="true"><div class="panel" style="max-width:400px">
+<div class="panel-header"><h2>Quality</h2><button type="button" class="icon-btn" id="agent-quality-close" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+<div class="panel-body"><div class="quality-grid" id="quality-grid">
+<button type="button" class="quality-opt" data-q="fast"><strong>Fast</strong><span>Quick team, light verification. Best for simple tasks.</span></button>
+<button type="button" class="quality-opt active" data-q="auto"><strong>Auto</strong><span>Supervisor decides team size, depth, and tools from your goal.</span></button>
+<button type="button" class="quality-opt" data-q="expert"><strong>Expert</strong><span>Thorough roles, stronger checks, careful synthesis.</span></button>
+<button type="button" class="quality-opt" data-q="heavy"><strong>Heavy</strong><span>Maximum rigor, long runs, full verification loops.</span></button>
+</div></div></div></div>
+
+<div class="overlay" id="dev-panel-overlay" aria-hidden="true"><div class="panel wide">
+<div class="panel-header"><h2>Dev panel <span class="dev-badge">restricted</span></h2><button type="button" class="icon-btn" id="dev-panel-close" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+<div class="panel-body">
+<p class="hint" style="margin-bottom:12px">System defaults apply to all guests and accounts. Keys are stored in cloud config (not exposed in the client UI after save). Only verified dev accounts can write.</p>
+<div class="form-group"><label>Default API Base URL</label><input type="text" id="dev-api-base" placeholder="https://api.openai.com/v1"></div>
+<div class="form-group"><label>Default API Key</label><input type="password" id="dev-api-key" placeholder="sk-… (write-only after save)" autocomplete="new-password"></div>
+<div class="form-group"><label>Primary model ID</label><input type="text" id="dev-api-model" placeholder="gpt-4o-mini"></div>
+<div class="form-group"><label>Fallback Base URL</label><input type="text" id="dev-fb-base" placeholder="optional"></div>
+<div class="form-group"><label>Fallback API Key</label><input type="password" id="dev-fb-key" placeholder="optional" autocomplete="new-password"></div>
+<div class="form-group"><label>Fallback model</label><input type="text" id="dev-fb-model" placeholder="optional"></div>
+<div class="form-group"><label>Public model catalog</label>
+<div id="dev-model-list"></div>
+<div class="model-lib-add" style="margin-top:8px"><input type="text" id="dev-model-id" placeholder="model id"><input type="text" id="dev-model-desc" placeholder="short description"><button type="button" class="btn-secondary" id="dev-model-add">Add</button></div>
+</div>
+<div class="btn-row"><button type="button" class="btn-secondary" id="dev-panel-cancel">Cancel</button><button type="button" class="btn-primary" id="dev-panel-save">Save system defaults</button></div>
+</div></div></div>
+
 <script src="./config.local.js" onerror="console.info('[Think Deeper] config.local.js not found — Google login needs Client ID in that file or Settings')"></script>
 <script>
 const INTENSITY={
@@ -3812,7 +3850,7 @@ loadAgentSession(id){
   this.renderAgentHist();
 }
 resetAgentChatView(){
-  this._currentAgentSessionId=null;
+  this._currentAgentSessionId=null;this._agentFollowupReady=false;this._lastAgentOpts=null;
   const box=$('#swarm-think');
   if(box){
     box.innerHTML='<div class="agent-empty" id="agent-empty"><h1>Agent</h1><p>Describe what you need. A Supervisor will assemble a team, assign roles, and keep working until the goal is fully solved.</p><div class="agent-suggest-row"><button type="button" class="agent-suggest" data-prompt="Prove or disprove a concrete case of the Collatz conjecture with rigorous computation.">Mathematical mystery</button><button type="button" class="agent-suggest" data-prompt="Design and implement a small production-ready module with tests.">Advanced code</button><button type="button" class="agent-suggest" data-prompt="Write a polished long-form document with clear structure and citations where needed.">Fancy document</button></div></div>';
@@ -3824,10 +3862,17 @@ resetAgentChatView(){
 openAgentSetup(){
   const goal=($('#swarm-goal')?.value||'').trim();
   if(!goal){toast('Type a message first','error');return}
-  if(this.app.swarm&&this.app.swarm.alive){toast('Stop the current team first','error');return}
+  if(this.app.swarm&&this.app.swarm.alive){
+    // Soft-stop previous run so follow-ups work
+    try{this.app.swarm.stop()}catch(e){}
+    this._agentDeadline=0;
+  }
   if(this._agentQuick){
-    // Normal short chat without full team
     return this.runAgentQuickAsk(goal);
+  }
+  // Follow-up in same session: skip setup sheet, reuse prior settings
+  if(this._currentAgentSessionId&&this._agentFollowupReady){
+    return this.confirmAgentSetup(true);
   }
   const ov=$('#agent-setup-overlay');
   if(ov){ov.classList.add('open');ov.setAttribute('aria-hidden','false')}
@@ -3858,23 +3903,28 @@ async runAgentQuickAsk(goal){
     this.saveAgentSession({id:sess.id,title:sess.title,messages});
   }catch(e){toast(e.message||String(e),'error')}
 }
-async confirmAgentSetup(){
+async confirmAgentSetup(followup){
   const ov=$('#agent-setup-overlay');
   if(ov){ov.classList.remove('open');ov.setAttribute('aria-hidden','true')}
   const goal=($('#swarm-goal')?.value||'').trim();
   if(!goal)return;
-  const count=Math.max(1,Math.min(100,Number($('#swarm-count')?.value||5)));
-  const mins=Math.max(0,Number($('#swarm-mins')?.value||0));
-  const secs=Math.max(0,Math.min(59,Number($('#swarm-secs')?.value||0)));
-  const budgetMs=(mins*60+secs)*1000 || 10*60*1000;
-  const intent=this._agentIntent||(document.querySelector('.agent-intent.active')||{}).dataset?.intent||'other';
-  const live=$('#swarm-live')?!!$('#swarm-live').checked:true;
-  const debate=!!$('#swarm-debate')?.checked;
-  const group=!!$('#swarm-group')?.checked;
-  const mystery=intent==='mystery';
-  // clear input like a chat send
+  let count,budgetMs,intent,live,debate,group,mystery;
+  if(followup&&this._lastAgentOpts){
+    ({count,budgetMs,intent,live,debate,group,mystery}=this._lastAgentOpts);
+  }else{
+    count=Math.max(1,Math.min(100,Number($('#swarm-count')?.value||5)));
+    const mins=Math.max(0,Number($('#swarm-mins')?.value||0));
+    const secs=Math.max(0,Math.min(59,Number($('#swarm-secs')?.value||0)));
+    budgetMs=(mins*60+secs)*1000 || 10*60*1000;
+    intent=this._agentIntent||(document.querySelector('.agent-intent.active')||{}).dataset?.intent||'other';
+    live=$('#swarm-live')?!!$('#swarm-live').checked:true;
+    debate=!!$('#swarm-debate')?.checked;
+    group=!!$('#swarm-group')?.checked;
+    mystery=intent==='mystery';
+    this._lastAgentOpts={count,budgetMs,intent,live,debate,group,mystery};
+  }
   const t=$('#swarm-goal');if(t){t.value='';t.style.height='auto'}
-  await this.startSwarm({goal,count,live,debate,group,mystery,intent,budgetMs});
+  await this.startSwarm({goal,count,live,debate,group,mystery,intent,budgetMs,followup:!!followup});
 }
 async startSwarm(opts){
   opts=opts||{};
@@ -3895,8 +3945,13 @@ async startSwarm(opts){
   else if(q==='expert'){opts.count=Math.max(opts.count||5,5)}
   else if(q==='heavy'){opts.count=Math.max(opts.count||8,8);opts.budgetMs=Math.max(budgetMs,20*60*1000)}
   else if(q==='auto'){/* supervisor decides via prompt */}
-  this._agentSession=this.saveAgentSession({id:this._currentAgentSessionId||uid(),title:goal.slice(0,40),messages:[{role:'user',content:goal}]});
-  this._currentAgentSessionId=this._agentSession.id;
+  {
+    const sid=this._currentAgentSessionId||uid();
+    const prev=this.agentSessions().find(x=>x.id===sid);
+    const messages=((prev&&prev.messages)||[]).concat([{role:'user',content:goal}]);
+    this._agentSession=this.saveAgentSession({id:sid,title:(prev&&prev.title)||goal.slice(0,40),messages});
+    this._currentAgentSessionId=this._agentSession.id;
+  }
 
   this._agentIntent=intent;
   // Hide empty state and append user bubble
@@ -3919,7 +3974,10 @@ async startSwarm(opts){
   if(this._agentClockTimer)clearInterval(this._agentClockTimer);
   this._agentClockTimer=setInterval(()=>this._tickAgentClock(),500);
   const intentNote={mystery:'Mathematical mystery — pursue a complete solution.',code:'Advanced code — implement fully with verification.',document:'Fancy document — polished complete deliverable.',other:'General task — complete solution required.'}[intent]||'';
-  await k.start(goal,{count,conc:1,live,debate,mystery,group,intent,intentNote,budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto'});
+  const prior=(opts.followup&&this._currentAgentSessionId)?(this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{}).messages:[];
+  const historyNote=(prior&&prior.length)?('\n\nPRIOR TURNS IN THIS AGENT CHAT:\n'+prior.slice(-8).map(m=>(m.role+': '+String(m.content||'').slice(0,800))).join('\n')):'';
+  await k.start(goal+historyNote,{count,conc:1,live,debate,mystery,group,intent,intentNote,budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto'});
+  this._agentFollowupReady=true;
   this.renderSwarm();
 }
 _setAgentStatus(t){
@@ -5810,6 +5868,20 @@ bindAccountUi(){
   const ly=$('#logout-yes');if(ly)ly.onclick=()=>{$('#logout-confirm').classList.remove('open');this.logoutGoogle()};
   const lc=$('#logout-cancel');if(lc)lc.onclick=()=>$('#logout-confirm').classList.remove('open');
   const more=$('#sidebar-more-btn');if(more)more.onclick=()=>$('#sidebar-footer').classList.toggle('open');
+  const ft=$('#footer-toggle');
+  if(ft)ft.onclick=()=>{
+    const f=$('#sidebar-footer');if(!f)return;
+    const on=f.classList.toggle('collapsed');
+    ft.textContent=on?'Tools ▸':'Tools ▾';
+    this.app.storage.set('footerCollapsed',on);
+  };
+  try{
+    if(this.app.storage.get('footerCollapsed',false)){
+      const f=$('#sidebar-footer');if(f)f.classList.add('collapsed');
+      if(ft)ft.textContent='Tools ▸';
+    }
+  }catch(e){}
+
 
   const ps=$('#proj-setup-save');if(ps)ps.onclick=()=>this.saveProjectSetup();
   const pc=$('#proj-setup-close');if(pc)pc.onclick=()=>$('#proj-setup-overlay').classList.remove('open');
@@ -5839,19 +5911,48 @@ bindAccountUi(){
 openDevPanel(){
   const user=this.app.storage.getActiveUser()||{};
   if(!(this.app.cloud&&this.app.cloud.isDevAccount(user.email))){toast('Dev panel is restricted','error');return}
-  const ov=$('#dev-panel-overlay');if(!ov)return;
+  const ov=$('#dev-panel-overlay');
+  if(!ov){toast('Dev panel UI missing','error');return}
+  this._bindDevPanelOnce();
   ov.classList.add('open');
+  ov.setAttribute('aria-hidden','false');
   (async()=>{
-    const data=await this.app.cloud.pullSystemDefaults();
-    if($('#dev-api-base'))$('#dev-api-base').value=(data&&data.baseUrl)||'';
-    if($('#dev-api-model'))$('#dev-api-model').value=(data&&data.model)||'';
-    if($('#dev-fb-base'))$('#dev-fb-base').value=(data&&data.fallbackBaseUrl)||'';
-    if($('#dev-fb-model'))$('#dev-fb-model').value=(data&&data.fallbackModel)||'';
-    if($('#dev-api-key'))$('#dev-api-key').value='';
-    if($('#dev-fb-key'))$('#dev-fb-key').value='';
-    this._devCatalog=(data&&data.modelCatalog)||[];
-    this.renderDevCatalog();
+    try{
+      const data=await this.app.cloud.pullSystemDefaults();
+      if($('#dev-api-base'))$('#dev-api-base').value=(data&&data.baseUrl)||'';
+      if($('#dev-api-model'))$('#dev-api-model').value=(data&&data.model)||'';
+      if($('#dev-fb-base'))$('#dev-fb-base').value=(data&&data.fallbackBaseUrl)||'';
+      if($('#dev-fb-model'))$('#dev-fb-model').value=(data&&data.fallbackModel)||'';
+      if($('#dev-api-key'))$('#dev-api-key').value='';
+      if($('#dev-fb-key'))$('#dev-fb-key').value='';
+      this._devCatalog=(data&&data.modelCatalog)||[];
+      this.renderDevCatalog();
+    }catch(e){console.warn(e);toast('Could not load system defaults (check cloud rules)','error')}
   })();
+}
+_bindDevPanelOnce(){
+  if(this._devPanelBound)return;this._devPanelBound=true;
+  const close=()=>{
+    const ov=$('#dev-panel-overlay');
+    if(ov){ov.classList.remove('open');ov.setAttribute('aria-hidden','true')}
+  };
+  const dc=$('#dev-panel-close');if(dc)dc.onclick=e=>{e.preventDefault();e.stopPropagation();close()};
+  const dcan=$('#dev-panel-cancel');if(dcan)dcan.onclick=e=>{e.preventDefault();e.stopPropagation();close()};
+  const ov=$('#dev-panel-overlay');
+  if(ov)ov.onclick=e=>{if(e.target===ov)close()};
+  const panel=ov&&ov.querySelector('.panel');
+  if(panel)panel.onclick=e=>e.stopPropagation();
+  const ds=$('#dev-panel-save');if(ds)ds.onclick=e=>{e.preventDefault();e.stopPropagation();this.saveDevPanel()};
+  const dma=$('#dev-model-add');if(dma)dma.onclick=()=>{
+    const id=($('#dev-model-id')?.value||'').trim();const desc=($('#dev-model-desc')?.value||'').trim();
+    if(!id)return;this._devCatalog=this._devCatalog||[];this._devCatalog.push({id,description:desc});
+    if($('#dev-model-id'))$('#dev-model-id').value='';if($('#dev-model-desc'))$('#dev-model-desc').value='';
+    this.renderDevCatalog();
+  };
+}
+closeDevPanel(){
+  const ov=$('#dev-panel-overlay');
+  if(ov){ov.classList.remove('open');ov.setAttribute('aria-hidden','true')}
 }
 renderDevCatalog(){
   const el=$('#dev-model-list');if(!el)return;
@@ -5862,23 +5963,32 @@ renderDevCatalog(){
 async saveDevPanel(){
   const user=this.app.storage.getActiveUser()||{};
   if(!(this.app.cloud&&this.app.cloud.isDevAccount(user.email))){toast('Not allowed','error');return}
+  const payload={
+    baseUrl:($('#dev-api-base')&&$('#dev-api-base').value||'').trim(),
+    model:($('#dev-api-model')&&$('#dev-api-model').value||'').trim(),
+    fallbackBaseUrl:($('#dev-fb-base')&&$('#dev-fb-base').value||'').trim(),
+    fallbackModel:($('#dev-fb-model')&&$('#dev-fb-model').value||'').trim(),
+    apiKey:($('#dev-api-key')&&$('#dev-api-key').value||'').trim(),
+    fallbackApiKey:($('#dev-fb-key')&&$('#dev-fb-key').value||'').trim(),
+    modelCatalog:this._devCatalog||[]
+  };
   try{
-    const payload={
-      baseUrl:($('#dev-api-base')?.value||'').trim(),
-      model:($('#dev-api-model')?.value||'').trim(),
-      fallbackBaseUrl:($('#dev-fb-base')?.value||'').trim(),
-      fallbackModel:($('#dev-fb-model')?.value||'').trim(),
-      apiKey:($('#dev-api-key')?.value||'').trim(),
-      fallbackApiKey:($('#dev-fb-key')?.value||'').trim(),
-      modelCatalog:this._devCatalog||[]
-    };
+    if(!this.app.cloud.ready)this.app.cloud.init();
     const merged=await this.app.cloud.pushSystemDefaults(payload,user.email);
     this.app.cloud.applySystemDefaults(this.app,merged);
     toast('System defaults saved to cloud','success');
-    $('#dev-panel-overlay')?.classList.remove('open');
     if($('#dev-api-key'))$('#dev-api-key').value='';
     if($('#dev-fb-key'))$('#dev-fb-key').value='';
-  }catch(e){toast(e.message||String(e),'error')}
+    this.closeDevPanel();
+  }catch(e){
+    console.error(e);
+    // Still apply locally so guests benefit on this device if cloud write fails
+    try{
+      this.app.cloud.applySystemDefaults(this.app,Object.assign({},payload));
+      toast('Saved locally (cloud write failed: '+(e.message||e)+')','error');
+      this.closeDevPanel();
+    }catch(e2){toast(e.message||String(e),'error')}
+  }
 }
 
 openAccountMenu(){
@@ -6522,32 +6632,6 @@ async _restoreCloudSession(){
 const app=new App();app.start();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
-
-<div class="overlay" id="agent-quality-overlay" aria-hidden="true"><div class="panel" style="max-width:400px">
-<div class="panel-header"><h2>Quality</h2><button type="button" class="icon-btn" id="agent-quality-close" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
-<div class="panel-body"><div class="quality-grid" id="quality-grid">
-<button type="button" class="quality-opt" data-q="fast"><strong>Fast</strong><span>Quick team, light verification. Best for simple tasks.</span></button>
-<button type="button" class="quality-opt active" data-q="auto"><strong>Auto</strong><span>Supervisor decides team size, depth, and tools from your goal.</span></button>
-<button type="button" class="quality-opt" data-q="expert"><strong>Expert</strong><span>Thorough roles, stronger checks, careful synthesis.</span></button>
-<button type="button" class="quality-opt" data-q="heavy"><strong>Heavy</strong><span>Maximum rigor, long runs, full verification loops.</span></button>
-</div></div></div></div>
-
-<div class="overlay" id="dev-panel-overlay" aria-hidden="true"><div class="panel wide">
-<div class="panel-header"><h2>Dev panel <span class="dev-badge">restricted</span></h2><button type="button" class="icon-btn" id="dev-panel-close" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
-<div class="panel-body">
-<p class="hint" style="margin-bottom:12px">System defaults apply to all guests and accounts. Keys are stored in cloud config (not exposed in the client UI after save). Only verified dev accounts can write.</p>
-<div class="form-group"><label>Default API Base URL</label><input type="text" id="dev-api-base" placeholder="https://api.openai.com/v1"></div>
-<div class="form-group"><label>Default API Key</label><input type="password" id="dev-api-key" placeholder="sk-… (write-only after save)" autocomplete="new-password"></div>
-<div class="form-group"><label>Primary model ID</label><input type="text" id="dev-api-model" placeholder="gpt-4o-mini"></div>
-<div class="form-group"><label>Fallback Base URL</label><input type="text" id="dev-fb-base" placeholder="optional"></div>
-<div class="form-group"><label>Fallback API Key</label><input type="password" id="dev-fb-key" placeholder="optional" autocomplete="new-password"></div>
-<div class="form-group"><label>Fallback model</label><input type="text" id="dev-fb-model" placeholder="optional"></div>
-<div class="form-group"><label>Public model catalog</label>
-<div id="dev-model-list"></div>
-<div class="model-lib-add" style="margin-top:8px"><input type="text" id="dev-model-id" placeholder="model id"><input type="text" id="dev-model-desc" placeholder="short description"><button type="button" class="btn-secondary" id="dev-model-add">Add</button></div>
-</div>
-<div class="btn-row"><button type="button" class="btn-secondary" id="dev-panel-cancel">Cancel</button><button type="button" class="btn-primary" id="dev-panel-save">Save system defaults</button></div>
-</div></div></div>
 
 </body>
 </html>
