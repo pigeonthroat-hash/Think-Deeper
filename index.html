@@ -961,6 +961,54 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 .message-body,.message.user .message-body,.agent-msg-body,.code-msg{font-size:calc(1rem * var(--ui-scale, 1))}
 .message.user .message-body{padding:calc(12px * var(--ui-scale, 1)) calc(16px * var(--ui-scale, 1))}
 
+
+/* Code mode polish */
+.code-shell{display:flex;flex:1;min-height:0;background:var(--bg-primary)}
+.code-left{width:min(420px,38%);min-width:280px;display:flex;flex-direction:column;border-right:1px solid var(--border);background:var(--bg-sidebar)}
+.code-left-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
+.code-messages{flex:1;overflow-y:auto;padding:12px 14px}
+.code-empty{padding:28px 16px;text-align:center;color:var(--text-secondary)}
+.code-empty h2{font-family:var(--font-display);font-weight:500;margin-bottom:8px;color:var(--text-primary)}
+.code-input-area{padding:10px 12px 14px;border-top:1px solid var(--border);background:var(--bg-primary)}
+.code-right{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg-primary)}
+.code-right-tabs{display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--bg-secondary);align-items:center}
+.code-right-tabs button{padding:6px 12px;border-radius:8px;font-size:.8rem;color:var(--text-secondary)}
+.code-right-tabs button.active{background:var(--bg-elevated);color:var(--text-primary);box-shadow:var(--shadow-sm)}
+.code-files-list{font-size:.82rem}
+.code-file-row{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;cursor:pointer}
+.code-file-row:hover{background:var(--bg-hover)}
+/* Chat code toolbar */
+.code-header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-tertiary);border-radius:var(--radius-md) var(--radius-md) 0 0;font-size:.75rem;color:var(--text-tertiary);margin-bottom:-1px;border:1px solid var(--border);border-bottom:none}
+.code-header .ch-actions{display:flex;align-items:center;gap:4px}
+.code-header .ch-btn{width:28px;height:28px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary);border:1px solid transparent}
+.code-header .ch-btn:hover{background:var(--bg-hover);color:var(--text-primary);border-color:var(--border)}
+.code-header .ch-btn svg{width:14px;height:14px}
+/* Side panel for play/edit */
+.code-side-panel{
+  position:absolute;top:0;right:0;bottom:0;width:min(480px,48vw);
+  background:var(--bg-elevated);border-left:1px solid var(--border);
+  box-shadow:var(--shadow-lg);z-index:30;display:none;flex-direction:column;
+  animation:cspIn .22s cubic-bezier(.4,0,.2,1);
+}
+.code-side-panel.open{display:flex}
+@keyframes cspIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+.csp-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);gap:8px}
+.csp-head strong{font-size:.9rem}
+.csp-body{flex:1;min-height:0;display:flex;flex-direction:column}
+.csp-preview-frame{flex:1;border:0;width:100%;background:#fff;min-height:200px}
+.csp-editor{
+  flex:1;min-height:0;margin:0;padding:12px;border:0;resize:none;outline:none;
+  font-family:"SF Mono","Fira Code",Menlo,monospace;font-size:.82rem;line-height:1.5;
+  background:var(--bg-code);color:var(--text-primary);tab-size:2;
+}
+.csp-out{max-height:160px;overflow:auto;padding:10px 12px;font-size:.8rem;border-top:1px solid var(--border);white-space:pre-wrap;background:var(--bg-secondary)}
+.csp-out.error{color:var(--error);background:color-mix(in srgb,var(--error) 8%,var(--bg-secondary))}
+.csp-actions{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--border);flex-wrap:wrap}
+.csp-actions button{padding:8px 12px;border-radius:8px;font-size:.8rem;border:1px solid var(--border);background:var(--bg-tertiary);cursor:pointer}
+.csp-actions button.primary{background:var(--accent);color:var(--text-inverse);border-color:transparent}
+.csp-actions button.danger{border-color:var(--error);color:var(--error)}
+.chat-area{position:relative}
+
 </style>
 </head>
 <body>
@@ -1044,7 +1092,7 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
       <div class="code-messages" id="code-messages">
         <div id="code-empty" class="code-empty">
           <h2>Code workspace</h2>
-          <p>Chat on the left. Preview or edit files on the right. Files live under <code>code/</code>.</p>
+          <p>Describe what to build. Files save under <code>code/</code> to your account (or session cache as guest).</p>
         </div>
       </div>
       <div class="code-input-area">
@@ -1231,6 +1279,23 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <button class="stop-btn" id="stop-btn" aria-label="Stop"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
 <button class="send-btn" id="send-btn" aria-label="Send message" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
 </div></div></div>
+
+<div class="code-side-panel" id="code-side-panel" aria-hidden="true">
+  <div class="csp-head">
+    <strong id="csp-title">Code</strong>
+    <button type="button" class="icon-btn" id="csp-close" aria-label="Close">×</button>
+  </div>
+  <div class="csp-body">
+    <iframe class="csp-preview-frame" id="csp-preview" style="display:none" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+    <textarea class="csp-editor" id="csp-editor" style="display:none" spellcheck="false"></textarea>
+    <div class="csp-out" id="csp-out" style="display:none"></div>
+    <div class="csp-actions" id="csp-actions">
+      <button type="button" class="primary" id="csp-run">Run</button>
+      <button type="button" id="csp-fix" style="display:none">Fix error</button>
+      <button type="button" class="danger" id="csp-revert" style="display:none">Revert</button>
+    </div>
+  </div>
+</div>
 <div id="pin-bar" class="pin-bar" style="display:none"></div>
 <div class="input-meta">
           <span id="agent-status">Ready</span>
@@ -4517,7 +4582,7 @@ newCodeSession(){
   const s={id:uid(),title:'Code chat',messages:[],updated:Date.now()};
   const list=this.codeSessions();
   list.unshift(s);
-  this.app.storage.set('codeSessions',list.slice(0,40));
+  this.app.storage.set('codeSessions',list.slice(0,40));try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
   this.app.storage.set('currentCodeId',s.id);
   const box=$('#code-messages');if(box)box.innerHTML='';
   this.renderCodeHist();
@@ -5191,7 +5256,8 @@ renderCodeFiles(){
     });
 }
 async sendCode(){this.ensureAgent();
-  const text=($('#code-user-input')?.value||'').trim();
+  let text=($('#code-user-input')?.value||'').trim();
+  if(this._pendingFixPayload){text=this._pendingFixPayload;this._pendingFixPayload=null;}
   if(!text)return;
   if(this.app.agent.running){toast('Already running — press stop first','error');return}
   if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');return}
@@ -5999,17 +6065,17 @@ _renderMath(el){
   }catch(e){}
 }
 enhanceCodeBlocks(container){
+  if(!container)return;
   container.querySelectorAll('pre code').forEach(block=>{
     const pre=block.parentElement;
-    if(pre.closest('.canvas-doc')||pre.previousElementSibling?.classList?.contains('code-header'))return;
+    if(!pre||pre.closest('.canvas-doc')||pre.previousElementSibling?.classList?.contains('code-header'))return;
     const lang=([...block.classList].find(c=>c.startsWith('language-'))||'').replace('language-','')||'';
     const text=block.textContent||'';
     const isDoc=/^(text|markdown|md|txt|story|document|json)$/i.test(lang)||(!lang&&text.length>400&&!/^(import |function |const |def |class |<\/)/m.test(text));
     if(isDoc){
       const wrap=document.createElement('div');wrap.className='canvas-doc';
       const bar=document.createElement('div');bar.className='cd-bar';
-      const title=lang||'document';
-      bar.innerHTML='<strong>'+escapeHtml(title)+'</strong>';
+      bar.innerHTML='<strong>'+escapeHtml(lang||'document')+'</strong>';
       const mkBtn=(svg,title,fn)=>{const b=document.createElement('button');b.type='button';b.title=title;b.innerHTML=svg;b.onclick=fn;return b};
       const body=document.createElement('div');body.className='cd-body';body.textContent=text;
       bar.appendChild(mkBtn(SVG.copy,'Copy',()=>{navigator.clipboard.writeText(body.textContent);toast('Copied','success')}));
@@ -6024,11 +6090,181 @@ enhanceCodeBlocks(container){
       return;
     }
     const header=document.createElement('div');header.className='code-header';
-    header.innerHTML='<span>'+escapeHtml(lang||'code')+'</span><button type="button" class="copy-btn">Copy</button>';
-    header.querySelector('.copy-btn').onclick=()=>{navigator.clipboard.writeText(block.textContent);header.querySelector('.copy-btn').textContent='Copied';setTimeout(()=>header.querySelector('.copy-btn').textContent='Copy',1500)};
+    const actions=document.createElement('div');actions.className='ch-actions';
+    const langSpan=document.createElement('span');langSpan.textContent=lang||'code';
+    const mkIconBtn=(title,svg,fn)=>{
+      const b=document.createElement('button');b.type='button';b.className='ch-btn';b.title=title;b.innerHTML=svg;b.onclick=e=>{e.preventDefault();e.stopPropagation();fn()};return b;
+    };
+    const playSvg='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+    const editSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
+    const copySvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+    const runnable=/^(html|htm|svg|javascript|js|typescript|ts|python|py|css)$/i.test(lang)||/^\s*<(!doctype|html|svg)/i.test(text)||/^\s*(def |import |print\()/m.test(text);
+    if(runnable||true){
+      actions.appendChild(mkIconBtn('Run / preview',playSvg,()=>this.openCodePlay({lang,code:block.textContent||'',block})));
+      actions.appendChild(mkIconBtn('Edit',editSvg,()=>this.openCodeEdit({lang,code:block.textContent||'',block})));
+    }
+    actions.appendChild(mkIconBtn('Copy',copySvg,()=>{
+      navigator.clipboard.writeText(block.textContent||'');
+      toast('Copied','success');
+    }));
+    header.appendChild(langSpan);header.appendChild(actions);
     pre.parentElement.insertBefore(header,pre);
-    if(window.hljs)hljs.highlightElement(block);
+    if(window.hljs)try{hljs.highlightElement(block)}catch(e){}
   });
+}
+_bindCodeSidePanelOnce(){
+  if(this._cspBound)return;this._cspBound=true;
+  const close=$('#csp-close');if(close)close.onclick=()=>this.closeCodeSidePanel();
+  const run=$('#csp-run');if(run)run.onclick=()=>this.runCodeSidePanel();
+  const fix=$('#csp-fix');if(fix)fix.onclick=()=>this.fixCodeSideError();
+  const rev=$('#csp-revert');if(rev)rev.onclick=()=>this.revertCodeSidePanel();
+  const ed=$('#csp-editor');
+  if(ed)ed.addEventListener('input',()=>{this._cspDirty=true;const r=$('#csp-revert');if(r)r.style.display='inline-block'});
+}
+closeCodeSidePanel(){
+  const p=$('#code-side-panel');if(!p)return;
+  p.classList.remove('open');p.setAttribute('aria-hidden','true');
+  const frame=$('#csp-preview');if(frame){frame.style.display='none';frame.srcdoc='';}
+  const ed=$('#csp-editor');if(ed)ed.style.display='none';
+  const out=$('#csp-out');if(out){out.style.display='none';out.textContent='';out.classList.remove('error')}
+  this._cspMode=null;this._cspOrig=null;this._cspDirty=false;
+}
+openCodePlay(opts){
+  this._bindCodeSidePanelOnce();
+  this.closeCodeSidePanel();
+  const p=$('#code-side-panel');if(!p)return;
+  this._cspMode='play';
+  this._cspLang=(opts.lang||'').toLowerCase();
+  this._cspCode=opts.code||'';
+  this._cspBlock=opts.block||null;
+  this._cspOrig=opts.code||'';
+  $('#csp-title').textContent='Preview · '+(opts.lang||'code');
+  p.classList.add('open');p.setAttribute('aria-hidden','false');
+  const ed=$('#csp-editor');if(ed)ed.style.display='none';
+  const frame=$('#csp-preview');
+  const out=$('#csp-out');
+  const fix=$('#csp-fix');if(fix)fix.style.display='none';
+  const rev=$('#csp-revert');if(rev)rev.style.display='none';
+  const run=$('#csp-run');if(run)run.style.display='inline-block';
+  this.runCodeSidePanel();
+}
+openCodeEdit(opts){
+  this._bindCodeSidePanelOnce();
+  this.closeCodeSidePanel();
+  const p=$('#code-side-panel');if(!p)return;
+  this._cspMode='edit';
+  this._cspLang=(opts.lang||'').toLowerCase();
+  this._cspCode=opts.code||'';
+  this._cspBlock=opts.block||null;
+  this._cspOrig=opts.code||'';
+  this._cspDirty=false;
+  $('#csp-title').textContent='Edit · '+(opts.lang||'code');
+  p.classList.add('open');p.setAttribute('aria-hidden','false');
+  const frame=$('#csp-preview');if(frame){frame.style.display='none';frame.srcdoc=''}
+  const ed=$('#csp-editor');
+  if(ed){ed.style.display='block';ed.value=opts.code||'';ed.focus()}
+  const out=$('#csp-out');if(out){out.style.display='none';out.textContent='';out.classList.remove('error')}
+  const fix=$('#csp-fix');if(fix)fix.style.display='none';
+  const rev=$('#csp-revert');if(rev)rev.style.display='none';
+  const run=$('#csp-run');if(run)run.style.display='inline-block';
+}
+async runCodeSidePanel(){
+  const lang=this._cspLang||'';
+  let code=this._cspMode==='edit'?($('#csp-editor')&&$('#csp-editor').value)||this._cspCode:this._cspCode;
+  if(this._cspMode==='edit')this._cspCode=code;
+  const out=$('#csp-out');
+  const frame=$('#csp-preview');
+  const fix=$('#csp-fix');
+  if(out){out.style.display='none';out.classList.remove('error');out.textContent=''}
+  if(fix)fix.style.display='none';
+  const isHtml=/^(html|htm|svg)$/i.test(lang)||/^\s*<(!doctype|html|svg)/i.test(code);
+  const isCss=/^css$/i.test(lang);
+  const isJs=/^(javascript|js|typescript|ts)$/i.test(lang);
+  const isPy=/^(python|py)$/i.test(lang)||/^\s*(def |import |print\()/m.test(code);
+  try{
+    if(isHtml||isCss){
+      if(frame){
+        frame.style.display='block';
+        let doc=code;
+        if(isCss)doc='<!DOCTYPE html><html><head><style>'+code+'</style></head><body><div class="preview">CSS loaded</div></body></html>';
+        frame.srcdoc=doc;
+      }
+      if(out){out.style.display='block';out.textContent='Preview updated.';}
+      return;
+    }
+    if(isJs){
+      // Run in iframe sandbox for safety
+      if(frame){
+        frame.style.display='block';
+        const logs=[];
+        const htmlDoc='<!DOCTYPE html><html><body><pre id="o"></pre><script>(function(){var o=document.getElementById("o");var log=function(){o.textContent+=Array.prototype.slice.call(arguments).join(" ")+"\\n"};console.log=log;console.error=log;try{\n'+code+'\n}catch(e){log(String(e&&e.stack||e));}})();<\/script></body></html>';
+        frame.srcdoc=htmlDoc;
+      }
+      if(out){out.style.display='block';out.textContent='JS ran in sandbox preview.';}
+      return;
+    }
+    if(isPy){
+      if(frame)frame.style.display='none';
+      if(out){out.style.display='block';out.textContent='Running Python…';}
+      const tools=this.app.tools||(window.__app&&window.__app.tools);
+      if(!tools||!tools.execute)throw new Error('Python runtime not available');
+      const res=await tools.execute('run_python',{code});
+      if(res&&res.ok===false){
+        const err=String(res.error||res.stderr||'Python error');
+        this._cspLastError=err;
+        if(out){out.style.display='block';out.classList.add('error');out.textContent=err;}
+        if(fix)fix.style.display='inline-block';
+        return;
+      }
+      const text=[res&&res.stdout,res&&res.result!=null?String(res.result):''].filter(Boolean).join('\n')||'(no output)';
+      if(out){out.style.display='block';out.textContent=text;}
+      // sync edits back to message block
+      if(this._cspMode==='edit'&&this._cspBlock)this._cspBlock.textContent=code;
+      return;
+    }
+    // default: show as preview text
+    if(frame)frame.style.display='none';
+    if(out){out.style.display='block';out.textContent='No runner for this language. You can still edit and copy.';}
+  }catch(e){
+    const err=String(e.message||e);
+    this._cspLastError=err;
+    if(out){out.style.display='block';out.classList.add('error');out.textContent=err;}
+    if(fix)fix.style.display='inline-block';
+  }
+}
+fixCodeSideError(){
+  const err=this._cspLastError||'Unknown error';
+  const code=this._cspMode==='edit'?($('#csp-editor')&&$('#csp-editor').value)||this._cspCode:this._cspCode;
+  const lang=this._cspLang||'code';
+  // Visible user text is short; hidden block carries full error for the model
+  const visible='Please fix the errors';
+  const secret='\\n\\n<!--TD_INTERNAL_ERROR\\nLanguage: '+lang+'\\nError:\\n'+err+'\\n\\nCurrent code:\\n```'+lang+'\\n'+code+'\\n```\\nTD_INTERNAL_ERROR-->';
+  const full=visible+secret;
+  this.closeCodeSidePanel();
+  // Prefer active chat input
+  if(this.mode==='code'){
+    const ta=$('#code-user-input');
+    if(ta){ta.value=visible;ta.focus();}
+    // store secret for send
+    this._pendingFixPayload=full;
+    toast('Press Send to ask the model to fix the error','info');
+    return;
+  }
+  const ta=$('#user-input');
+  if(ta){ta.value=visible;$('#send-btn').disabled=false;ta.focus();}
+  this._pendingFixPayload=full;
+  toast('Press Send to ask the model to fix the error','info');
+}
+revertCodeSidePanel(){
+  if(this._cspOrig==null)return;
+  if(!confirm('Revert to the original code from the message?'))return;
+  const ed=$('#csp-editor');
+  if(ed)ed.value=this._cspOrig;
+  this._cspCode=this._cspOrig;
+  this._cspDirty=false;
+  const rev=$('#csp-revert');if(rev)rev.style.display='none';
+  const out=$('#csp-out');if(out){out.style.display='none';out.classList.remove('error');out.textContent='';}
+  toast('Reverted','success');
 }
 
 copyMessage(text){navigator.clipboard.writeText(text||'');toast('Copied','success')}
@@ -6266,9 +6502,10 @@ visibleUserText(msg){
   if(!msg)return '';
   if(msg.displayContent)return String(msg.displayContent);
   let t=String(msg.content||'');
+  t=t.replace(/<!--TD_INTERNAL_ERROR[\s\S]*?TD_INTERNAL_ERROR-->/g,'');
   t=t.replace(/\n\n\[Pinned context\][\s\S]*$/,'');
   t=t.replace(/^User referred to the following statement:\n"[\s\S]*?"\n\nUser response: /,'');
-  return t;
+  return t.trim();
 }
 branchFromMessage(msgId){
   const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
