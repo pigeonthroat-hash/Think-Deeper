@@ -2221,30 +2221,44 @@ async syncWorkspace(){
   }
 }
 async run(code){
-  const src=String(code==null?'':code).replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
+  let src=String(code==null?'':code).replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
   if(!src)return{ok:false,error:'No Python code'};
+  // Soften blocking sleeps — Pyodide runs on the main thread and time.sleep freezes the UI
+  src=src.replace(/\btime\.sleep\s*\(\s*[^)]+\s*\)/g,'pass  # sleep skipped in browser sandbox');
   try{await this.init()}catch(e){return{ok:false,error:'Pyodide failed to load: '+(e.message||e)}}
   try{await this.syncWorkspace()}catch(e){}
-  // No hard timeout — agents may wait as long as needed (idle while Python runs).
   try{
     await this.pyodide.runPythonAsync("import sys\nfrom io import StringIO\nsys.stdout=StringIO()\nsys.stderr=StringIO()");
-  }catch(e){return{ok:false,error:'Python bootstrap failed'}}
-  // Best-effort: load micropip and any packages the code mentions (numpy, scipy, sympy, pandas, …)
+  }catch(e){return{ok:false,error:'Python bootstrap failed: '+(e.message||e)}}
+  // Best-effort package load (never block forever)
   try{
-    await this.pyodide.loadPackage(['micropip']);
+    await Promise.race([
+      this.pyodide.loadPackage(['micropip']),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('micropip timeout')),20000))
+    ]).catch(()=>{});
     const needed=[];
     const hits=src.matchAll(/\b(?:import|from)\s+([a-zA-Z_][\w]*)/g);
-    const allow=new Set(['numpy','scipy','sympy','pandas','matplotlib','networkx','scikit-learn','sklearn','mpmath','statsmodels','seaborn','pillow','PIL','regex','lxml','beautifulsoup4','bs4','requests','aiohttp','cryptography','pytz','dateutil','yaml','jsonschema','typing_extensions','packaging']);
+    const allow=new Set(['numpy','scipy','sympy','pandas','matplotlib','networkx','scikit-learn','sklearn','mpmath','statsmodels','seaborn','pillow','PIL','regex','lxml','beautifulsoup4','bs4','pytz','dateutil','yaml','packaging']);
     for(const m of hits){const n=m[1];if(allow.has(n)||allow.has(n.toLowerCase()))needed.push(n==='sklearn'?'scikit-learn':n==='PIL'?'pillow':n==='bs4'?'beautifulsoup4':n);}
     if(needed.length){
       const uniq=[...new Set(needed)];
-      try{await this.pyodide.loadPackage(uniq)}catch(e){
+      try{
+        await Promise.race([
+          this.pyodide.loadPackage(uniq),
+          new Promise((_,rej)=>setTimeout(()=>rej(new Error('pkg timeout')),45000))
+        ]);
+      }catch(e){
         try{
-          await this.pyodide.runPythonAsync('import micropip\nawait micropip.install('+JSON.stringify(uniq)+')');
+          await Promise.race([
+            this.pyodide.runPythonAsync('import micropip\nawait micropip.install('+JSON.stringify(uniq)+')'),
+            new Promise((_,rej)=>setTimeout(()=>rej(new Error('micropip install timeout')),45000))
+          ]);
         }catch(e2){}
       }
     }
   }catch(e){}
+  // Yield to UI
+  await new Promise(r=>setTimeout(r,0));
   try{
     const result=await this.pyodide.runPythonAsync(src);
     let stdout='',stderr='';
@@ -2252,6 +2266,7 @@ async run(code){
     try{stderr=this.pyodide.runPython('sys.stderr.getvalue()')}catch(e){}
     return{ok:true,result:result!=null?String(result):null,stdout:String(stdout||'').slice(0,50000),stderr:String(stderr||'').slice(0,20000)}
   }catch(e){return{ok:false,error:e.message||String(e)}}
+
 }
 }
 class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.python=py;this.definitions=[
@@ -2715,7 +2730,7 @@ class ModelRouter{
       try{
         this.k.events.emit('agent.model',{id:agent.id,model,fallback:i,provider:live&&model!=='echo'?'remote':'echo'});
         const prov=(live&&model!=='echo')?this.app.provider:this.echo;
-        const data=await prov.chat(messages,{model:model==='echo'?undefined:model,tools:agent.perms&&agent.perms.network===false&&live?undefined:tools,temperature:0.3,maxTokens:agent.maxTokens||800});
+        const data=await prov.chat(messages,{model:model==='echo'?undefined:model,tools:agent.perms&&agent.perms.network===false&&live?undefined:tools,temperature:0.3,maxTokens:agent.maxTokens||2500});
         const used=data&&data.model||model;
         this.k.usage.bump(agent.id,{reqs:1,tokens:(data&&data.usage&&data.usage.total_tokens)||32,cost:0.0});
         return {data,model:used,provider:live&&model!=='echo'?'remote':'echo',fallback:i};
@@ -2724,7 +2739,7 @@ class ModelRouter{
         this.k.events.emit('agent.retry',{id:agent.id,model,error:String(e.message||e),fallback:i});
         const busy=/429|503|502|quota|overloaded|rate/i.test(String(e.message||e)+e.status);
         if(busy){await new Promise(r=>setTimeout(r,1500));try{
-          const data=await prov.chat(messages,{model:model==='echo'?undefined:model,tools,temperature:0.3,maxTokens:agent.maxTokens||800});
+          const data=await prov.chat(messages,{model:model==='echo'?undefined:model,tools,temperature:0.3,maxTokens:agent.maxTokens||2500});
           this.k.usage.bump(agent.id,{reqs:1,tokens:(data&&data.usage&&data.usage.total_tokens)||32});
           return {data,model:data&&data.model||model,provider:live&&model!=='echo'?'remote':'echo',fallback:i};
         }catch(e2){last=e2}}
@@ -2913,84 +2928,47 @@ class AgentManager{
       let code=args.code||args.source||args.script||args.python||args.program||'';
       if(code && typeof code==='object')code=code.code||code.source||JSON.stringify(code);
       code=String(code||'');
-      a.status='waiting';
-      this.k.events.emit('agent.wait',{id:a.id,why:'python-review'});
+      if(!code.trim())return{ok:false,error:'No Python code'};
       a.thoughts=a.thoughts||[];
-      a.thoughts.push({name:'Thought',detail:'Supervisor reviewing Python before run.',status:'running'});
       a.pendingCode=code;
-      this.k.events.emit('agent.code',{id:a.id,code:code,phase:'review'});
-      let attempt=0; let finalCode=code; let out=null;
-      while(attempt<4 && this.k.alive){
-        attempt++;
-        let estimate={safe:true,seconds:5,reason:'ok'};
+      this.k.events.emit('agent.code',{id:a.id,code:code,phase:'run'});
+      a.thoughts.push({name:'Thought',detail:'Running Python…',status:'running'});
+      this.k.events.emit('agent.tool',{id:a.id,name:'run_python',status:'running',code:code.slice(0,2000)});
+      a.status='running';
+      await new Promise(r=>setTimeout(r,40));
+      let finalCode=code;
+      let out=null;
+      try{
+        out=await this.k.app.tools.execute('run_python',{code:finalCode});
+      }catch(e){
+        out={ok:false,error:String(e&&e.message||e)};
+      }
+      if(out&&out.ok===false&&this.k.liveApi&&this.k.app.provider&&this.k.alive){
+        a.thoughts.push({name:'Thought',detail:'Python error — Supervisor applying a fix…',status:'running'});
+        this.k.events.emit('agent.code',{id:a.id,code:finalCode,phase:'fix',error:String(out.error||'')});
         try{
-          if(this.k.liveApi&&this.k.app.provider){
-            const est=await this.k.app.provider.chat([
-              {role:'system',content:'You are the Supervisor reviewing Python for browser Pyodide. Reply ONLY JSON: {"safe":true|false,"seconds":number,"reason":"...","fixedCode":"optional full fixed python if unsafe or slow"}. Reject infinite loops, huge nested allocations, or work likely >90s or that would exhaust RAM. Prefer vectorized numpy/scipy. If unsafe, provide fixedCode that is safe and fast. All common modules are installed.'},
-              {role:'user',content:finalCode.slice(0,12000)}
-            ],{temperature:0.1,maxTokens:5000});
-            const raw=((est&&est.choices&&est.choices[0]&&est.choices[0].message&&est.choices[0].message.content)||'{}');
-            const m=String(raw).match(/\{[\s\S]*\}/);
-            estimate=JSON.parse(m?m[0]:raw);
-          }
-        }catch(e){estimate={safe:true,seconds:10,reason:'estimate failed, proceeding carefully'}}
-        this.k.events.emit('agent.code',{id:a.id,code:finalCode,phase:'estimate',estimate});
-        if(estimate&&estimate.fixedCode&&String(estimate.fixedCode).trim().length>10){
-          finalCode=String(estimate.fixedCode).replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
-          a.pendingCode=finalCode;
-          this.k.events.emit('agent.code',{id:a.id,code:finalCode,phase:'fixed'});
-        }
-        if(estimate&&estimate.safe===false){
-          a.thoughts.push({name:'Thought',detail:'Supervisor rejected code: '+(estimate.reason||'too heavy')+'. Asking agent to revise (pass '+attempt+').',status:'running'});
-          // Ask same agent conceptually — return error so agent revises
-          if(attempt>=3)break;
-          // try optimize pass instead of hard fail
-          try{
-            if(this.k.liveApi&&this.k.app.provider){
-              const opt=await this.k.app.provider.chat([
-                {role:'system',content:'Rewrite this Python to be safe and fast on Pyodide. No infinite loops. Bound iterations. Return ONLY code.'},
-                {role:'user',content:finalCode.slice(0,12000)}
-              ],{temperature:0.1,maxTokens:4000});
-              const raw=((opt&&opt.choices&&opt.choices[0]&&opt.choices[0].message&&opt.choices[0].message.content)||'').trim().replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
-              if(raw.length>10)finalCode=raw;
-            }
-          }catch(e){}
-          continue;
-        }
-        // speed optimize when safe
-        try{
-          if(this.k.liveApi&&this.k.app.provider){
-            const opt=await this.k.app.provider.chat([
-              {role:'system',content:'Optimize this safe Python for maximum Pyodide speed. All modules available. Return ONLY code.'},
-              {role:'user',content:finalCode.slice(0,12000)}
-            ],{temperature:0.1,maxTokens:4000});
-            const raw=((opt&&opt.choices&&opt.choices[0]&&opt.choices[0].message&&opt.choices[0].message.content)||'').trim().replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
-            if(raw.length>10)finalCode=raw;
+          const fix=await this.k.app.provider.chat([
+            {role:'system',content:'Fix this Python for browser Pyodide. No infinite loops. Prefer print() for output. Return ONLY executable Python code — no markdown fences, no commentary.'},
+            {role:'user',content:'Error:\n'+String(out.error||'')+'\n\nCode:\n'+finalCode.slice(0,10000)}
+          ],{temperature:0.1,maxTokens:4000});
+          const raw=((fix&&fix.choices&&fix.choices[0]&&fix.choices[0].message&&fix.choices[0].message.content)||'').trim()
+            .replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
+          if(raw.length>10){
+            finalCode=raw;
+            a.pendingCode=finalCode;
+            this.k.events.emit('agent.code',{id:a.id,code:finalCode,phase:'run'});
+            await new Promise(r=>setTimeout(r,20));
+            out=await this.k.app.tools.execute('run_python',{code:finalCode});
           }
         }catch(e){}
-        a.pendingCode=finalCode;
-        this.k.events.emit('agent.code',{id:a.id,code:finalCode,phase:'run'});
-        a.thoughts.push({name:'Thought',detail:'Running Python (~'+String((estimate&&estimate.seconds)||'?')+'s est.)…',status:'running'});
-        const res=await this.k.app.tools.execute('run_python',{code:finalCode});
-        out=res&&res.ok===false?{ok:false,error:res.error,stdout:res.stdout,stderr:res.stderr}:{...(res||{}),ok:true};
-        if(out.ok!==false)break;
-        a.thoughts.push({name:'Thought',detail:'Python error — Supervisor requesting fix: '+String(out.error||'').slice(0,200),status:'error'});
-        try{
-          if(this.k.liveApi&&this.k.app.provider){
-            const fix=await this.k.app.provider.chat([
-              {role:'system',content:'Fix this Python for Pyodide. Return ONLY corrected code.'},
-              {role:'user',content:'Error:\n'+String(out.error||'')+'\n\nCode:\n'+finalCode.slice(0,10000)}
-            ],{temperature:0.1,maxTokens:4000});
-            const raw=((fix&&fix.choices&&fix.choices[0]&&fix.choices[0].message&&fix.choices[0].message.content)||'').trim().replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
-            if(raw.length>10)finalCode=raw;
-          }
-        }catch(e){break}
       }
-      a.status='running';
       a.pendingCode=null;
       const ok=out&&out.ok!==false;
-      a.thoughts.push({name:'Thought',detail:ok?'Python finished.':('Python failed: '+String((out&&out.error)||'').slice(0,200)),status:ok?'done':'error'});
-      this.k.events.emit('agent.code',{id:a.id,code:finalCode,phase:ok?'done':'error'});
+      const summary=ok
+        ?('Python finished.'+(out&&out.stdout?(' stdout: '+String(out.stdout).slice(0,200)):'')+(out&&out.result!=null?(' → '+String(out.result).slice(0,120)):''))
+        :('Python failed: '+String((out&&out.error)||'unknown').slice(0,240));
+      a.thoughts.push({name:'Thought',detail:summary,status:ok?'done':'error'});
+      this.k.events.emit('agent.code',{id:a.id,code:finalCode,phase:ok?'done':'error',result:out});
       return out||{ok:false,error:'Python aborted'};
     }
     return await this.k.app.tools.execute(name,args||{});
@@ -4006,34 +3984,35 @@ async testSwarm(n){
 }
 renderSwarm(ev){
   const k=this.app.swarm;if(!k)return;
-  // Live code preview from supervisor review
   if(ev&&(ev.t==='agent.code'||ev.type==='agent.code')){
     const p=ev.p||ev;
     if(p&&p.code){
-      const body=$('#agent-work-body');
-      if(body){
-        let card=body.querySelector('.agent-code-card');
-        if(!card){card=document.createElement('div');card.className='agent-code-card';body.prepend(card)}
-        const phase=p.phase||'review';
-        const est=p.estimate?(' · ~'+String(p.estimate.seconds||'?')+'s · '+(p.estimate.safe===false?'needs fix':'ok')):'';
-        card.innerHTML='<div class="acc-bar"><strong>Python · '+escapeHtml(phase)+'</strong><span>'+escapeHtml(String(p.id||'')+est)+'</span></div><pre>'+escapeHtml(String(p.code).slice(0,4000))+'</pre>';
-      }
+      this._agentCodePreview={id:p.id,code:String(p.code),phase:p.phase||'run',error:p.error||null,ts:Date.now()};
     }
   }
+  try{
+    const running=k.agents.list().find(a=>a.pendingCode);
+    if(running&&running.pendingCode){
+      this._agentCodePreview={id:running.id,code:String(running.pendingCode),phase:(this._agentCodePreview&&this._agentCodePreview.phase)||'run',ts:Date.now()};
+    }
+  }catch(e){}
   const body=$('#agent-work-body');
   const list=k.agents.list();
   if(body){
     const steps=[];
+    if(this._agentCodePreview&&this._agentCodePreview.code){
+      const cp=this._agentCodePreview;
+      const phase=cp.phase||'run';
+      const label=phase==='done'?'Python · done':phase==='error'?'Python · error':phase==='fix'?'Python · fixing':'Python · running';
+      steps.push('<div class="agent-code-card"><div class="acc-bar"><strong>'+escapeHtml(label)+'</strong><span>'+escapeHtml(String(cp.id||''))+'</span></div><pre>'+escapeHtml(String(cp.code).slice(0,6000))+'</pre>'+(cp.error?('<div class="acc-bar" style="color:var(--error)">'+escapeHtml(String(cp.error).slice(0,300))+'</div>'):'')+'</div>');
+    }
     list.forEach(a=>{
-      if(a.role==='supervisor')return; // user sees worker thoughts only
+      if(a.role==='supervisor')return;
       const thoughts=(a.thoughts||[]).filter(t=>t&&String(t.detail||'').trim());
-      // One thought only — prefer last meaningful non-tool echo
       let thought='';
       for(let i=thoughts.length-1;i>=0;i--){
         const d=String(thoughts[i].detail||'').trim();
         if(!d)continue;
-        if(/^(Handed Python|Running optimized|Python finished|Python error)/i.test(d)&&thought)continue;
-        // skip raw tool dumps
         if(/^\s*[\{\[]/.test(d)&&d.length>80)continue;
         thought=d;break;
       }
@@ -4045,9 +4024,10 @@ renderSwarm(ev){
         if(this.renderMarkdown)bodyHtml='<div class="thought-math">'+this.renderMarkdown(thought)+'</div>';
         else bodyHtml='<pre>'+escapeHtml(thought)+'</pre>';
       }catch(e){bodyHtml='<pre>'+escapeHtml(thought)+'</pre>'}
-      steps.push('<div class="agent-work-step"><div class="nm">'+escapeHtml(a.id)+' · '+escapeHtml(a.role)+'</div>'+bodyHtml+'</div>');
+      steps.push('<div class="agent-work-step"><div class="nm">'+escapeHtml(a.id)+' · '+escapeHtml(a.role)+(a.pendingCode?' · python':'')+'</div>'+bodyHtml+'</div>');
     });
-    body.innerHTML=steps.join('')||'<div class="hint">Supervisor is assembling the team…</div>';if(this._renderMath)try{this._renderMath(body)}catch(e){}
+    body.innerHTML=steps.join('')||'<div class="hint">Supervisor is assembling the team…</div>';
+    if(this._renderMath)try{this._renderMath(body)}catch(e){}
   }
   const nDone=list.filter(a=>a.role!=='supervisor'&&(a.status==='completed'||a.result)).length;
   const nWork=list.filter(a=>a.role!=='supervisor').length;
@@ -5934,7 +5914,10 @@ _bindDevPanelOnce(){
   if(this._devPanelBound)return;this._devPanelBound=true;
   const close=()=>{
     const ov=$('#dev-panel-overlay');
-    if(ov){ov.classList.remove('open');ov.setAttribute('aria-hidden','true')}
+    if(!ov)return;
+    try{const ae=document.activeElement;if(ae&&ov.contains(ae)&&typeof ae.blur==='function')ae.blur()}catch(e){}
+    ov.classList.remove('open');
+    ov.setAttribute('aria-hidden','true');
   };
   const dc=$('#dev-panel-close');if(dc)dc.onclick=e=>{e.preventDefault();e.stopPropagation();close()};
   const dcan=$('#dev-panel-cancel');if(dcan)dcan.onclick=e=>{e.preventDefault();e.stopPropagation();close()};
@@ -5952,7 +5935,10 @@ _bindDevPanelOnce(){
 }
 closeDevPanel(){
   const ov=$('#dev-panel-overlay');
-  if(ov){ov.classList.remove('open');ov.setAttribute('aria-hidden','true')}
+  if(!ov)return;
+  try{const ae=document.activeElement;if(ae&&ov.contains(ae)&&typeof ae.blur==='function')ae.blur()}catch(e){}
+  ov.classList.remove('open');
+  ov.setAttribute('aria-hidden','true');
 }
 renderDevCatalog(){
   const el=$('#dev-model-list');if(!el)return;
