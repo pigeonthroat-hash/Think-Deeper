@@ -776,6 +776,12 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .swarm-step .nm{font-weight:600;font-size:.8rem}
 .swarm-step pre{white-space:pre-wrap;font-size:.75rem;margin:4px 0 0}
 #chat-agent-n{width:52px;margin-left:6px;background:transparent;border:none;color:var(--text-primary);font:inherit}
+
+.swarm-main{display:flex;flex-direction:column}
+.swarm-chat{border-top:1px solid var(--border);max-height:36%;min-height:140px;display:flex;flex-direction:column;background:var(--bg-primary)}
+.swarm-chat h3{margin:8px 12px 4px;font-size:.85rem}
+.swarm-chat-log{flex:1;overflow:auto;padding:8px 12px}
+.swarm-chat-log .msg{padding:8px 10px;margin:0 0 8px;border-radius:12px;background:var(--bg-elevated);line-height:1.5}
 </style>
 </head>
 <body>
@@ -905,6 +911,10 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
     </aside>
     <section class="swarm-main">
       <div class="swarm-think" id="swarm-think"></div>
+      <div class="swarm-chat" id="swarm-chat">
+        <h3>Coordinator chat</h3>
+        <div id="swarm-chat-log" class="swarm-chat-log"></div>
+      </div>
     </section>
   </div>
 </div>
@@ -1965,34 +1975,22 @@ async syncWorkspace(){
     }catch(e){}
   }
 }
-async run(code){await this.init();
-const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('Python timed out after '+ms/1000+'s')),ms))]);
-try{
-  await this.syncWorkspace();
-  await this.pyodide.runPythonAsync(`import sys,re
-from io import StringIO
-sys.stdout=StringIO()
-sys.stderr=StringIO()
-def ws_read(path,start=0,length=4000):
-    p=path if str(path).startswith('/workspace/') else '/workspace/'+str(path).lstrip('/')
-    with open(p,'r',encoding='utf-8',errors='replace') as f: t=f.read()
-    start=max(0,int(start)); length=max(1,int(length))
-    return t[start:start+length]
-def ws_search(path, keyword, context=160, limit=20):
-    p=path if str(path).startswith('/workspace/') else '/workspace/'+str(path).lstrip('/')
-    with open(p,'r',encoding='utf-8',errors='replace') as f: t=f.read()
-    hits=[]
-    for m in re.finditer(re.escape(keyword), t, flags=re.I):
-        i=m.start(); hits.append({'index':i,'snippet':t[max(0,i-context):i+len(keyword)+context]})
-        if len(hits)>=limit: break
-    return hits
-`);
-  const result=await withTimeout(this.pyodide.runPythonAsync(code),45000);
-  const stdout=this.pyodide.runPython('sys.stdout.getvalue()');
-  const stderr=this.pyodide.runPython('sys.stderr.getvalue()');
-  return{ok:true,result:result!=null?String(result):null,stdout:String(stdout||'').slice(0,20000),stderr:String(stderr||'').slice(0,5000)}
-}catch(e){return{ok:false,error:e.message||String(e)}}}}
-
+async run(code){
+  const src=String(code==null?'':code).replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
+  if(!src)return{ok:false,error:'No Python code'};
+  try{await this.init()}catch(e){return{ok:false,error:'Pyodide failed to load: '+(e.message||e)}}
+  const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,rej)=>setTimeout(()=>rej(new Error('Python timed out after '+ms/1000+'s')),ms))]);
+  try{await this.syncWorkspace()}catch(e){}
+  try{await this.pyodide.runPythonAsync("import sys\\nfrom io import StringIO\\nsys.stdout=StringIO()\\nsys.stderr=StringIO()")}catch(e){return{ok:false,error:'Python bootstrap failed'}}
+  try{
+    const result=await withTimeout(this.pyodide.runPythonAsync(src),90000);
+    let stdout='',stderr='';
+    try{stdout=this.pyodide.runPython('sys.stdout.getvalue()')}catch(e){}
+    try{stderr=this.pyodide.runPython('sys.stderr.getvalue()')}catch(e){}
+    return{ok:true,result:result!=null?String(result):null,stdout:String(stdout||'').slice(0,20000),stderr:String(stderr||'').slice(0,5000)}
+  }catch(e){return{ok:false,error:e.message||String(e)}}
+}
+}
 class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.python=py;this.definitions=[
 {type:'function',function:{name:'list_files',description:'List files and folders in the AI internal filesystem. Use when you need to see what exists before reading or writing. Paths include artifacts/, archive/, uploads/, memory/, plugins/. For an external workspace use path prefix \"external:\".',parameters:{type:'object',properties:{path:{type:'string',description:'Directory path to list. Use \"\" or \"/\" or \"artifacts\" for roots.'}},required:[]}}},
 {type:'function',function:{name:'read_file',description:'Read a file from the workspace. For large files, pass start and length to page through it instead of loading everything.',parameters:{type:'object',properties:{path:{type:'string'},start:{type:'number',description:'Character offset'},length:{type:'number',description:'Max characters to return'}},required:['path']}}},
@@ -2514,7 +2512,7 @@ class Scheduler{
     a.status='running';a.started=a.started||Date.now();
     this.k.events.emit('agent.start',{id,task:a.task,model:a.model});
     const t0=Date.now();
-    try{await this.k.agents.execute(a);if(a.status==='waiting')return;a.status='completed';a.ended=Date.now();this.k.usage.bump(id,{ms:Date.now()-t0});this.k.events.emit('agent.done',{id,result:(a.result||'').slice(0,400)});
+    try{await Promise.race([this.k.agents.execute(a),new Promise((_,rej)=>setTimeout(()=>rej(new Error('agent timeout')),90000))]);if(a.status==='waiting')return;a.status='completed';a.ended=Date.now();this.k.usage.bump(id,{ms:Date.now()-t0});this.k.events.emit('agent.done',{id,result:(a.result||'').slice(0,400)});
       if(id!=='coordinator'&&this.k.alive)this.enqueue('coordinator','resume')}
     catch(e){if(e&&e.wait){a.status='waiting';this.k.events.emit('agent.wait',{id,why:e.wait});return}
       a.status='failed';a.error=String(e.message||e);this.k.usage.bump(id,{fails:1,ms:Date.now()-t0});this.k.events.emit('agent.fail',{id,error:a.error});
@@ -2626,15 +2624,25 @@ class AgentManager{
       if(!a.perms.messaging)return {error:'no messaging'};
       return this.k.bus.send({from:a.id,to:args.to,text:String(args.text||''),channel:args.to});
     }
-    if(name==='swarm_spawn'){
-      const c=this.spawn(a.id,{role:args.role||'worker',task:args.task,model:a.model,fallbacks:a.fallbacks});
-      return {ok:true,id:c.id};
+    if(name==='swarm_spawn' || name==='swarm_run'){
+      const idle=this.list().find(x=>x.role!=='supervisor'&&(x.status==='idle'||x.status==='completed'));
+      if(!idle)return{ok:false,error:'No idle existing agent. Use an id from the roster.'};
+      idle.task=String(args.task||args.text||idle.task||'');
+      if(args.role)idle.role=args.role;
+      this.k.scheduler.enqueue(idle.id,'assigned');
+      return {ok:true,id:idle.id,reused:true};
     }
     if(!this.k.app.tools)return {error:'no tools'};
     if(name==='run_python' && !a.perms.python)return {error:'no python'};
     if((name==='write_file'||name==='read_file') && !a.perms.files)return {error:'no files'};
     if(name==='write_file' && args.path && String(args.path).startsWith('swarm/shared') && !a.perms.sharedWs)return {error:'no shared ws'};
-    if(name==='run_python'){const code=args.code||args.source||args.script||args.python||'';return await this.k.app.tools.execute('run_python',{code})}
+    if(name==='run_python'){
+      let code=args.code||args.source||args.script||args.python||args.program||'';
+      if(code && typeof code==='object')code=code.code||code.source||JSON.stringify(code);
+      code=String(code||'');
+      const res=await this.k.app.tools.execute('run_python',{code});
+      return res&&res.ok===false?{ok:false,error:res.error,stdout:res.stdout,stderr:res.stderr}:res;
+    }
     return await this.k.app.tools.execute(name,args||{});
   }
 }
@@ -2648,11 +2656,12 @@ class Coordinator{
     const sup=this.k.agents.register({id:'coordinator',role:'supervisor',model,fallbacks,task:'Coordinate until solved: '+goal,rounds:0,perms:{python:true,files:true,messaging:true,spawn:true,network:true,sharedWs:true},systemPrompt:'You are the coordinator. Pick ONE worker at a time. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nDo not run everything at once. Keep going until the goal is solved.'});
     const count=Math.max(1,Math.min(10000,n||1));
     const roles=['builder','planner','reviewer','researcher','tester'];
+    const workerLive=this.k.liveApi && count<=4;
     for(let i=0;i<count;i++){
-      this.k.agents.register({id:'w'+String(i+1).padStart(4,'0'),role:roles[i%roles.length],task:'Idle until the coordinator assigns you.',model,fallbacks,parent:'coordinator',perms:{python:true,files:true,messaging:true,spawn:false,network:true,sharedWs:true}});
+      this.k.agents.register({id:'w'+String(i+1).padStart(4,'0'),role:roles[i%roles.length],task:'Idle until the coordinator assigns you.',model:workerLive?model:'echo',fallbacks:workerLive?fallbacks:['echo'],parent:'coordinator',perms:{python:true,files:true,messaging:true,spawn:false,network:true,sharedWs:true}});
     }
     this.k.memory.add('global','root',{text:'goal: '+goal});
-    this.k.scheduler.conc=1;
+    this.k.scheduler.conc=workerLive?1:Math.min(12,Math.max(1,Math.ceil(Math.log2(count+1))));
     this.k.scheduler.enqueue('coordinator','start');
     return {configured:count,activated:1};
   }
@@ -3268,6 +3277,16 @@ renderSwarm(){
   if(use){
     const t=k.usage.totals;const list=k.agents.list();
     use.textContent=list.length+' agents · '+k.scheduler.inflight.size+' running · '+k.scheduler.q.length+' queued · '+t.reqs+' reqs · '+t.fails+' fails';
+  }
+  const log=$('#swarm-chat-log');
+  if(log){
+    const coord=k.agents.get('coordinator');
+    const bits=[];
+    if(k.goal)bits.push('<div class="msg"><strong>You</strong><div>'+escapeHtml(k.goal)+'</div></div>');
+    if(coord&&coord.result)bits.push('<div class="msg"><strong>Coordinator</strong><div>'+escapeHtml(String(coord.result).slice(0,4000))+'</div></div>');
+    if(k.solved)bits.push('<div class="msg"><strong>Final</strong><div>'+escapeHtml(String(k.solved).slice(0,4000))+'</div></div>');
+    log.innerHTML=bits.join('')||'<div class="hint">The coordinator answer will appear here.</div>';
+    if(this._renderMath)this._renderMath(log);
   }
 }
 openProjectSetup(){
