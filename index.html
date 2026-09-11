@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Think Deeper — Agentic AI</title>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -758,6 +758,16 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
   .swarm-side{width:100%;border-right:none;border-bottom:1px solid var(--border)}
   .swarm-cols,.swarm-bottom{grid-template-columns:1fr}
 }
+
+.message.assistant .message-body{display:block;width:100%;max-width:100%;background:transparent;padding:4px 0}
+.message-body hr{border:none;border-top:1px solid var(--border);margin:1em 0}
+.message-body strong,.message-body b{font-weight:700;color:var(--text-primary)}
+.message-body em{font-style:italic}
+.message-body h1,.message-body h2,.message-body h3,.message-body h4{display:block}
+.katex,.katex-display{color:var(--text-primary)}
+.katex-display{margin:.75em 0}
+.math-fallback{font-family:var(--font-display);opacity:.9}
+.mode-pop button[data-mode="swarm"]{margin-top:6px;border-top:1px solid var(--border);border-radius:0 0 8px 8px}
 </style>
 </head>
 <body>
@@ -769,8 +779,8 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <div class="mode-tabs" id="mode-tabs">
 <button type="button" class="mode-tab active" data-mode="chat" id="mode-chat">Chat</button>
 <button type="button" class="mode-tab" data-mode="code" id="mode-code">Code</button>
+<button type="button" class="mode-tab" data-mode="swarm" id="mode-swarm">Agent Mode</button>
 <button type="button" class="mode-tab" data-mode="auto" id="mode-auto">Automations</button>
-<button type="button" class="mode-tab" data-mode="swarm" id="mode-swarm">Agents</button>
 </div>
 <div class="sidebar-section">Projects</div>
 <button type="button" class="btn-new-project" id="new-project-btn">＋ New project</button>
@@ -4084,68 +4094,57 @@ renderMarkdown(text){
     }catch(e){}
     return m;
   });
-  t=t.replace(/\[\[file:(generated\/[^\]]+\.(?:png|jpe?g|gif|webp|svg))\]\]/gi,(_,path)=>'![]('+path+')');
-  t=t.replace(/(^|\s)(generated\/[^\s)]+\.(?:png|jpe?g|gif|webp))(?=$|\s)/gi,(m,pre,path)=>pre+'![]('+path+')');
-  t=t.replace(/!\[([^\]]*)\]\((https?:[^)]+)\)/g,(m,alt,url)=>'<img alt="'+escapeHtml(alt||'')+'" src="'+escapeHtml(url)+'" style="max-width:min(100%,520px);border-radius:12px;display:block;margin:8px 0">');
-
-  // --- 1. Protect code fences & inline code ---
   const fences=[];
-  t=t.replace(/```[\s\S]*?```/g,(m)=>{fences.push(m);return '\u0000FENCE'+(fences.length-1)+'\u0000'});
-  t=t.replace(/`[^`\n]+`/g,(m)=>{fences.push(m);return '\u0000FENCE'+(fences.length-1)+'\u0000'});
-
-  // --- 2. Light normalization (safe) ---
-  t=t.replace(/\\\\([a-zA-Z]+)/g,'\\$1'); // double-escaped commands
-  // missing backslash before common commands (model typo: frac{ → \frac{)
-  t=t.replace(/(^|[^\\a-zA-Z])(frac|sqrt|sum|int|cdot|times|pm|leq|geq|neq|approx|infty|mathbf|mathbb|begin|end)\{/g,'$1\\$2{');
-  t=t.replace(/λλ/g,'\\lambda').replace(/(^|[^\\])λ/g,'$1\\lambda');
-  t=t.replace(/n\\timesn/g,'n \\times n');
-
-  // --- 3. Extract math into placeholders (order matters) ---
+  t=t.replace(/```[\s\S]*?```/g,(m)=>{fences.push(m);return '%%FENCE'+(fences.length-1)+'%%'});
+  t=t.replace(/`[^`\n]+`/g,(m)=>{fences.push(m);return '%%FENCE'+(fences.length-1)+'%%'});
   const maths=[];
   const push=(tex,display)=>{
-    let s=String(tex||'').trim();
+    let s=String(tex||'').trim().replace(/^\$+|\$+$/g,'').trim();
     if(!s)return '';
-    s=s.replace(/λλ/g,'\\lambda');
-    s=s.replace(/n\\timesn/g,'n \\times n');
-    // strip accidental outer $ 
-    s=s.replace(/^\$+|\$+$/g,'').trim();
     maths.push({tex:s,display:!!display});
-    return '\u0000MATH'+(maths.length-1)+'\u0000';
+    return '%%MATH'+(maths.length-1)+'%%';
   };
-
-  // Display: $$...$$
   t=t.replace(/\$\$([\s\S]*?)\$\$/g,(_,m)=>push(m,true));
-  // Display: \[...\]
   t=t.replace(/\\\[([\s\S]*?)\\\]/g,(_,m)=>push(m,true));
-  // Inline: \(...\)
   t=t.replace(/\\\(([\s\S]*?)\\\)/g,(_,m)=>push(m,false));
-  // Environments not yet wrapped
-  t=t.replace(/\\begin\{(aligned|align\*?|equation\*?|gather\*?|eqnarray|matrix|bmatrix|pmatrix|vmatrix|Vmatrix|cases|array)\}([\s\S]*?)\\end\{\1\}/g,(m)=>push(m,true));
-  // Inline $...$  (single line, non-empty, not empty $$)
-  t=t.replace(/\$([^\n\$]+?)\$/g,(_,m)=>{
-    // skip if looks like currency: $5 or $0.05 at start with only digits
+  t=t.replace(/\\begin\{(aligned|align\*?|equation\*?|gather\*?|eqnarray|matrix|bmatrix|pmatrix|vmatrix|cases)\}([\s\S]*?)\\end\{\1\}/g,(m)=>push(m,true));
+  t=t.replace(/\$([^\n$]+?)\$/g,(_,m)=>{
     if(/^\s*\d/.test(m)&&!/[a-zA-Z\\]/.test(m))return '$'+m+'$';
     return push(m,false);
   });
-
-  // --- 4. Restore code fences ---
-  t=t.replace(/\u0000FENCE(\d+)\u0000/g,(_,i)=>fences[Number(i)]);
-
-  // --- 5. Markdown ---
+  t=t.replace(/%%FENCE(\d+)%%/g,(_,n)=>fences[Number(n)]);
   let out;
-  if(!window.marked){
-    out=escapeHtml(t).replace(/\n/g,'<br>');
-  }else{
-    marked.setOptions({breaks:true,gfm:true});
-    out=marked.parse(t);
-  }
-
-  // --- 6. Inject rendered math ---
-  out=out.replace(/\u0000MATH(\d+)\u0000/g,(_,i)=>this._katexHTML(maths[Number(i)]));
-  // marked may escape null chars in some builds
-  out=out.replace(/\u0000MATH(\d+)\u0000/g,(_,i)=>this._katexHTML(maths[Number(i)]));
-
+  try{
+    if(window.marked&&typeof marked.parse==='function'){
+      marked.setOptions({breaks:true,gfm:true});
+      out=marked.parse(t);
+    }else out=this.builtinMarkdown(t);
+  }catch(e){out=this.builtinMarkdown(t)}
+  out=out.replace(/%%MATH(\d+)%%/g,(_,n)=>this._katexHTML(maths[Number(n)]));
   return out;
+}
+builtinMarkdown(src){
+  const fences=[];
+  let t=String(src||'');
+  t=t.replace(/```(\w*)\n?([\s\S]*?)```/g,(_,lang,code)=>{fences.push('<pre><code>'+escapeHtml(code)+'</code></pre>');return '%%FENCE'+(fences.length-1)+'%%'});
+  t=t.replace(/`([^`]+)`/g,(_,c)=>{fences.push('<code>'+escapeHtml(c)+'</code>');return '%%FENCE'+(fences.length-1)+'%%'});
+  t=escapeHtml(t);
+  t=t.replace(/^&gt; (.*)$/gm,'<blockquote>$1</blockquote>');
+  t=t.replace(/^###### (.*)$/gm,'<h6>$1</h6>').replace(/^##### (.*)$/gm,'<h5>$1</h5>').replace(/^#### (.*)$/gm,'<h4>$1</h4>');
+  t=t.replace(/^### (.*)$/gm,'<h3>$1</h3>').replace(/^## (.*)$/gm,'<h2>$1</h2>').replace(/^# (.*)$/gm,'<h1>$1</h1>');
+  t=t.replace(/^(?:---|\*\*\*|___)\s*$/gm,'<hr>');
+  t=t.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_]+)__/g,'<strong>$1</strong>');
+  t=t.replace(/\*([^*\n]+)\*/g,'<em>$1</em>').replace(/_([^_\n]+)_/g,'<em>$1</em>');
+  t=t.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  t=t.replace(/^\s*[-*] (.*)$/gm,'<li>$1</li>');
+  t=t.replace(/(?:<li>.*<\/li>\n?)+/g,m=>'<ul>'+m+'</ul>');
+  t=t.replace(/^\s*\d+\. (.*)$/gm,'<li>$1</li>');
+  t=t.split(/\n{2,}/).map(p=>{
+    if(/^\s*</.test(p))return p;
+    return '<p>'+p.replace(/\n/g,'<br>')+'</p>';
+  }).join('\n');
+  t=t.replace(/%%FENCE(\d+)%%/g,(_,n)=>fences[Number(n)]);
+  return t;
 }
 _katexHTML(item){
   if(!item)return '';
@@ -4702,7 +4701,9 @@ bindModeMini(){
     const signed=!!(this.app.storage.getActiveUser&&this.app.storage.getActiveUser());
     const keys=['fast','medium','hard','ultra'].concat(signed?['xultra']:[]);
     const blurb={fast:'Quick replies · ~1.5k tokens',medium:'Balanced · ~4k tokens',hard:'Thorough · ~8k tokens',ultra:'Team of 3 agents · ~16k',xultra:'Signed-in max precision · ~32k'};
-    pop.innerHTML=keys.map(k=>`<button type="button" data-intensity="${k}" class="${k===cur?'active':''}">${INTENSITY[k].label}<small>${INTENSITY[k].blurb||blurb[k]||''}</small></button>`).join('');
+    pop.innerHTML=keys.map(k=>`<button type="button" data-intensity="${k}" class="${k===cur?'active':''}">${INTENSITY[k].label}<small>${INTENSITY[k].blurb||blurb[k]||''}</small></button>`).join('')
+      +'<button type="button" data-mode="swarm">Agent Mode<small>Coordinator, bus, real workers</small></button>';
+    pop.querySelector('[data-mode="swarm"]').onclick=()=>{pop.classList.remove('open');this.setMode('swarm')};
     pop.querySelectorAll('[data-intensity]').forEach(b=>b.onclick=()=>{
       const k=b.dataset.intensity;
       if(INTENSITY[k]&&INTENSITY[k].authOnly&&!signed){toast('Extreme Ultra needs a signed-in Google account','error');return}
