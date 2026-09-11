@@ -5868,17 +5868,17 @@ bindAccountUi(){
   const ly=$('#logout-yes');if(ly)ly.onclick=()=>{$('#logout-confirm').classList.remove('open');this.logoutGoogle()};
   const lc=$('#logout-cancel');if(lc)lc.onclick=()=>$('#logout-confirm').classList.remove('open');
   const more=$('#sidebar-more-btn');if(more)more.onclick=()=>$('#sidebar-footer').classList.toggle('open');
-  const ft=$('#footer-toggle');
-  if(ft)ft.onclick=()=>{
+  const footerToggle=$('#footer-toggle');
+  if(footerToggle)footerToggle.onclick=()=>{
     const f=$('#sidebar-footer');if(!f)return;
     const on=f.classList.toggle('collapsed');
-    ft.textContent=on?'Tools ▸':'Tools ▾';
+    footerToggle.textContent=on?'Tools ▸':'Tools ▾';
     this.app.storage.set('footerCollapsed',on);
   };
   try{
     if(this.app.storage.get('footerCollapsed',false)){
       const f=$('#sidebar-footer');if(f)f.classList.add('collapsed');
-      if(ft)ft.textContent='Tools ▸';
+      if(footerToggle)footerToggle.textContent='Tools ▸';
     }
   }catch(e){}
 
@@ -6632,6 +6632,5 @@ async _restoreCloudSession(){
 const app=new App();app.start();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
-
 </body>
 </html>
