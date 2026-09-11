@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Think Deeper — Agentic AI</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a1a1a'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='16' fill='%23e8e4dc' font-family='system-ui'%3ETD%3C/text%3E%3C/svg%3E">
+
 <script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
@@ -6596,7 +6598,7 @@ openDevPanel(){
       if($('#dev-fb-key')){$('#dev-fb-key').value='';$('#dev-fb-key').placeholder=(data&&data.fallbackApiKey)?'•••• key set (leave blank to keep)':'optional'}
       this._devCatalog=(data&&data.modelCatalog)||[];
       this.renderDevCatalog();
-      this._renderDevKeyStatus(data);
+      if(typeof this._renderDevKeyStatus==='function')this._renderDevKeyStatus(data);
     }catch(e){console.warn(e);toast('Could not load system defaults (check cloud rules)','error')}
   })();
 }
@@ -6623,6 +6625,38 @@ _bindDevPanelOnce(){
     if($('#dev-model-id'))$('#dev-model-id').value='';if($('#dev-model-desc'))$('#dev-model-desc').value='';
     this.renderDevCatalog();
   };
+}
+_renderDevKeyStatus(data){
+  const st=$('#dev-key-status');
+  const del=$('#dev-key-delete');
+  let has=!!(data&&data.apiKey&&String(data.apiKey).trim());
+  if(!has){
+    try{
+      const meta=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemKeyMeta')||'null');
+      if(meta&&meta.hasKey)has=true;
+    }catch(e){}
+  }
+  if(st)st.textContent=has?'A site-wide key is configured. You cannot view it — only replace or delete it.':'No site-wide key yet.';
+  if(del)del.style.display=has?'inline-block':'none';
+}
+async deleteSystemApiKey(){
+  if(!confirm('Delete the site-wide API key for all users on this device (and cloud if allowed)?'))return;
+  const user=this.app.storage.getActiveUser()||{};
+  let data={};
+  try{data=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'{}')||{}}catch(e){}
+  delete data.apiKey;
+  data.updatedAt=Date.now();
+  try{localStorage.setItem('thinkdeeper_v2_systemDefaults',JSON.stringify(data))}catch(e){}
+  try{localStorage.setItem('thinkdeeper_v2_systemKeyMeta',JSON.stringify({hasKey:false,updatedAt:Date.now()}))}catch(e){}
+  const c=this.app.provider.config||{};
+  if(c._fromSystem){c.apiKey='';delete c._fromSystem;try{this.app.provider.save(c)}catch(e){}}
+  try{
+    if(this.app.cloud&&this.app.cloud.isDevAccount(user.email)){
+      await this.app.cloud.pushSystemDefaults(Object.assign({},data,{apiKey:''}),user.email);
+    }
+  }catch(e){console.warn(e)}
+  if(typeof this._renderDevKeyStatus==='function')this._renderDevKeyStatus(data);
+  toast('Site API key deleted','success');
 }
 closeDevPanel(){
   const ov=$('#dev-panel-overlay');
