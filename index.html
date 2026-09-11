@@ -953,6 +953,11 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .mem-float-input button.primary{background:var(--accent);color:var(--text-inverse);border-color:transparent}
 .acct-memory .mem-summary{margin-top:8px;padding:10px;border-radius:10px;background:var(--bg-tertiary);font-size:.82rem;line-height:1.5}
 
+
+html{font-size:calc(15px * var(--ui-scale, 1))}
+.message-body,.message.user .message-body,.agent-msg-body,.code-msg{font-size:calc(1rem * var(--ui-scale, 1))}
+.message.user .message-body{padding:calc(12px * var(--ui-scale, 1)) calc(16px * var(--ui-scale, 1))}
+
 </style>
 </head>
 <body>
@@ -1317,6 +1322,17 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 </select>
 <div class="hint">Loads translations from the Think Deeper Weblate catalog (<code>locales/&lt;lang&gt;.json</code>). Falls back to English if a language is incomplete.</div>
 </div>
+<div class="form-group"><label>Text size</label>
+<select id="ui-text-size">
+<option value="0.88">Small</option>
+<option value="0.94">Medium-small</option>
+<option value="1" selected>Default</option>
+<option value="1.08">Medium-large</option>
+<option value="1.16">Large</option>
+<option value="1.28">Extra large</option>
+</select>
+<div class="hint">Scales interface text and chat bubbles.</div>
+</div>
 <div class="form-group"><label data-i18n="settings.thinkingGif">Working animation GIF URL</label><input type="text" id="thinking-gif" placeholder="https://…/loading.gif or leave empty"><div class="hint">Leave blank for default dots.</div></div>
 <div class="btn-row"><button class="btn-primary" id="save-ui" data-i18n="settings.saveUi">Save UI Settings</button></div>
 </div>
@@ -1445,7 +1461,11 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <div class="panel-body">
 <p class="hint" style="margin-bottom:12px">System defaults apply to all guests and accounts. Keys are stored in cloud config (not exposed in the client UI after save). Only verified dev accounts can write.</p>
 <div class="form-group"><label>Default API Base URL</label><input type="text" id="dev-api-base" placeholder="https://api.openai.com/v1"></div>
-<div class="form-group"><label>Default API Key</label><input type="password" id="dev-api-key" placeholder="sk-… (write-only after save)" autocomplete="new-password"></div>
+<div class="form-group"><label>Default API Key</label>
+<input type="password" id="dev-api-key" placeholder="sk-… (write-only — never shown again)" autocomplete="new-password">
+<div id="dev-key-status" class="hint" style="margin-top:6px"></div>
+<button type="button" class="btn-secondary" id="dev-key-delete" style="margin-top:8px;display:none">Delete site API key</button>
+</div>
 <div class="form-group"><label>Primary model ID</label><input type="text" id="dev-api-model" placeholder="gpt-4o-mini"></div>
 <div class="form-group"><label>Fallback Base URL</label><input type="text" id="dev-fb-base" placeholder="optional"></div>
 <div class="form-group"><label>Fallback API Key</label><input type="password" id="dev-fb-key" placeholder="optional" autocomplete="new-password"></div>
@@ -1755,7 +1775,7 @@ class CloudSync{
       const setDoc=await base.collection('settings').doc('app').get();
       if(setDoc.exists){
         const s=setDoc.data()||{};
-        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','uiLanguage'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
+        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','uiLanguage','uiTextSize'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
       }
       const remoteAutos=await this.pullAutomations(base);
       const deleted=new Set(((out.deletedAutomations)||[]).map(String));
@@ -1830,16 +1850,28 @@ class CloudSync{
     await this.db.collection('system').doc('defaults').set(merged,{merge:true});
     return merged;
   }
-  applySystemDefaults(app,data){
+  applySystemDefaults(app,data,opts){
     if(!data||!app||!app.provider)return;
-    const c=app.provider.config||{};
-    // Only fill gaps — user keys win if already set
-    if((!c.apiKey||!String(c.apiKey).trim())&&data.apiKey)c.apiKey=data.apiKey;
-    if((!c.baseUrl||c.baseUrl==='https://api.openai.com/v1')&&data.baseUrl)c.baseUrl=data.baseUrl;
-    if(!c.model&&data.model)c.model=data.model;
-    if(!c.fallbackApiKey&&data.fallbackApiKey)c.fallbackApiKey=data.fallbackApiKey;
-    if(!c.fallbackBaseUrl&&data.fallbackBaseUrl)c.fallbackBaseUrl=data.fallbackBaseUrl;
-    if(!c.fallbackModel&&data.fallbackModel)c.fallbackModel=data.fallbackModel;
+    opts=opts||{};
+    const force=!!opts.force; // force overwrite when admin is pushing site-wide key
+    const c=Object.assign({},app.provider.config||{});
+    // Site-wide system key fills gaps (and force when admin saves)
+    if(data.apiKey&&String(data.apiKey).trim()&&(force||!c.apiKey||!String(c.apiKey).trim()||c._fromSystem)){
+      c.apiKey=String(data.apiKey).trim();
+      c._fromSystem=true;
+    }
+    if(data.baseUrl&&String(data.baseUrl).trim()&&(force||!c.baseUrl||c.baseUrl==='https://api.openai.com/v1'||c._fromSystem)){
+      c.baseUrl=String(data.baseUrl).trim();
+    }
+    if(data.model&&String(data.model).trim()&&(force||!c.model||c._fromSystem)){
+      c.model=String(data.model).trim();
+    }
+    if(data.fallbackApiKey&&String(data.fallbackApiKey).trim()&&(force||!c.fallbackApiKey||c._fromSystemFb)){
+      c.fallbackApiKey=String(data.fallbackApiKey).trim();
+      c._fromSystemFb=true;
+    }
+    if(data.fallbackBaseUrl&&(force||!c.fallbackBaseUrl))c.fallbackBaseUrl=String(data.fallbackBaseUrl||'').trim();
+    if(data.fallbackModel&&(force||!c.fallbackModel))c.fallbackModel=String(data.fallbackModel||'').trim();
     if(Array.isArray(data.modelCatalog)&&data.modelCatalog.length){
       const lib=app.storage.get('discoveredModels',[])||[];
       const ids=new Set(lib.map(m=>m.id||m));
@@ -1850,9 +1882,30 @@ class CloudSync{
       app.storage.set('discoveredModels',lib);
       app.provider.models=lib;
     }
-    app.provider.save(c);
-    // mark that system defaults applied (do not surface raw keys)
-    app.storage.set('systemDefaultsApplied',true);
+    // Keep in live memory for guests + accounts
+    app.provider.config=c;
+    try{app.provider.save(c)}catch(e){}
+    // Mirror into device session so logout/login can rehydrate without showing the key
+    try{
+      const meta={hasKey:!!(c.apiKey&&String(c.apiKey).trim()),hasFbKey:!!(c.fallbackApiKey&&String(c.fallbackApiKey).trim()),baseUrl:c.baseUrl||'',model:c.model||'',updatedAt:Date.now()};
+      localStorage.setItem('thinkdeeper_v2_systemKeyMeta',JSON.stringify(meta));
+    }catch(e){}
+  }
+  /** Load site-wide defaults from device cache + optional cloud; safe after login/logout */
+  async rehydrateSystemDefaults(app){
+    let data=null;
+    try{data=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'null')}catch(e){}
+    try{
+      if(this.ready&&this.db){
+        const remote=await this.pullSystemDefaults();
+        if(remote){
+          if(!data)data=remote;
+          else if((remote.updatedAt||0)>=(data.updatedAt||0))data=Object.assign({},data,remote);
+        }
+      }
+    }catch(e){}
+    if(data)this.applySystemDefaults(app,data,{force:false});
+    return data;
   }
 
   schedulePush(app){
@@ -1864,7 +1917,7 @@ class CloudSync{
     clearTimeout(this._saveTimer);
     this._saveTimer=setTimeout(()=>{
       this.pushAll(this._app).catch(e=>console.warn('[CloudSync] push',e));
-    },2000);
+    },600);
   }
   pushNow(app,convId){
     if(!this.ready||!this.ensureUid())return;
@@ -2020,7 +2073,7 @@ class CloudSync{
       this._pushing=false;
       if(this._dirty){
         clearTimeout(this._saveTimer);
-        this._saveTimer=setTimeout(()=>this.pushAll(app).catch(err=>console.warn('[CloudSync] push',err)),2500);
+        this._saveTimer=setTimeout(()=>this.pushAll(app).catch(err=>console.warn('[CloudSync] push',err)),600);
       }
     }
   }
@@ -2114,7 +2167,7 @@ class CloudSync{
       s.set('conversations',[...map.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0)));
     }
     if(data.currentConvId!==undefined&&data.currentConvId)s.set('currentConvId',data.currentConvId);
-    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','uiLanguage'].forEach(k=>{
+    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','uiLanguage','uiTextSize'].forEach(k=>{
       if(data[k]===undefined||data[k]===null)return;
       s.set(k,data[k]);
     });
@@ -4029,6 +4082,8 @@ return{detail:'Done',full:JSON.stringify(result)}}}
 
 class UIManager{constructor(app){this.app=app;this.pendingAttachments=[];this.activityMap=new Map()}
 init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;
+  try{this.applyTextSize(this.app.storage.get('uiTextSize','1')||'1')}catch(e){}
+
   this.t=(k,v)=>this.app.i18n?this.app.i18n.t(k,v):k;
   try{this.app.i18n.load(this.app.storage.get('uiLanguage','en')||'en')}catch(e){}
   this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty()}
@@ -5046,14 +5101,18 @@ $('#save-ui').onclick=()=>{
   this.app.storage.set('thinkingGif',$('#thinking-gif').value.trim());
   const lng=($('#ui-language')&&$('#ui-language').value)||'en';
   this.app.storage.set('uiLanguage',lng);
+  const scale=($('#ui-text-size')&&$('#ui-text-size').value)||'1';
+  this.app.storage.set('uiTextSize',scale);
+  this.applyTextSize(scale);
   (async()=>{
     try{
       if(this.app.i18n)await this.app.i18n.load(lng);
       toast('UI settings saved','success');
-    }catch(e){toast('Saved language, but catalog failed to load','error')}
+    }catch(e){toast('Saved, but language catalog failed to load','error')}
     try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
   })();
 };
+
 $$('#settings-tabs .tab').forEach(tab=>{tab.onclick=()=>{$$('#settings-tabs .tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');['api','agent','personality','ui'].forEach(id=>{$(`#tab-${id}`).style.display=tab.dataset.tab===id?'block':'none'})}})}
 isPhone(){return window.matchMedia&&window.matchMedia('(max-width:768px)').matches}
 toggleSidebar(c){
@@ -5087,9 +5146,14 @@ bindResponsive(){
   apply();
   const bd=$('#sidebar-backdrop');if(bd)bd.onclick=()=>this.toggleSidebar(true);
 }
+applyTextSize(scale){
+  const s=Math.min(1.4,Math.max(0.8,parseFloat(scale)||1));
+  document.documentElement.style.setProperty('--ui-scale',String(s));
+  try{this.app.storage.set('uiTextSize',String(s))}catch(e){}
+}
 applyTheme(t){t=t==='light'?'light':'dark';document.documentElement.setAttribute('data-theme',t);document.querySelectorAll('.theme-mode-btn').forEach(b=>b.classList.toggle('on',b.dataset.themeSet===t));const pal=this.app.storage.get('palette','default');document.querySelectorAll('.swatch').forEach(b=>b.classList.toggle('on',(b.dataset.palette||'default')===(pal||'default')));document.documentElement.setAttribute('data-palette',pal&&pal!=='default'?pal:'');this.applyFontTheme&&this.applyFontTheme();document.documentElement.style.colorScheme=t;this.app.storage.set('theme',t);const d=$('#hljs-dark'),l=$('#hljs-light');if(d)d.disabled=t!=='dark';if(l)l.disabled=t==='dark';const btn=$('#theme-btn');if(btn)btn.title=t==='dark'?'Switch to light':'Switch to dark'}
 toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')||'dark';this.applyTheme(cur==='dark'?'light':'dark')}
-openSettings(){this.hideSelToolbar();const ov=$('#settings-overlay');if(ov){ov.classList.add('open');ov.setAttribute('aria-hidden','false')};try{const c=(this.app.provider&&this.app.provider.config)||{};$('#api-base').value=c.baseUrl||'';$('#api-key').value=c.apiKey||'';$('#api-model').value=c.model||'';this.renderModelLibrary();if($('#image-base'))$('#image-base').value=c.imageBaseUrl||'';if($('#image-key'))$('#image-key').value=c.imageApiKey||'';if($('#image-model'))$('#image-model').value=c.imageModel||'';if($('#site-mockups'))$('#site-mockups').checked=!!this.app.storage.get('siteMockups',false);$('#api-org').value=c.org||'';$('#api-project').value=c.project||'';$('#remember-key').checked=!!c.rememberKey;if($('#fallback-base')){$('#fallback-base').value=c.fallbackBaseUrl||'';$('#fallback-key').value=c.fallbackApiKey||'';$('#fallback-model').value=c.fallbackModel||''}if($('#google-client-id'))$('#google-client-id').value=c.googleClientId||this.app.storage.get('googleClientId','')||'';
+openSettings(){this.hideSelToolbar();const ov=$('#settings-overlay');if(ov){ov.classList.add('open');ov.setAttribute('aria-hidden','false')};try{const c=(this.app.provider&&this.app.provider.config)||{};$('#api-base').value=c.baseUrl||'';$('#api-key').value=c._fromSystem?'':(c.apiKey||'');if($('#api-key'))$('#api-key').placeholder=c._fromSystem?'•••• site-wide key (managed in Dev panel)':'sk-…';$('#api-model').value=c.model||'';this.renderModelLibrary();if($('#image-base'))$('#image-base').value=c.imageBaseUrl||'';if($('#image-key'))$('#image-key').value=c.imageApiKey||'';if($('#image-model'))$('#image-model').value=c.imageModel||'';if($('#site-mockups'))$('#site-mockups').checked=!!this.app.storage.get('siteMockups',false);$('#api-org').value=c.org||'';$('#api-project').value=c.project||'';$('#remember-key').checked=!!c.rememberKey;if($('#fallback-base')){$('#fallback-base').value=c.fallbackBaseUrl||'';$('#fallback-key').value=c.fallbackApiKey||'';$('#fallback-model').value=c.fallbackModel||''}if($('#google-client-id'))$('#google-client-id').value=c.googleClientId||this.app.storage.get('googleClientId','')||'';
 const roles=this.app.storage.get('modelRoles',{})||{};
 if($('#model-talk')){$('#model-talk').value=roles.talk||'';$('#model-code').value=roles.code||'';$('#model-deep').value=roles.deep||'';$('#plugins-global').checked=this.app.storage.get('pluginsGlobal',true)!==false;}
 const s=this.app.storage.get('agentSettings',{})||{};if($('#max-iterations'))$('#max-iterations').value=(s&&s.maxIterations)||12;if($('#max-tools'))$('#max-tools').value=(s&&s.maxTools)||30;if($('#max-time'))$('#max-time').value=(s&&s.maxTime)||180;if($('#tool-choice'))$('#tool-choice').value=this.app.storage.get('toolChoice','auto')||'auto';const ft=$('#force-temp');if(ft){const v=this.app.storage.get('forceTemp',null);ft.value=v==null||v===''?'':v}$('#personality').value=this.app.storage.get('personality','')||'';$('#thinking-gif').value=this.app.storage.get('thinkingGif','')||'';$('#settings-overlay').classList.add('open')}catch(err){console.warn('[settings]',err);try{$('#settings-overlay').classList.add('open')}catch(e){}}}
@@ -5944,21 +6008,35 @@ mountGoogleButton(host,overlay){
       if(!this.app.cloud.ready)this.app.cloud.init();
       const user=await this.app.cloud.signInWithGoogle();
       this.app.storage.setActiveUser(user);
-      if(status)status.textContent='Loading your cloud data…';
-      try{
-        const data=await this.app.cloud.pullAll();
-        if(data)this.app.cloud.applyPulled(this.app,data);
-      }catch(e){console.warn('pull',e);toast('Signed in, but cloud load failed (check Firestore rules)','error')}
       if(this.app.cloud)this.app.cloud.uid=user.id;
+      if(status)status.textContent='Syncing…';
+      // Pull with timeout so the modal never hangs forever
+      const pullPromise=this.app.cloud.pullAll().then(data=>{
+        if(data)this.app.cloud.applyPulled(this.app,data);
+      }).catch(e=>{console.warn('pull',e);toast('Signed in, but cloud load failed','error')});
+      await Promise.race([
+        pullPromise,
+        new Promise(r=>setTimeout(r,8000))
+      ]);
       this.reloadWorkspaceForAccount();
-      try{
-        await this.app.cloud.pushAll(this.app);
-        this.app.cloud.startListening(this.app);
-        toast('Cloud sync on','success');
-      }catch(e){console.warn('initial push',e);toast('Cloud push failed: '+(e.message||e),'error')}
+      // Re-apply site-wide API key after account switch
+      try{await this.app.cloud.rehydrateSystemDefaults(this.app)}catch(e){}
       this.renderAuth();
-      if(overlay)overlay.remove();
-      toast('Signed in — chats sync to Firebase','success');
+      if(overlay){try{overlay.remove()}catch(e){}}
+      toast('Signed in','success');
+      // Push + listen in background (do not block UI)
+      (async()=>{
+        try{
+          await Promise.race([
+            this.app.cloud.pushAll(this.app),
+            new Promise((_,rej)=>setTimeout(()=>rej(new Error('push timeout')),10000))
+          ]);
+          this.app.cloud.startListening(this.app);
+        }catch(e){
+          console.warn('initial push',e);
+          try{this.app.cloud.startListening(this.app)}catch(e2){}
+        }
+      })();
     }catch(e){
       console.error(e);
       const msg=(e&&e.message)||String(e);
@@ -6013,7 +6091,7 @@ loginWithGoogle(overlay){
   this.openAuthModal('login');
 }
 logoutGoogle(){
-  const fin=()=>{this.app.storage.setActiveUser(null);if(this.app.cloud)this.app.cloud.uid=null;this.reloadWorkspaceForAccount();this.renderAuth();toast('Signed out — guest mode (nothing is saved)','success')};
+  const fin=()=>{this.app.storage.setActiveUser(null);if(this.app.cloud)this.app.cloud.uid=null;this.reloadWorkspaceForAccount();try{this.app.cloud.rehydrateSystemDefaults(this.app)}catch(e){}this.renderAuth();toast('Signed out — guest mode','success')};
   if(this.app.cloud&&this.app.cloud.ready)this.app.cloud.signOut().then(fin).catch(fin);else fin();
 }
 filterConversations(q){this._convQuery=(q||'').trim().toLowerCase();this.renderConversations()}
@@ -6513,10 +6591,12 @@ openDevPanel(){
       if($('#dev-api-model'))$('#dev-api-model').value=(data&&data.model)||'';
       if($('#dev-fb-base'))$('#dev-fb-base').value=(data&&data.fallbackBaseUrl)||'';
       if($('#dev-fb-model'))$('#dev-fb-model').value=(data&&data.fallbackModel)||'';
-      if($('#dev-api-key'))$('#dev-api-key').value='';
-      if($('#dev-fb-key'))$('#dev-fb-key').value='';
+      // Never re-display secrets — write-only fields
+      if($('#dev-api-key')){$('#dev-api-key').value='';$('#dev-api-key').placeholder=(data&&data.apiKey)?'•••• key set (leave blank to keep)':'sk-… (write-only)'}
+      if($('#dev-fb-key')){$('#dev-fb-key').value='';$('#dev-fb-key').placeholder=(data&&data.fallbackApiKey)?'•••• key set (leave blank to keep)':'optional'}
       this._devCatalog=(data&&data.modelCatalog)||[];
       this.renderDevCatalog();
+      this._renderDevKeyStatus(data);
     }catch(e){console.warn(e);toast('Could not load system defaults (check cloud rules)','error')}
   })();
 }
@@ -6536,6 +6616,7 @@ _bindDevPanelOnce(){
   const panel=ov&&ov.querySelector('.panel');
   if(panel)panel.onclick=e=>e.stopPropagation();
   const ds=$('#dev-panel-save');if(ds)ds.onclick=e=>{e.preventDefault();e.stopPropagation();this.saveDevPanel()};
+  const dk=$('#dev-key-delete');if(dk)dk.onclick=e=>{e.preventDefault();this.deleteSystemApiKey()};
   const dma=$('#dev-model-add');if(dma)dma.onclick=()=>{
     const id=($('#dev-model-id')?.value||'').trim();const desc=($('#dev-model-desc')?.value||'').trim();
     if(!id)return;this._devCatalog=this._devCatalog||[];this._devCatalog.push({id,description:desc});
@@ -6579,7 +6660,7 @@ async saveDevPanel(){
     if(!payload.apiKey)local.apiKey=prev.apiKey||'';
     if(!payload.fallbackApiKey)local.fallbackApiKey=prev.fallbackApiKey||'';
     localStorage.setItem('thinkdeeper_v2_systemDefaults',JSON.stringify(local));
-    if(this.app.cloud&&this.app.cloud.applySystemDefaults)this.app.cloud.applySystemDefaults(this.app,local);
+    if(this.app.cloud&&this.app.cloud.applySystemDefaults)this.app.cloud.applySystemDefaults(this.app,local,{force:true});
     else{
       // direct apply
       const c=this.app.provider.config||{};
@@ -7344,13 +7425,8 @@ start(){
   this.ui.init();
   (async()=>{
     try{
-      // Device-wide defaults (dev panel) even before/without Firebase
-      let local=null;
-      try{local=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'null')}catch(e){}
-      if(local)this.cloud.applySystemDefaults(this,local);
       if(!this.cloud.ready)this.cloud.init();
-      const sys=await this.cloud.pullSystemDefaults();
-      if(sys)this.cloud.applySystemDefaults(this,sys);
+      await this.cloud.rehydrateSystemDefaults(this);
     }catch(e){console.warn('[system defaults]',e)}
   })();
   this.ui.scheduleAutomations&&this.ui.scheduleAutomations();
