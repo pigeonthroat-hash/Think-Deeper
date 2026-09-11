@@ -2741,33 +2741,74 @@ class WorkspaceManager{
 }
 class ModelRouter{
   constructor(app,k){this.app=app;this.k=k;this.echo=new LocalEchoProvider()}
-  async chat(agent,messages,tools){
-    const live=this.k.liveApi;
-    const list=[agent.model, ...(agent.fallbacks||[])].filter(Boolean);
-    const cfg=this.app.provider.config||{};
-    if(!list.length)list.push(cfg.model||'echo');
-    let last=null;
-    for(let i=0;i<list.length;i++){
-      const model=list[i];
-      try{
-        this.k.events.emit('agent.model',{id:agent.id,model,fallback:i,provider:live&&model!=='echo'?'remote':'echo'});
-        const prov=(live&&model!=='echo')?this.app.provider:this.echo;
-        const data=await prov.chat(messages,{model:model==='echo'?undefined:model,tools:agent.perms&&agent.perms.network===false&&live?undefined:tools,temperature:0.3,maxTokens:agent.maxTokens||2500});
-        const used=data&&data.model||model;
-        this.k.usage.bump(agent.id,{reqs:1,tokens:(data&&data.usage&&data.usage.total_tokens)||32,cost:0.0});
-        return {data,model:used,provider:live&&model!=='echo'?'remote':'echo',fallback:i};
-      }catch(e){
-        last=e;this.k.usage.bump(agent.id,{retries:1,fails:1});
-        this.k.events.emit('agent.retry',{id:agent.id,model,error:String(e.message||e),fallback:i});
-        const busy=/429|503|502|quota|overloaded|rate/i.test(String(e.message||e)+e.status);
-        if(busy){await new Promise(r=>setTimeout(r,1500));try{
-          const data=await prov.chat(messages,{model:model==='echo'?undefined:model,tools,temperature:0.3,maxTokens:agent.maxTokens||2500});
-          this.k.usage.bump(agent.id,{reqs:1,tokens:(data&&data.usage&&data.usage.total_tokens)||32});
-          return {data,model:data&&data.model||model,provider:live&&model!=='echo'?'remote':'echo',fallback:i};
-        }catch(e2){last=e2}}
+  _resolveModel(agent){
+    const cfg=(this.app.provider&&this.app.provider.config)||{};
+    let model=(agent&&agent.model)||'';
+    if(!model||model==='echo'){
+      model=cfg.model||'';
+    }
+    if(!model){
+      const models=this.app.provider.models||this.app.storage.get('discoveredModels',[])||[];
+      if(models.length){
+        const m=models[0];
+        model=typeof m==='string'?m:(m.id||m.name||'');
       }
     }
-    throw last||new Error('all models failed');
+    return model||'';
+  }
+  _hasApiKey(){
+    const cfg=(this.app.provider&&this.app.provider.config)||{};
+    return !!(cfg.apiKey&&String(cfg.apiKey).trim());
+  }
+  async chat(agent,messages,tools){
+    const cfg=(this.app.provider&&this.app.provider.config)||{};
+    const hasKey=this._hasApiKey();
+    // Prefer live API whenever a key exists — never silently echo real work
+    const wantLive=hasKey&&(this.k.liveApi!==false);
+    const primary=this._resolveModel(agent);
+    const list=[];
+    if(primary&&primary!=='echo')list.push(primary);
+    (agent.fallbacks||[]).forEach(m=>{if(m&&m!=='echo'&&!list.includes(m))list.push(m)});
+    if(cfg.fallbackModel&&!list.includes(cfg.fallbackModel))list.push(cfg.fallbackModel);
+    if(cfg.model&&!list.includes(cfg.model))list.push(cfg.model);
+    let last=null;
+    if(wantLive&&list.length){
+      for(let i=0;i<list.length;i++){
+        const model=list[i];
+        try{
+          this.k.events.emit('agent.model',{id:agent.id,model,fallback:i,provider:'remote'});
+          const useTools=!(agent.perms&&agent.perms.network===false);
+          const data=await this.app.provider.chat(messages,{
+            model,
+            tools:useTools?tools:undefined,
+            temperature:0.3,
+            maxTokens:agent.maxTokens||2500
+          });
+          const used=(data&&data.model)||model;
+          this.k.usage.bump(agent.id,{reqs:1,tokens:(data&&data.usage&&data.usage.total_tokens)||32,cost:0.0});
+          return {data,model:used,provider:'remote',fallback:i};
+        }catch(e){
+          last=e;
+          this.k.usage.bump(agent.id,{retries:1,fails:1});
+          this.k.events.emit('agent.retry',{id:agent.id,model,error:String(e.message||e),fallback:i});
+          const busy=/429|503|502|quota|overloaded|rate/i.test(String(e.message||e)+(e.status||''));
+          if(busy){
+            await new Promise(r=>setTimeout(r,1500));
+            try{
+              const data=await this.app.provider.chat(messages,{model,tools,temperature:0.3,maxTokens:agent.maxTokens||2500});
+              this.k.usage.bump(agent.id,{reqs:1,tokens:(data&&data.usage&&data.usage.total_tokens)||32});
+              return {data,model:(data&&data.model)||model,provider:'remote',fallback:i};
+            }catch(e2){last=e2}
+          }
+        }
+      }
+    }
+    // Echo only as last resort (no key / all remote failed) — still emit structured supervisor cmds
+    this.k.events.emit('agent.model',{id:agent.id,model:'local-echo',fallback:-1,provider:'echo'});
+    const data=await this.echo.chat(messages,{_agentId:agent.id,_role:agent.role,_roster:this.k.agents?this.k.agents.list().map(x=>x.id):[]});
+    this.k.usage.bump(agent.id,{reqs:1,tokens:24});
+    if(last)this.k.events.emit('agent.retry',{id:agent.id,model:'echo-fallback',error:String(last.message||last),fallback:-1});
+    return {data,model:'local-echo',provider:'echo',fallback:-1};
   }
 }
 class LocalEchoProvider{
@@ -2775,8 +2816,19 @@ class LocalEchoProvider{
     const last=messages.filter(m=>m.role!=='system').slice(-1)[0];
     const text=typeof last?.content==='string'?last.content:(JSON.stringify(last&&last.content)||'');
     const id=(opts&&opts._agentId)||'echo';
-    let content='['+id+'] done: '+String(text).slice(0,180);
-    if(/plan|coordinate|break/i.test(text))content='TASKS:\n1. inspect\n2. draft\n3. review';
+    const role=(opts&&opts._role)||'';
+    const roster=(opts&&opts._roster)||[];
+    // Supervisor: always emit a valid RUN so the chain never stalls in echo mode
+    if(role==='supervisor'||/coordinator/i.test(id)){
+      const workers=roster.filter(x=>x&&x!=='coordinator'&&!/^coordinator$/i.test(x));
+      const pick=workers[Math.floor(Math.random()*Math.max(workers.length,1))]||'w0001';
+      if(/SOLVED|complete|finished|done enough/i.test(text)&&/result|answer/i.test(text)){
+        return {choices:[{message:{role:'assistant',content:'SOLVED: Partial local-echo summary — configure a model + API key for real work.\n'+String(text).slice(0,400)}}],usage:{total_tokens:24},model:'local-echo'};
+      }
+      return {choices:[{message:{role:'assistant',content:'RUN '+pick+': Continue the goal with tools (run_python if useful). Report findings only.'}}],usage:{total_tokens:24},model:'local-echo'};
+    }
+    // Worker: do not just echo the user — state that live API is required for real work
+    let content='['+id+'] Acknowledged task. Live model not available — set API key and model in Settings. Task was: '+String(text).slice(0,160);
     return {choices:[{message:{role:'assistant',content}}],usage:{total_tokens:24},model:'local-echo'};
   }
 }
@@ -2858,6 +2910,10 @@ class Scheduler{
       this.k.events.emit('agent.done',{id,result:String(a.result||'').slice(0,400)});
       // Always hand control back to supervisor so the chain never stalls
       if(id!=='coordinator'&&this.k.alive&&!this.k.solved){
+        const coord=this.k.agents.get('coordinator');
+        if(coord&&(coord.status==='waiting'||coord.status==='completed')){
+          coord.status='idle';
+        }
         this.enqueue('coordinator','resume');
       }else if(id==='coordinator'&&this.k.alive&&!this.k.solved&&a.status==='completed'){
         // Supervisor finished a round without SOLVED/RUN — try one more pass or stop soft
@@ -2955,23 +3011,36 @@ class AgentManager{
       }
       if(run){
         let w=this.get(run[1]);
-        if(!w)w=this.list().find(x=>x.id.toLowerCase()===run[1].toLowerCase());
-        // Allow re-contacting agents that already finished
+        if(!w)w=this.list().find(x=>x.id.toLowerCase()===String(run[1]).toLowerCase());
         if(w){
           w.task=run[2].trim();
           w.status='idle';
           w.result=null;
+          w.thoughts=[];
           a.status='waiting';
           this.k.scheduler.enqueue(w.id,'assigned');
           this.k.events.emit('agent.wait',{id:a.id,why:'delegated '+w.id});
           return a.result;
         }
       }
-      const next=this.list().find(x=>x.role!=='supervisor'&&(x.status==='idle'||x.status==='completed'));
+      // Prefer workers that have never run, then idle, then completed (reuse)
+      const workers=this.list().filter(x=>x.role!=='supervisor');
+      let next=workers.find(x=>x.status==='idle'&&!x.result&&!x.ended);
+      if(!next)next=workers.find(x=>x.status==='idle');
+      if(!next)next=workers.find(x=>x.status==='completed'||x.status==='failed');
       if(next&&a.rounds<maxRounds){
-        next.task=this.k.goal||a.task;
+        next.task=(this.k.goal||a.task||'Continue the goal')+'\n\nSupervisor note: '+String(a.result||'').slice(0,500);
+        next.status='idle';
+        next.result=null;
         a.status='waiting';
         this.k.scheduler.enqueue(next.id,'auto');
+        this.k.events.emit('agent.wait',{id:a.id,why:'auto '+next.id});
+        return a.result;
+      }
+      // No worker available — do not go idle; nudge self once more or soft-stop
+      if(a.rounds<maxRounds){
+        a.status='idle';
+        this.k.scheduler.enqueue(a.id,'supervisor-retry');
         return a.result;
       }
     }
@@ -3059,8 +3128,16 @@ class Coordinator{
   constructor(k){this.k=k}
   async start(goal,n){
     const cfg=this.k.app.provider.config||{};
-    const model=this.k.liveApi?(cfg.model||'echo'):'echo';
-    const fallbacks=this.k.liveApi?[cfg.fallbackModel].filter(Boolean):['echo'];
+    const hasKey=!!(cfg.apiKey&&String(cfg.apiKey).trim());
+    // Auto-enable live whenever a key is present
+    if(hasKey)this.k.liveApi=true;
+    let model=cfg.model||'';
+    if(!model){
+      const models=this.k.app.provider.models||[];
+      if(models.length){const m=models[0];model=typeof m==='string'?m:(m.id||m.name||'')}
+    }
+    if(!model)model=hasKey?'gpt-4o-mini':'echo';
+    const fallbacks=[cfg.fallbackModel].filter(Boolean);
     this.k.goal=goal;
     const mystery=!!this.k.mystery;
     const groupMode=!!this.k.groupMode;
@@ -3098,7 +3175,7 @@ class Coordinator{
           ?(' You are group leader of '+meta.group+'. Coordinate members of '+meta.group+' via swarm_send, then report a group summary to the Supervisor.')
           :(' You are a member of '+meta.group+'. Discuss only with your leader and Supervisor. Use your agent id only.');
       }
-      const workerPrompt='You are '+('w'+String(i+1).padStart(4,'0'))+', role '+role+'. Stay in scope. Speak only to the Supervisor (and your group leader if any) by agent id. Never address the human user by name. Never claim other agents used a human name for you. Use tools only if permitted. THINKING STYLE: write a short plain thought only — no titles, headings, or section labels (this is the thinking stage). Math may use LaTeX ($...$ or $$...$$). Do not echo tool JSON or long transcripts in your thought.'+extra+(mystery?' Mystery mode: attempt the problem fully; use run_python for long searches; do not stop merely because the problem is open.':'');
+      const workerPrompt='You are '+('w'+String(i+1).padStart(4,'0'))+', role '+role+'. Stay in scope. Speak only to the Supervisor (and your group leader if any) by agent id. Never address the human user by name. Never claim other agents used a human name for you. Use tools only if permitted. THINKING STYLE: write a short plain thought only — no titles or headings. Math may use LaTeX. Do not echo the user message. Use tools (especially run_python) when the task needs computation or verification — do not only restate the task.'+extra+(mystery?' Mystery mode: attempt the problem fully; use run_python for long searches; do not stop merely because the problem is open.':'');
       this.k.agents.register({
         id:'w'+String(i+1).padStart(4,'0'),
         role,
@@ -4029,7 +4106,13 @@ async startSwarm(opts){
   const k=this.ensureSwarm();
   const goal=opts.goal||($('#swarm-goal')?.value||'').trim()||'Plan a small safe demo and write notes.';
   const count=Number(opts.count||$('#swarm-count')?.value||5);
-  const live=opts.live!=null?!!opts.live:($('#swarm-live')?!!$('#swarm-live').checked:true);
+  const hasKey=!!(this.app.provider.config&&this.app.provider.config.apiKey&&String(this.app.provider.config.apiKey).trim());
+  let live=opts.live!=null?!!opts.live:($('#swarm-live')?!!$('#swarm-live').checked:true);
+  if(hasKey)live=true;
+  if(!hasKey){toast('Add an API key in Settings — agents cannot run tools without it','error')}
+  if(hasKey&&!(this.app.provider.config.model||'').trim()){
+    toast('Select a model in Settings for Agent mode','error');
+  }
   const debate=opts.debate!=null?!!opts.debate:!!$('#swarm-debate')?.checked;
   const mystery=opts.mystery!=null?!!opts.mystery:true;
   const group=opts.group!=null?!!opts.group:!!$('#swarm-group')?.checked;
