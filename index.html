@@ -26,7 +26,7 @@ button.phone-only{display:none}
 .app{display:flex;height:100vh;width:100vw}.sidebar{width:var(--sidebar-width);min-width:var(--sidebar-width);background:var(--bg-sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:transform var(--transition),margin var(--transition);z-index:40}.sidebar.collapsed{margin-left:calc(-1*var(--sidebar-width))}.sidebar-header{padding:16px 14px 12px;display:flex;align-items:center;gap:10px}.app-logo{font-family:var(--font-display);font-size:1.35rem;font-weight:500;letter-spacing:-.02em;color:var(--text-primary);flex:1}.icon-btn{width:34px;height:34px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:background var(--transition),color var(--transition)}.icon-btn:hover{background:var(--bg-hover);color:var(--text-primary)}.icon-btn svg{width:18px;height:18px}
 .new-chat-btn{margin:4px 12px 8px;padding:7px 12px;font-size:.8rem;border-radius:var(--radius-md);background:var(--bg-elevated);border:1px solid var(--border);display:flex;align-items:center;gap:10px;font-weight:500;color:var(--text-primary);transition:background var(--transition),border-color var(--transition);box-shadow:var(--shadow-sm)}.new-chat-btn:hover{background:var(--bg-hover);border-color:var(--border-strong)}.new-chat-btn svg{width:16px;height:16px;opacity:.7}
 .sidebar-section{padding:8px 12px 4px;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary)}.conv-list{flex:1;overflow-y:auto;padding:4px 8px 16px}.conv-item{padding:9px 12px;border-radius:var(--radius-md);display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text-secondary);transition:background var(--transition),color var(--transition)}.conv-item:hover{background:var(--bg-hover);color:var(--text-primary)}.conv-item.active{background:var(--bg-active);color:var(--text-primary);font-weight:500}.conv-item .title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}.conv-item .actions{display:none;gap:2px}.conv-item:hover .actions{display:flex}.conv-item .actions button{width:26px;height:26px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary)}.conv-item .actions button:hover{background:var(--bg-tertiary);color:var(--text-primary)}
-.sidebar-footer{padding:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px}.sidebar-footer button{padding:9px 12px;border-radius:var(--radius-md);display:flex;align-items:center;gap:10px;color:var(--text-secondary);font-size:.9rem;transition:background var(--transition)}.sidebar-footer button:hover{background:var(--bg-hover);color:var(--text-primary)}.sidebar-footer button svg{width:16px;height:16px}
+.sidebar-footer{padding:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px}.sidebar-footer button:not(.draft-chat-btn){padding:9px 12px;border-radius:var(--radius-md);display:flex;align-items:center;gap:10px;color:var(--text-secondary);font-size:.9rem;transition:background var(--transition)}.sidebar-footer button:not(.draft-chat-btn):hover{background:var(--bg-hover);color:var(--text-primary)}.sidebar-footer button:not(.draft-chat-btn) svg{width:16px;height:16px}
 .main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg-primary)}.main-header{height:var(--header-height);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;background:var(--bg-primary);flex-shrink:0}.model-selector-wrap{position:relative}.model-btn{padding:7px 12px;border-radius:var(--radius-md);border:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:center;gap:8px;font-size:.875rem;font-weight:500;color:var(--text-primary);transition:border-color var(--transition),background var(--transition)}.model-btn:hover{border-color:var(--border-strong);background:var(--bg-hover)}.model-btn .chevron{opacity:.5;width:14px;height:14px}.header-right{margin-left:auto;display:flex;align-items:center;gap:8px}
 .chat-area{flex:1;overflow-y:auto;scroll-behavior:smooth}.chat-inner{max-width:780px;margin:0 auto;padding:24px 20px 40px}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 20px}.empty-state h1{font-family:var(--font-display);font-size:2.4rem;font-weight:400;letter-spacing:-.03em;margin-bottom:12px;color:var(--text-primary)}.empty-state p{color:var(--text-secondary);font-size:1.05rem;max-width:420px;margin-bottom:28px}.suggestion-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;width:100%;max-width:640px}.suggestion{padding:14px 16px;border-radius:var(--radius-md);border:1px solid var(--border);background:var(--bg-elevated);text-align:left;color:var(--text-secondary);font-size:.875rem;transition:background var(--transition),border-color var(--transition);cursor:pointer}.suggestion:hover{background:var(--bg-hover);border-color:var(--border-strong);color:var(--text-primary)}
@@ -87,7 +87,9 @@ button.phone-only{display:none}
   .pin-file .file-chip{max-width:140px}
 }
 
-::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}
+*{scrollbar-width:none;-ms-overflow-style:none}
+::-webkit-scrollbar{width:0!important;height:0!important;display:none!important}
+::-webkit-scrollbar-track,::-webkit-scrollbar-thumb{display:none!important;background:transparent}
 
 .activity-body pre{max-height:160px;overflow:auto}
 .activity-body.compact pre{max-height:120px}
@@ -816,6 +818,18 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .swarm-chat-log .msg{padding:8px 10px;margin:0 0 8px;border-radius:12px;background:var(--bg-elevated);line-height:1.5}
 .st-running{color:var(--accent)}.st-done{color:var(--success)}.st-fail{color:var(--error)}.st-wait{color:var(--text-secondary)}
 
+.agent-work-toggle .aw-ico{width:18px;height:18px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:var(--accent)}
+.agent-work-toggle .aw-ico svg{width:18px;height:18px;display:block}
+.agent-work-toggle .aw-ico.spinning svg{animation:awOrbit 1.1s linear infinite}
+@keyframes awOrbit{to{transform:rotate(360deg)}}
+.agent-work-step .thought-math{line-height:1.5}
+.agent-work-step .thought-math .katex{font-size:1em}
+.draft-chat-btn{width:40px;height:40px;margin:8px auto 12px;border-radius:12px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:border-color .15s,background .15s,color .15s,transform .15s;box-shadow:var(--shadow-sm)}
+.draft-chat-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);transform:translateY(-1px)}
+.draft-chat-btn svg{width:18px;height:18px}
+.sidebar-footer .draft-chat-btn{margin:4px auto 8px}
+
+
 </style>
 </head>
 <body>
@@ -833,7 +847,7 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <button type="button" class="btn-new-project" id="new-project-btn">＋ New project</button>
 <div class="project-list" id="project-list"></div>
 <div class="sidebar-section">Conversations</div>
-<button class="new-chat-btn" id="new-chat-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> New chat</button>
+
 <div class="conv-search"><input type="search" id="conv-search" placeholder="Search chats & messages…"></div>
 <div class="conv-list" id="conv-list"></div>
 <button type="button" class="sidebar-more-btn" id="sidebar-more-btn" aria-label="More tools">More</button>
@@ -843,6 +857,7 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 <button id="automations-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M17.5 14v7M14 17.5h7"/></svg> Build Automations</button>
 <button id="settings-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
 <button class="icon-btn" id="theme-btn" aria-label="Toggle theme" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> Theme</button>
+<button type="button" class="draft-chat-btn" id="new-chat-btn" title="New chat" aria-label="New chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
 </div>
 </aside>
 <main class="main">
@@ -1267,6 +1282,8 @@ const SVG={
   eye:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
 
   bulb:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12c.5.5 1 1.5 1 2h6c0-.5.5-1.5 1-2a7 7 0 00-4-12z"/></svg>',
+  thinkOrbit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" stroke-linecap="round"/></svg>',
+  draft:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
   spin:'<span class="tp-spin" aria-hidden="true"></span>',
   write:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
   read:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
@@ -2753,8 +2770,30 @@ class AgentManager{
       let code=args.code||args.source||args.script||args.python||args.program||'';
       if(code && typeof code==='object')code=code.code||code.source||JSON.stringify(code);
       code=String(code||'');
-      const res=await this.k.app.tools.execute('run_python',{code});
-      return res&&res.ok===false?{ok:false,error:res.error,stdout:res.stdout,stderr:res.stderr}:res;
+      // Supervisor speed-pass: all Pyodide modules available — optimize then run; agents stay idle until result
+      a.status='waiting';
+      this.k.events.emit('agent.wait',{id:a.id,why:'python-optimize'});
+      a.thoughts=a.thoughts||[];
+      a.thoughts.push({name:'Thought',detail:'Handed Python to Supervisor for a max-speed rewrite.',status:'running'});
+      let fast=code;
+      try{
+        if(this.k.liveApi&&this.k.app.provider){
+          const opt=await this.k.app.provider.chat([
+            {role:'system',content:'You are the Supervisor optimizing Python for Pyodide. Every common scientific module is available (numpy, scipy, sympy, pandas, networkx, mpmath, etc.). Rewrite the code for maximum speed and correctness. Return ONLY executable Python — no markdown fences, no commentary, no titles.'},
+            {role:'user',content:code.slice(0,12000)}
+          ],{temperature:0.1,maxTokens:4000});
+          const raw=((opt&&opt.choices&&opt.choices[0]&&opt.choices[0].message&&opt.choices[0].message.content)||'').trim();
+          const cleaned=raw.replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
+          if(cleaned&&cleaned.length>10)fast=cleaned;
+        }
+      }catch(e){}
+      a.thoughts.push({name:'Thought',detail:'Running optimized Python…',status:'running'});
+      this.k.events.emit('agent.tool',{id:a.id,name:'run_python',status:'running'});
+      const res=await this.k.app.tools.execute('run_python',{code:fast});
+      a.status='running';
+      const out=res&&res.ok===false?{ok:false,error:res.error,stdout:res.stdout,stderr:res.stderr,optimized:fast!==code}:{...(res||{}),optimized:fast!==code};
+      a.thoughts.push({name:'Thought',detail:out.ok===false?('Python error: '+String(out.error||'').slice(0,240)):('Python finished'+(out.optimized?' (Supervisor-optimized)':'')+'.'),status:out.ok===false?'error':'done'});
+      return out;
     }
     return await this.k.app.tools.execute(name,args||{});
   }
@@ -2768,7 +2807,7 @@ class Coordinator{
     this.k.goal=goal;
     const mystery=!!this.k.mystery;
     const groupMode=!!this.k.groupMode;
-    let supPrompt='You are the Supervisor (coordinator). Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nCRITICAL RULE: Do NOT output SOLVED until the goal is completely solved to the user\'s standard — partial progress is not enough. Keep assigning workers until the work is finished. Only then synthesize the final answer from all agent results (prefer majority when they agree).';
+    let supPrompt='You are the Supervisor (coordinator). Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nCRITICAL RULE: Do NOT output SOLVED until the goal is completely solved to the user\'s standard — partial progress is not enough. Keep assigning workers until the work is finished. Only then synthesize the final answer from all agent results (prefer majority when they agree). When workers submit Python, you optimize it for maximum Pyodide speed (all modules available) before execution; agents stay idle until that returns. In your own notes use short thoughts only — no titles/headings; LaTeX math is fine.';
     if(mystery){
       supPrompt+='\nMYSTERY MODE: Treat this as a hard open problem. Agents must attempt rigorous progress (proofs, counterexamples, computational search via run_python). Never refuse because something is unknown — keep working until a complete answer for the assigned scope is reached.';
     }
@@ -2802,7 +2841,7 @@ class Coordinator{
           ?(' You are group leader of '+meta.group+'. Coordinate members of '+meta.group+' via swarm_send, then report a group summary to the Supervisor.')
           :(' You are a member of '+meta.group+'. Discuss only with your leader and Supervisor. Use your agent id only.');
       }
-      const workerPrompt='You are '+('w'+String(i+1).padStart(4,'0'))+', role '+role+'. Stay in scope. Speak only to the Supervisor (and your group leader if any) by agent id. Never address the human user by name. Never claim other agents used a human name for you. Use tools only if permitted.'+extra+(mystery?' Mystery mode: attempt the problem fully; use run_python for long searches; do not stop merely because the problem is open.':'');
+      const workerPrompt='You are '+('w'+String(i+1).padStart(4,'0'))+', role '+role+'. Stay in scope. Speak only to the Supervisor (and your group leader if any) by agent id. Never address the human user by name. Never claim other agents used a human name for you. Use tools only if permitted. THINKING STYLE: write a short plain thought only — no titles, headings, or section labels (this is the thinking stage). Math may use LaTeX ($...$ or $$...$$). Do not echo tool JSON or long transcripts in your thought.'+extra+(mystery?' Mystery mode: attempt the problem fully; use run_python for long searches; do not stop merely because the problem is open.':'');
       this.k.agents.register({
         id:'w'+String(i+1).padStart(4,'0'),
         role,
@@ -3077,6 +3116,19 @@ if(hasTools){
     try{
       if(name==='write_file'){
         result=await this._streamWriteFile(args,actId,onEvent);
+      } else if(name==='run_python'){
+        let code=String(args.code||args.source||args.script||'');
+        onEvent({type:'activity-update',id:actId,status:'running',detail:'Supervisor optimizing Python for max speed…'});
+        try{
+          const opt=await this.provider.chat([
+            {role:'system',content:'You optimize Python for Pyodide. All common modules are installed (numpy, scipy, sympy, pandas, networkx, mpmath, …). Rewrite for maximum speed and correctness. Return ONLY Python code — no markdown, no titles, no commentary.'},
+            {role:'user',content:code.slice(0,12000)}
+          ],{temperature:0.1,maxTokens:4000});
+          const raw=((opt&&opt.choices&&opt.choices[0]&&opt.choices[0].message&&opt.choices[0].message.content)||'').trim().replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
+          if(raw&&raw.length>10){args={...args,code:raw};code=raw}
+        }catch(e){}
+        onEvent({type:'activity-update',id:actId,status:'running',detail:'Running optimized Python…'});
+        result=await this.tools.execute('run_python',{code});
       } else {
         result=await this.tools.execute(name,args);
       }
@@ -3583,7 +3635,7 @@ async startSwarm(opts){
     box.appendChild(msg);
     // working block
     const work=document.createElement('div');work.className='agent-msg assistant';work.id='agent-live-msg';
-    work.innerHTML='<div class="agent-msg-head"><div class="avatar">TD</div><span class="agent-msg-role">Supervisor</span><span class="agent-clock" id="agent-live-clock">0:00</span></div><div class="agent-work open" id="agent-work"><button type="button" class="agent-work-toggle" id="agent-work-toggle"><span class="tp-spin" style="width:12px;height:12px;border-width:2px"></span> <span id="agent-work-label">Working for 0:00</span> <span style="margin-left:auto;opacity:.6" id="agent-work-meta"></span></button><div class="agent-work-body" id="agent-work-body"><div class="hint">Supervisor is assembling the team…</div></div></div><div class="agent-msg-body" id="agent-final-body" style="display:none"></div>';
+    work.innerHTML='<div class="agent-msg-head"><div class="avatar">TD</div><span class="agent-msg-role">Supervisor</span><span class="agent-clock" id="agent-live-clock">0:00</span></div><div class="agent-work open" id="agent-work"><button type="button" class="agent-work-toggle" id="agent-work-toggle"><span class="aw-ico spinning" id="agent-work-ico">'+(SVG.thinkOrbit||SVG.spin)+'</span> <span id="agent-work-label">Working for 0:00</span> <span style="margin-left:auto;opacity:.6" id="agent-work-meta"></span></button><div class="agent-work-body" id="agent-work-body"><div class="hint">Supervisor is assembling the team…</div></div></div><div class="agent-msg-body" id="agent-final-body" style="display:none"></div>';
     box.appendChild(work);
     const tog=$('#agent-work-toggle');
     if(tog)tog.onclick=()=>$('#agent-work')?.classList.toggle('open');
@@ -3628,13 +3680,29 @@ renderSwarm(ev){
   if(body){
     const steps=[];
     list.forEach(a=>{
-      const st=a.status||'idle';
-      const thoughts=(a.thoughts||[]).slice(-4);
-      let detail=thoughts.map(t=>escapeHtml(String(t.name||'')+' · '+String(t.detail||'').slice(0,280))).join('\n');
-      if(a.result)detail=(detail?detail+'\n':'')+escapeHtml(String(a.result).slice(0,500));
-      steps.push('<div class="agent-work-step"><div class="nm">'+escapeHtml(a.id)+' · '+escapeHtml(a.role)+' · '+escapeHtml(st)+'</div>'+(detail?('<pre>'+detail+'</pre>'):'')+'</div>');
+      if(a.role==='supervisor')return; // user sees worker thoughts only
+      const thoughts=(a.thoughts||[]).filter(t=>t&&String(t.detail||'').trim());
+      // One thought only — prefer last meaningful non-tool echo
+      let thought='';
+      for(let i=thoughts.length-1;i>=0;i--){
+        const d=String(thoughts[i].detail||'').trim();
+        if(!d)continue;
+        if(/^(Handed Python|Running optimized|Python finished|Python error)/i.test(d)&&thought)continue;
+        // skip raw tool dumps
+        if(/^\s*[\{\[]/.test(d)&&d.length>80)continue;
+        thought=d;break;
+      }
+      if(!thought&&a.result)thought=String(a.result).slice(0,600);
+      if(!thought)return;
+      thought=thought.replace(/^#+\s+/gm,'').replace(/^\*\*[^*]+\*\*\s*$/gm,'').slice(0,900);
+      let bodyHtml='';
+      try{
+        if(this.renderMarkdown)bodyHtml='<div class="thought-math">'+this.renderMarkdown(thought)+'</div>';
+        else bodyHtml='<pre>'+escapeHtml(thought)+'</pre>';
+      }catch(e){bodyHtml='<pre>'+escapeHtml(thought)+'</pre>'}
+      steps.push('<div class="agent-work-step"><div class="nm">'+escapeHtml(a.id)+' · '+escapeHtml(a.role)+'</div>'+bodyHtml+'</div>');
     });
-    body.innerHTML=steps.join('')||'<div class="hint">Supervisor is assembling the team…</div>';
+    body.innerHTML=steps.join('')||'<div class="hint">Supervisor is assembling the team…</div>';if(this._renderMath)try{this._renderMath(body)}catch(e){}
   }
   const nDone=list.filter(a=>a.role!=='supervisor'&&(a.status==='completed'||a.result)).length;
   const nWork=list.filter(a=>a.role!=='supervisor').length;
@@ -3660,7 +3728,7 @@ renderSwarm(ev){
         const s=Math.floor((Date.now()-start)/1000);const m=Math.floor(s/60);
         lab.textContent='Worked for '+m+':'+String(s%60).padStart(2,'0');
       }
-      const spin=work.querySelector('.tp-spin');if(spin)spin.remove();
+      const ico=work.querySelector('#agent-work-ico');if(ico){ico.classList.remove('spinning');ico.innerHTML=SVG.bulb||'';}const spin=work.querySelector('.tp-spin');if(spin)spin.remove();
     }
     if(this._agentClockTimer){clearInterval(this._agentClockTimer);this._agentClockTimer=null}
     const stopBtn=$('#swarm-stop');if(stopBtn)stopBtn.style.display='none';
