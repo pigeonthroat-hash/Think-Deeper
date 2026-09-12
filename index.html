@@ -1784,10 +1784,12 @@ class CloudSync{
       }
       const data=await this.pullAll();
       if(data)this.applyPulled(app,data);
+      try{await this.rehydrateSystemDefaults(app)}catch(e){}
       if(app.ui&&app.ui.reloadWorkspaceForAccount&&(app.storage.userId!==user.uid||!app.conversations)){
         app.ui.reloadWorkspaceForAccount();
       }else{
         this.refreshFromLocal(app,false);
+        try{await this.rehydrateSystemDefaults(app)}catch(e){}
       }
       this.startListening(app);
       this._syncedUid=user.uid;
@@ -5279,7 +5281,7 @@ refreshCodePreview(){
   const frame=$('#code-preview-frame');const empty=$('#code-preview-empty');if(!frame)return;
   const paths=this.app.vfs.filesInFolder(this.codeRoot())||[];
   const htmlPath=paths.find(p=>/index\.html$/i.test(p))||paths.find(p=>/\.html$/i.test(p));
-  if(!htmlPath){if(empty)empty.style.display='flex';if(frame&&frame.removeAttribute)frame.removeAttribute('srcdoc');return}
+  if(!htmlPath){if(empty)empty.style.display='flex';frame.removeAttribute('srcdoc');return}
   if(empty)empty.style.display='none';
   try{
     let html=this.app.vfs.read(htmlPath);
@@ -5294,7 +5296,7 @@ refreshCodePreview(){
       return m;
     });
     frame.srcdoc=html;
-  }catch(e){if(frame&&frame.removeAttribute)frame.removeAttribute('srcdoc')}
+  }catch(e){frame.removeAttribute('srcdoc')}
 }
 renderCodeFiles(){
   const el=$('#code-file-tree');if(!el)return;
@@ -7990,6 +7992,7 @@ async _restoreCloudSession(){
       const data=await this.cloud.pullAll();
       if(data)this.cloud.applyPulled(this,data);
     }catch(e){console.warn('[CloudSync] restore pull',e)}
+    try{await this.cloud.rehydrateSystemDefaults(this)}catch(e){}
     if(this.ui&&this.ui.reloadWorkspaceForAccount)this.ui.reloadWorkspaceForAccount();
     else if(this.ui&&this.ui.renderAuth)this.ui.renderAuth();
     this.cloud.startListening(this);
