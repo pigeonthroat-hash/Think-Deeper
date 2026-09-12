@@ -2307,6 +2307,10 @@ class CloudSync{
     if(data.currentConvId!==undefined&&data.currentConvId)s.set('currentConvId',data.currentConvId);
     ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','uiLanguage','uiTextSize'].forEach(k=>{
       if(data[k]===undefined||data[k]===null)return;
+      if(k==='vfs'&&data.vfs&&typeof data.vfs==='object'){
+        s.set('vfs',Object.assign({},s.get('vfs',{})||{},data.vfs));
+        return;
+      }
       s.set(k,data[k]);
     });
     ['agentRunState','chatRunState'].forEach(k=>{
@@ -2479,7 +2483,34 @@ filesInFolder(folder){
   }).sort();
   return paths;
 }
-read(p){const f=this.files[p];if(!f)throw new Error('File not found: '+p);return f.content}
+exists(p){return !!(p&&this.files[p])}
+resolve(p){
+  const raw=String(p||'').replace(/^\/+/,'').trim();
+  if(!raw)return raw;
+  if(this.files[raw])return raw;
+  let best=null,bestTs=-1;
+  const needle=raw.replace(/\//g,'__');
+  for(const [path,meta] of Object.entries(this.files||{})){
+    if(!String(path).startsWith('archive/'))continue;
+    const from=String((meta&&meta.archivedFrom)||'');
+    const nameOk=path.indexOf(needle)>=0;
+    if(from===raw||from==='/'+raw||nameOk){
+      const ts=Number((meta&&(meta.archivedAt||meta.updated))||0);
+      if(ts>=bestTs){best=path;bestTs=ts}
+    }
+  }
+  return best||raw;
+}
+rewriteLinks(text){
+  const self=this;
+  return String(text||'').replace(/\[\[(file|preview|folder):([^\]]+)\]\]/g,(_,kind,path)=>'[['+kind+':'+self.resolve(String(path||'').trim())+']]');
+}
+read(p){
+  const hit=this.resolve(p);
+  const f=this.files[hit]||this.files[p];
+  if(!f)throw new Error('File not found: '+p);
+  return f.content
+}
 write(p,c,{archiveOld=true}={}){const old=this.files[p];const ln=countLines(c);let added=ln,removed=0;if(old){const lo=old.lines||countLines(old.content);added=Math.max(0,ln-lo);removed=Math.max(0,lo-ln);if(archiveOld){const ap=`archive/${p.replace(/\//g,'__')}_${Date.now()}.bak`;this.files[ap]={...old,archivedFrom:p,archivedAt:now()}}}this.files[p]={content:c,updated:now(),version:(old?.version||0)+1,lines:ln};this.persist();return{path:p,added,removed,lines:ln,isNew:!old}}
 delete(p){if(!this.files[p])throw new Error('File not found');const lines=this.files[p].lines||0;const ap=`archive/${p.replace(/\//g,'__')}_${Date.now()}_deleted.bak`;this.files[ap]={...this.files[p],archivedFrom:p,archivedAt:now()};delete this.files[p];this.persist();return{path:p,removed:lines}}
 persist(){this.storage.set('vfs',this.files);try{if(window.__app&&window.__app.cloud)window.__app.cloud.schedulePush(window.__app)}catch(e){}}
@@ -3527,6 +3558,7 @@ class Scheduler{
       this.k.events.emit('agent.done',{id,result:String(a.result||'').slice(0,400)});
       // Always hand control back to supervisor so the chain never stalls
       if(id!=='coordinator'&&this.k.alive&&!this.k.solved){
+        try{this.conc=Math.min(3,Math.max(this.conc||1,(this.k.agents.list().filter(x=>x.role!=='supervisor'&&(x.status==='idle'||x.status==='completed')).length)||1))}catch(e){}
         const coord=this.k.agents.get('coordinator');
         if(coord&&(coord.status==='waiting'||coord.status==='completed')){
           coord.status='idle';
@@ -3664,10 +3696,20 @@ class AgentManager{
             }
           }
         }
+        if(this.k.mystery&&!this._mysteryShapeOk(answer)){
+          a.thoughts=a.thoughts||[];
+          a.thoughts.push({name:'Thought',detail:'SOLVED lacked the required mystery conclusion headings. Composing the final four-part writeup.',status:'running'});
+          const composed=await this._composeMysteryFinal();
+          this.k.solved=composed;this.k.alive=false;a.result=composed;return a.result;
+        }
         this.k.solved=answer;this.k.alive=false;return a.result;
       }
       // Only force-finish on hard timeout or extreme round cap — never treat partial work as SOLVED
       if(timedOut||a.rounds>=maxRounds){
+        if(this.k.mystery){
+          const composed=await this._composeMysteryFinal();
+          this.k.solved=composed;this.k.alive=false;a.result=composed;return a.result;
+        }
         this.k.solved=(txt||'').replace(/^SOLVED\s*:\s*/i,'').trim()||'Time or round limit reached before a complete solution. Partial notes:\n'+this.list().filter(x=>x.result).map(x=>x.id+': '+String(x.result).slice(0,400)).join('\n');
         this.k.alive=false;return a.result;
       }
@@ -3678,6 +3720,7 @@ class AgentManager{
           w.task=run[2].trim();
           w.status='idle';
           w.result=null;
+          w.ended=null;
           w.thoughts=[];
           a.status='waiting';
           this.k.scheduler.enqueue(w.id,'assigned');
@@ -3708,6 +3751,23 @@ class AgentManager{
     }
     return a.result;
   }
+  _mysteryShapeOk(text){
+    const t=String(text||'');
+    return /##\s*What was solved/i.test(t) && /##\s*Why it is new/i.test(t) && /##\s*Evidence/i.test(t);
+  }
+  async _composeMysteryFinal(){
+    const notes=this.list().filter(x=>x.role!=='supervisor').map(x=>x.id+' ('+x.role+'): '+String(x.result||x.error||'').slice(0,1800)).join('\n\n');
+    const thoughts=this.list().map(x=>x.id+': '+((x.thoughts||[]).slice(-3).map(t=>String(t.detail||'')).join(' | '))).join('\n');
+    try{
+      const data=await this.k.app.provider.chat([
+        {role:'system',content:'You are the Supervisor writing the FINAL mathematical-mystery conclusion for the human. Use EXACT markdown headings:\n## What was solved\n## Why it is new\n## Evidence\n## Limits\nBe concrete. If the work did not produce a new result, say that under Why it is new and cite prior art. Do not address agents.'},
+        {role:'user',content:'Goal:\n'+String(this.k.goal||'')+'\n\nWorker notes:\n'+notes+'\n\nThoughts:\n'+thoughts.slice(0,4000)}
+      ],{temperature:0.2,maxTokens:2500});
+      const txt=((data&&data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'').trim();
+      if(txt)return txt;
+    }catch(e){console.warn('mystery final',e)}
+    return '## What was solved\n'+String(this.k.solved||this.k.goal||'The team reached the time or round limit.')+'\n\n## Why it is new\nNot established — the run ended before a novelty-checked proof. Treat this as a progress report, not a discovery.\n\n## Evidence\n'+notes.slice(0,3000)+'\n\n## Limits\nA complete, verified new result was not delivered.';
+  }
   _tools(a){
     const defs=[];
     if(a.role==='supervisor'){
@@ -3730,8 +3790,11 @@ class AgentManager{
   }
   async _execTool(a,name,args){
     if(name==='createfinalresponse'||name==='create_final_response'){
-      const answer=String((args&&(args.answer||args.content||args.text))||'').trim();
+      let answer=String((args&&(args.answer||args.content||args.text))||'').trim();
       if(!answer)return {ok:false,error:'answer is required'};
+      if(this.k.mystery&&!this._mysteryShapeOk(answer)){
+        return {ok:false,error:'MYSTERY_FINAL_REQUIRED: rewrite with headings ## What was solved, ## Why it is new, ## Evidence, ## Limits. Explain the exact result and why it is new (or not new). Then call createfinalresponse again.'};
+      }
       this.k.solved=answer;a.result=answer;a._finalized=true;
       this.k.events.emit('agent.final',{id:a.id,answer:answer.slice(0,400)});
       return {ok:true,delivered:true};
@@ -3744,7 +3807,7 @@ class AgentManager{
         const roster=this.list().filter(x=>x.role!=='supervisor').map(x=>x.id).join(', ')||'(none)';
         return {ok:false,error:'Unknown agent id. Valid workers: '+roster};
       }
-      w.task=String(args.task||args.text||w.task||'Continue');w.status='idle';w.result=null;w.error=null;
+      w.task=String(args.task||args.text||w.task||'Continue');w.status='idle';w.result=null;w.error=null;w.ended=null;w.thoughts=[];
       if(a)a.status='waiting';
       this.k.scheduler.enqueue(w.id,'assigned');
       return {ok:true,id:w.id};
@@ -3834,14 +3897,14 @@ class Coordinator{
     const groupMode=!!this.k.groupMode;
     let supPrompt='You are the Supervisor (coordinator). Never speak to the human directly. Call contact_agent to assign work and createfinalresponse when fully solved. ENVIRONMENT SAFETY: this is a browser tab. Never assign while True, unbounded loops, os.system, subprocess, threading, eval, location.reload, or huge allocations. If a tool returns CRASH_BLOCKED, rewrite smaller. Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nCRITICAL RULE: Do NOT output SOLVED until the goal is completely solved to the user\'s standard — partial progress is not enough. Keep assigning workers until the work is finished. Only then synthesize the final answer from all agent results (prefer majority when they agree). When workers submit Python, you optimize it for maximum Pyodide speed (all modules available) before execution; agents stay idle until that returns. In your own notes use short thoughts only — no titles/headings; LaTeX math is fine.';
     if(mystery){
-      supPrompt+='\nMYSTERY MODE: Progress on the exact part the user asked about. Use run_python for checks. CRITICAL PRIOR-ART RULE: Before claiming anything is NEW or original, you (or a worker) MUST call web_search for the claim, related theorems, and known results. If search shows it was already known (even decades ago), say so clearly, cite sources, and do NOT present it as a new discovery — build on prior art instead. Do NOT output SOLVED unless the answer adds something new relative to the user and prior agent results, or clearly frames known results with citations. If a draft only restates the problem, issue another RUN.';
+      supPrompt+='\nMYSTERY MODE: You must finish with createfinalresponse that uses EXACTLY these headings:\n## What was solved\nOne precise statement of the claim, theorem, computation, or counterexample.\n## Why it is new\nExplain exactly why this is new relative to prior art, or honestly say it is NOT new and cite the earlier result. Never bluff novelty.\n## Evidence\nMethods, searches, and computations that support the claim.\n## Limits\nWhat remains open.\nBefore novelty claims a worker MUST web_search. A worker finishing their own note is NOT the end — keep assigning more RUN/contact_agent tasks, including workers who already concluded, until the four-part final exists.';
     }
     if(groupMode){
       supPrompt+='\nGROUP MODE: First create groups by assigning roles like "leader-A", "member-A". Group leaders may message their members; members report to their leader; leaders report to you. Still only ONE live RUN at a time.';
     }
     if(this.k.intentNote)supPrompt+='\nUSER INTENT: '+this.k.intentNote;
     if(this.k.budgetMs)supPrompt+='\nTIME BUDGET: about '+Math.round(this.k.budgetMs/1000)+' seconds. Use the time wisely but do not declare SOLVED early.';
-    if(this.k.mustFullySolve!==false)supPrompt+='\nYou must not SOLVED until the task is fully complete.';
+    if(this.k.mustFullySolve!==false)supPrompt+='\nYou must not SOLVED until the task is fully complete. After any partial conclusion keep assigning workers — completed workers may be reused.';
     const sup=this.k.agents.register({id:'coordinator',role:'supervisor',model,fallbacks,task:'Coordinate until solved: '+goal,rounds:0,perms:{python:true,files:true,messaging:true,spawn:true,network:true,sharedWs:true},systemPrompt:supPrompt,limits:{maxTokens:500000,maxReqs:500},maxTokens:4000});
     const count=Math.max(1,Math.min(10000,n||1));
     const roles=['builder','planner','reviewer','researcher','tester'];
@@ -3880,7 +3943,7 @@ class Coordinator{
       });
     }
     this.k.memory.add('global','root',{text:'goal: '+goal+(mystery?' [mystery]':'')+(groupMode?' [groups]':'')+(this.k.intentNote?(' intent: '+this.k.intentNote):'')+(this.k.budgetMs?(' time_budget_ms: '+this.k.budgetMs):'')});
-    this.k.scheduler.conc=1; // sequential: one worker at a time so results return to Supervisor immediately
+    this.k.scheduler.conc=Math.min(3,Math.max(1,count)); // allow several workers after handoff
     this.k.scheduler.enqueue('coordinator','start');
     return {configured:count,activated:1,mystery,groupMode};
   }
@@ -4525,6 +4588,7 @@ initCodeMode(){
 
 openHtmlPreview(path){
   try{
+    if(this.app.vfs.resolve)path=this.app.vfs.resolve(path);
     let htmlContent=this.app.vfs.read(path);
     const dir=path.includes('/')?path.slice(0,path.lastIndexOf('/')+1):'';
     const closeStyle='</sty'+'le>';
@@ -4609,6 +4673,7 @@ writeSharedMemoryPack(){
 }
 persistLiveAgent(force){
   try{
+    if(this._wantNewAgentChat)return;
     const k=this.app.swarm;if(!k)return;
     const sid=this._currentAgentSessionId||k.sessionId||null;
     const snap=k.snapshot?k.snapshot(sid):{ts:Date.now(),alive:!!k.alive,goal:k.goal||''};
@@ -4871,6 +4936,7 @@ loadAgentSession(id){
   box.innerHTML='';
   const who=this.userLabel();
   (s.messages||[]).forEach(m=>{
+    if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);
     const div=document.createElement('div');
     div.className='agent-msg '+(m.role==='user'?'user':'assistant')+(m.speaker==='Supervisor'||m.role==='assistant'?' supervisor':'');
     const role=m.role==='user'?who.label:(m.speaker||'Supervisor');
@@ -4893,7 +4959,17 @@ loadAgentSession(id){
   this.renderAgentHist();
 }
 resetAgentChatView(){
-  this._currentAgentSessionId=null;this._agentFollowupReady=false;this._lastAgentOpts=null;
+  this._wantNewAgentChat=true;
+  this._currentAgentSessionId=null;
+  this._agentFollowupReady=false;
+  this._lastAgentOpts=null;
+  this._agentResumed=false;
+  this._agentSession=null;
+  try{if(this.app.swarm){this.app.swarm.stop();this.app.swarm.sessionId=null;this.app.swarm.solved=null}}catch(e){}
+  try{if(this._quickAbort)this._quickAbort.abort()}catch(e){}
+  this._quickAbort=null;
+  try{this.app.storage.set('agentRunState',{v:2,alive:false,ts:Date.now(),sessionId:null})}catch(e){}
+  try{this.setAgentRunningUi(false)}catch(e){}
   const box=$('#swarm-think');
   if(box){
     box.innerHTML='<div class="agent-empty" id="agent-empty"><h1>Agent</h1><p>Describe what you need. A Supervisor will assemble a team, assign roles, and keep working until the goal is fully solved.</p><div class="agent-suggest-row"><button type="button" class="agent-suggest" data-prompt="Prove or disprove a concrete case of the Collatz conjecture with rigorous computation.">Mathematical mystery</button><button type="button" class="agent-suggest" data-prompt="Design and implement a small production-ready module with tests.">Advanced code</button><button type="button" class="agent-suggest" data-prompt="Write a polished long-form document with clear structure and citations where needed.">Fancy document</button></div></div>';
@@ -4906,9 +4982,12 @@ openAgentSetup(){
   const goal=($('#swarm-goal')?.value||'').trim();
   if(!goal){toast('Type a message first','error');return}
   if(this.app.swarm&&this.app.swarm.alive){
-    // Soft-stop previous run so follow-ups work
     try{this.app.swarm.stop()}catch(e){}
     this._agentDeadline=0;
+  }
+  if(this._wantNewAgentChat){
+    this._currentAgentSessionId=null;
+    this._agentFollowupReady=false;
   }
   if(this._agentQuick){
     return this.runAgentQuickAsk(goal);
@@ -4932,7 +5011,10 @@ async runAgentQuickAsk(goal){
     msg.innerHTML='<div class="agent-msg-head"><div class="avatar user">'+(who.img||who.initial)+'</div><span class="agent-msg-role">'+escapeHtml(who.label)+'</span></div><div class="agent-msg-body">'+escapeHtml(goal)+'</div>';
     box.appendChild(msg);
   }
-  const sess=this.saveAgentSession({id:this._currentAgentSessionId||uid(),title:goal.slice(0,40),messages:[{role:'user',content:goal}]});
+  const qFresh=!!this._wantNewAgentChat||!this._currentAgentSessionId;
+  const qid=qFresh?uid():this._currentAgentSessionId;
+  this._wantNewAgentChat=false;
+  const sess=this.saveAgentSession({id:qid,title:goal.slice(0,40),messages:[{role:'user',content:goal}]});
   this._currentAgentSessionId=sess.id;
   this.setAgentRunningUi(true);
   this._quickAbort=new AbortController();
@@ -5030,7 +5112,7 @@ async startSwarm(opts){
     toast('Select a model in Settings for Agent mode','error');
   }
   const debate=opts.debate!=null?!!opts.debate:!!$('#swarm-debate')?.checked;
-  const mystery=opts.mystery!=null?!!opts.mystery:true;
+  const mystery=opts.mystery!=null?!!opts.mystery:(opts.intent==='mystery');
   const group=opts.group!=null?!!opts.group:!!$('#swarm-group')?.checked;
   const intent=opts.intent||'other';
   const budgetMs=opts.budgetMs||10*60*1000;
@@ -5043,11 +5125,16 @@ async startSwarm(opts){
   else if(q==='heavy'){opts.count=Math.max(opts.count||8,8);opts.budgetMs=Math.max(budgetMs,20*60*1000)}
   else if(q==='auto'){/* supervisor decides via prompt */}
   {
-    const sid=this._currentAgentSessionId||uid();
-    const prev=this.agentSessions().find(x=>x.id===sid);
-    const messages=((prev&&prev.messages)||[]).concat([{role:'user',content:goal}]);
+    const fresh=!!this._wantNewAgentChat || !opts.followup || !this._currentAgentSessionId;
+    if(this._wantNewAgentChat || (!opts.followup && !this._currentAgentSessionId)) this._currentAgentSessionId=null;
+    const sid=(!fresh && this._currentAgentSessionId)?this._currentAgentSessionId:uid();
+    const prev=(!this._wantNewAgentChat && this._currentAgentSessionId)?this.agentSessions().find(x=>x.id===this._currentAgentSessionId):null;
+    const baseMsgs=(opts.followup&&prev&&prev.messages)?prev.messages.slice():[];
+    const messages=baseMsgs.concat([{role:'user',content:goal}]);
+    this._wantNewAgentChat=false;
     this._agentSession=this.saveAgentSession({id:sid,title:(prev&&prev.title)||goal.slice(0,40),messages});
     this._currentAgentSessionId=this._agentSession.id;
+    k.sessionId=this._currentAgentSessionId;
   }
 
   this._agentIntent=intent;
@@ -5070,7 +5157,7 @@ async startSwarm(opts){
   this._setAgentStatus('Running · '+count+' agents');
   if(this._agentClockTimer)clearInterval(this._agentClockTimer);
   this._agentClockTimer=setInterval(()=>this._tickAgentClock(),500);
-  const intentNote={mystery:'Mathematical mystery — pursue a complete solution.',code:'Advanced code — implement fully with verification.',document:'Fancy document — polished complete deliverable.',other:'General task — complete solution required.'}[intent]||'';
+  const intentNote={mystery:'Mathematical mystery — pursue a complete solution and finish with the four-part conclusion (What was solved / Why it is new / Evidence / Limits).',code:'Advanced code — implement fully with verification.',document:'Fancy document — polished complete deliverable.',other:'General task — complete solution required.'}[intent]||'';
   const prior=(opts.followup&&this._currentAgentSessionId)?(this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{}).messages:[];
   const historyNote=(prior&&prior.length)?('\n\nPRIOR TURNS IN THIS AGENT CHAT:\n'+prior.slice(-8).map(m=>(m.role+': '+String(m.content||'').slice(0,800))).join('\n')):'';
   await k.start(goal+historyNote,{count,conc:1,live,debate,mystery,group,intent,intentNote,budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto'});
@@ -5170,7 +5257,7 @@ renderSwarm(ev){
     const work=$('#agent-work');
     if(finalEl){
       finalEl.style.display='block';
-      finalEl.innerHTML=this.renderMarkdown?this.renderMarkdown(String(k.solved)):(escapeHtml(String(k.solved)));
+      {let ft=String(k.solved);if(this.app.vfs&&this.app.vfs.rewriteLinks)ft=this.app.vfs.rewriteLinks(ft);finalEl.innerHTML=this.renderMarkdown?this.renderMarkdown(ft):(escapeHtml(ft));}
       if(this._renderMath)this._renderMath(finalEl);
       if(this.enhanceCodeBlocks)this.enhanceCodeBlocks(finalEl);
     }
@@ -5190,8 +5277,10 @@ renderSwarm(ev){
     try{
       if(this._currentAgentSessionId&&k.solved){
         const s=this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{id:this._currentAgentSessionId,messages:[]};
-        const messages=(s.messages||[]).concat([{role:'assistant',content:String(k.solved)}]);
-        this.saveAgentSession({id:s.id,title:s.title||'Agent chat',messages});
+        let finalTxt=String(k.solved);
+        if(this.app.vfs&&this.app.vfs.rewriteLinks)finalTxt=this.app.vfs.rewriteLinks(finalTxt);
+        const messages=(s.messages||[]).concat([{role:'assistant',speaker:'Supervisor',content:finalTxt}]);
+        this.saveAgentSession({id:s.id,title:s.title||'Agent chat',messages,runAlive:false});
       }
     }catch(e){}
   }
@@ -5811,7 +5900,11 @@ savePlugin(){const p=this._editingPlugin||{id:uid()};p.name=$('#plugin-name').va
 async importPlugin(file){if(!file)return;try{const text=await file.text();let data;try{data=JSON.parse(text)}catch{data=null}const p=data?{id:uid(),name:data.name||file.name.replace(/\.\w+$/,''),description:data.description||'',instructions:data.instructions||data.prompt||'',knowledge:data.knowledge||'',icon:data.icon||'plugin',enabled:true,training:!!data.training,folder:data.folder||'',files:data.files||null}:{id:uid(),name:file.name.replace(/\.\w+$/,''),description:'Imported text',instructions:text,knowledge:'',icon:'file',enabled:true};this.app.plugins.save(p);this.renderPluginList();toast('Imported','success')}catch(e){toast('Import failed: '+e.message,'error')}$('#import-plugin-file').value=''}
 newChat(){
   this.hideSelToolbar();
-  // Do not create a conversation until the user actually sends a message
+  if(this.mode==='swarm'){
+    this.resetAgentChatView();
+    toast('New agent chat','success');
+    return;
+  }
   this.app.conversations.currentId=null;
   this.app.storage.set('currentConvId',null);
   this._pendingProjectId=this.app.storage.get('currentProjectId',null);
@@ -5819,9 +5912,8 @@ newChat(){
   this.renderConversations();
   this.showEmpty();
   const msgs=$('#messages');if(msgs)msgs.innerHTML='';
-  if(this.mode==='swarm')this.resetAgentChatView&&this.resetAgentChatView();
 }
-loadConversation(id){this.hideSelToolbar();if(this.isPhone&&this.isPhone())this.toggleSidebar(true);if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>this.renderMessage(m,false));this.scrollToBottom();this._loadingConv=null}
+loadConversation(id){this.hideSelToolbar();if(this.isPhone&&this.isPhone())this.toggleSidebar(true);if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>{if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);this.renderMessage(m,false)});this.scrollToBottom();this._loadingConv=null}
 renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>p.id===pid):null;let chats=this.app.conversations.list();if(proj){const set=new Set(proj.chatIds||[]);chats=chats.filter(c=>set.has(c.id)||c.projectId===pid)}
   const q=(this._convQuery||'').trim().toLowerCase();
   if(q){chats=chats.filter(c=>{
@@ -6069,8 +6161,8 @@ if(tp){
 
 let contentEl=body.querySelector('.final-content');
 if(!contentEl){contentEl=document.createElement('div');contentEl.className='final-content';body.appendChild(contentEl)}let md=ev.content||'';md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>this.fileChipHtml({folder:p,name:(p.split('/').pop()||p)+'.zip'}));
-md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>`<button type="button" class="preview-chip" data-preview="${p}" aria-label="Preview ${p.split('/').pop()||p}">${SVG.eye} Preview ${p.split('/').pop()||p}</button>`);
-md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>this.fileChipHtml({path:p,name:p.split('/').pop()||p}));
+md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return `<button type="button" class="preview-chip" data-preview="${rp}" aria-label="Preview ${rp.split('/').pop()||p}">${SVG.eye} Preview ${rp.split('/').pop()||p}</button>`});
+md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return this.fileChipHtml({path:rp,name:(rp.split('/').pop()||p)})});
 if(tp)tp.classList.remove('open');const gif=tp&&tp.querySelector('.tp-gif');if(gif){try{gif.style.animationPlayState='paused'}catch(e){}}this.revealAnswer(contentEl,this.renderMarkdown(md));this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
 contentEl.querySelectorAll('.file-chip-dl').forEach(a=>{
   const go=e=>{e.preventDefault();e.stopPropagation();
@@ -8094,6 +8186,8 @@ async runSilentAutomation(a){
 }
 
 fileChipHtml({path,folder,name}){
+  if(path&&this.app&&this.app.vfs&&this.app.vfs.resolve)path=this.app.vfs.resolve(path);
+  if(folder&&this.app&&this.app.vfs&&this.app.vfs.resolve)folder=this.app.vfs.resolve(folder);
   const n=String(name||(path||folder||'file').split('/').pop());
   const ext=(n.split('.').pop()||'').toLowerCase();
   const archives=new Set(['zip','gz','tar','tgz','rar','7z']);
