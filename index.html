@@ -1134,8 +1134,8 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 }
 
 
-.conv-item,.hist-item-wrap{position:relative;overflow:visible}
-.conv-list,.agent-hist,#agent-hist-list,#code-hist-list{overflow:visible}
+.conv-list{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
+.agent-hist,#agent-hist-list,#code-hist-list{max-height:160px;overflow-y:auto;overflow-x:hidden}
 #td-float-menu{
   position:fixed;z-index:40000;min-width:148px;padding:6px;
   background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;
@@ -1145,6 +1145,18 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 #td-float-menu button{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--text-primary);padding:8px 10px;border-radius:8px;cursor:pointer;font-size:.82rem}
 #td-float-menu button:hover{background:var(--bg-hover)}
 .hist-pop,.conv-pop{z-index:50}
+
+
+@keyframes dotsGlow{
+  0%{color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 0 var(--accent-soft)}
+  40%{color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 6px var(--accent-soft)}
+  100%{color:var(--text-secondary);background:transparent;box-shadow:0 0 0 10px transparent}
+}
+.ah-more.glow,.conv-more.glow{animation:dotsGlow .65s ease;border-radius:8px}
+.refer-banner{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.refer-banner .refer-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.refer-banner .refer-remove{flex-shrink:0;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);border-radius:8px;padding:4px 10px;font-size:.75rem;cursor:pointer}
+.refer-banner .refer-remove:hover{border-color:var(--accent);color:var(--accent)}
 
 </style>
 </head>
@@ -1176,22 +1188,21 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 </div>
 <div class="agent-hist" id="code-hist-list" style="display:none"></div>
 <button type="button" class="sidebar-more-btn" id="sidebar-more-btn" aria-label="More tools">More</button>
-<div class="sidebar-footer-head is-collapsed">
+<div class="sidebar-footer-head">
 <button type="button" class="footer-arrow-btn" id="footer-toggle" aria-label="Toggle tools panel" title="Toggle tools">
 <svg class="footer-arrow-down" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
 <svg class="footer-arrow-up" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
 </button>
 </div>
-<div class="sidebar-footer collapsed" id="sidebar-footer">
-<button type="button" id="settings-btn-footer" class="settings-open-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
+<div class="sidebar-footer open" id="sidebar-footer">
 <button id="plugins-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg> Plugins</button>
 <button id="workspace-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> External Workspace</button>
 <button type="button" id="workspace-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg> Remove workspace</button>
 <button id="automations-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M17.5 14v7M14 17.5h7"/></svg> Build Automations</button>
+<button type="button" id="settings-btn-footer" class="settings-open-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
 <button class="icon-btn" id="theme-btn" aria-label="Toggle theme" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> Theme</button>
-</div><div class="sidebar-dock" id="sidebar-dock">
+</div><div class="sidebar-dock" id="sidebar-dock" style="display:none">
 <button id="dev-panel-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Dev panel</button>
-<button id="settings-btn-dock" class="settings-open-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
 </div>
 
 </aside>
@@ -1203,7 +1214,6 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <div class="model-dropdown" id="model-dropdown"><div class="model-search"><input type="text" id="model-search" placeholder="Search models…"></div><div class="model-list" id="model-list"></div></div>
 </div>
 <div class="header-right"><span class="workspace-badge" id="workspace-status">No external workspace</span>
-<button type="button" class="icon-btn settings-open-btn" id="settings-btn" aria-label="Settings" title="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg><span>Settings</span></button>
 <div id="auth-area" style="display:flex;gap:6px;align-items:center">
 <button type="button" class="auth-btn" id="btn-login">Log in</button>
 <button type="button" class="auth-btn" id="btn-signup">Sign up</button>
@@ -1776,6 +1786,7 @@ function openFloatMenu(anchor,items){
     b.onclick=ev=>{ev.preventDefault();ev.stopPropagation();closeFloatMenu();if(it.fn)it.fn()};
     m.appendChild(b);
   });
+  if(anchor&&anchor.classList){anchor.classList.remove('glow');void anchor.offsetWidth;anchor.classList.add('glow');setTimeout(()=>anchor.classList.remove('glow'),700)}
   const r=anchor.getBoundingClientRect();
   m.classList.add('open');
   const w=m.offsetWidth||160,h=m.offsetHeight||160;
@@ -5522,13 +5533,13 @@ _histMenuClick(e,el,kind){
     openFloatMenu(e.currentTarget&&e.target.closest('.ah-more')||e.target,[
       {label:'Rename',fn:()=>{const cur=el.querySelector('.ah-title');const t=prompt('Rename',cur?cur.textContent:'');if(t)this._renameSession(kind,id,t)}},
       {label:'Pin',fn:()=>{const title=(el.querySelector('.ah-title')||{}).textContent||kind;const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:title,from:kind});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();toast('Pinned','success')}},
-      {label:'Refer',fn:()=>{this._referQuote=(el.querySelector('.ah-title')||{}).textContent||kind+' chat';toast('Will refer to this chat on send','info')}},
+      {label:'Refer',fn:()=>this.setReferQuote((el.querySelector('.ah-title')||{}).textContent||kind+' chat')},
       {label:'Delete',fn:()=>this._deleteSession(kind,id)}
     ]);
     return}
   if(act==='rename'){e.stopPropagation();const cur=el.querySelector('.ah-title');const t=prompt('Rename',cur?cur.textContent:'');if(!t)return;this._renameSession(kind,id,t);return}
   if(act==='pin'){e.stopPropagation();const title=(el.querySelector('.ah-title')||{}).textContent||kind;const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:title,from:kind});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();el.classList.remove('open');toast('Pinned','success');return}
-  if(act==='refer'){e.stopPropagation();this._referQuote=(el.querySelector('.ah-title')||{}).textContent||kind+' chat';el.classList.remove('open');toast('Will refer to this chat on send','info');return}
+  if(act==='refer'){e.stopPropagation();this.setReferQuote((el.querySelector('.ah-title')||{}).textContent||kind+' chat');el.classList.remove('open');return}
   if(act==='delete'){e.stopPropagation();this._deleteSession(kind,id);return}
   if(kind==='agent')this.loadAgentSession(id);else this.loadCodeSession(id);
 }
@@ -6690,12 +6701,12 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
   })}
   chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div>`;div.onclick=e=>{if(e.target.dataset.act==='delete'){e.stopPropagation();this.app.conversations.delete(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}else if(e.target.dataset.act==='rename'){e.stopPropagation();const t=prompt('Rename',c.title);if(t){this.app.conversations.rename(c.id,t);this.renderConversations()}}else if(e.target.dataset.act==='canvas'){e.stopPropagation();toast('Canvas chat was removed','info')}
     else if(e.target.dataset.act==='pin'){e.stopPropagation();const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:c.title||'Chat',from:'chat'});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();div.classList.remove('open-menu')}
-    else if(e.target.dataset.act==='refer'){e.stopPropagation();this._referQuote=c.title||'this chat';div.classList.remove('open-menu');toast('Will refer to this chat on send')}
+    else if(e.target.dataset.act==='refer'){e.stopPropagation();this.setReferQuote(c.title||'this chat');div.classList.remove('open-menu')}
     else if(e.target.dataset.act==='menu'){e.stopPropagation();
       openFloatMenu(e.target,[
         {label:'Rename',fn:()=>{const t=prompt('Rename',c.title);if(t){this.app.conversations.rename(c.id,t);this.renderConversations()}}},
         {label:'Pin',fn:()=>{const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:c.title||'Chat',from:'chat'});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();toast('Pinned','success')}},
-        {label:'Refer',fn:()=>{this._referQuote=c.title||'this chat';toast('Will refer to this chat on send','info')}},
+        {label:'Refer',fn:()=>this.setReferQuote(c.title||'this chat')},
         {label:'Delete',fn:()=>{this.app.conversations.delete(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}}
       ]);
     }else this.loadConversation(c.id)};list.appendChild(div)})}
@@ -7947,13 +7958,27 @@ showSelToolbar(range,text,aiEl){
   tip.querySelector('[data-act=pin]').onclick=()=>{this.hideSelToolbar();this.pinText(text)};
 }
 hideSelToolbar(){const t=document.getElementById('sel-toolbar');if(t)t.remove();if(this._selCleanup){try{this._selCleanup()}catch(e){}this._selCleanup=null}}
+clearRefer(){
+  this._referQuote=null;
+  const bar=document.getElementById('refer-bar');
+  if(bar)bar.remove();
+}
 setReferQuote(text){
-  this._referQuote=text;
+  const qt=String(text||'').trim();
+  if(!qt){this.clearRefer();return}
+  this._referQuote=qt;
   let bar=document.getElementById('refer-bar');
-  if(!bar){bar=document.createElement('div');bar.id='refer-bar';bar.className='refer-banner';
-    const area=document.querySelector('.input-area');if(area)area.parentElement.insertBefore(bar,area)}
-  bar.innerHTML='<strong>Referring:</strong> '+escapeHtml(text.slice(0,180))+' <button type="button" id="refer-close" style="float:right;border:none;background:transparent;cursor:pointer">×</button>';
-  const cl=document.getElementById('refer-close');if(cl)cl.onclick=()=>{this._referQuote=null;bar.remove()};
+  if(!bar){bar=document.createElement('div');bar.id='refer-bar';bar.className='refer-banner'}
+  const hosts=['.input-area','.code-input-area','.agent-chat-input-area'];
+  let host=null;
+  for(const s of hosts){const el=document.querySelector(s);if(el&&el.offsetParent!==null){host=el;break}}
+  if(!host)host=document.querySelector('.input-area')||document.querySelector('.code-input-area')||document.querySelector('.agent-chat-input-area');
+  if(host){
+    try{host.parentElement.insertBefore(bar,host)}catch(e){try{host.insertAdjacentElement('beforebegin',bar)}catch(e2){}}
+  }
+  bar.innerHTML='<span class="refer-text"><strong>Referring:</strong> '+escapeHtml(qt.slice(0,180))+'</span><button type="button" class="refer-remove" id="refer-close">Remove</button>';
+  const cl=document.getElementById('refer-close');
+  if(cl)cl.onclick=e=>{e.preventDefault();e.stopPropagation();this.clearRefer()};
 }
 pinText(text){
   const t=String(text||'').trim();if(!t)return;
@@ -8328,9 +8353,9 @@ bindAccountUi(){
   const more=$('#sidebar-more-btn');if(more)more.onclick=()=>toggleToolsPanel();
   if(footerToggle)footerToggle.onclick=()=>toggleToolsPanel();
   try{
-    // Default closed unless user explicitly opened it before
+    // Default open so Plugins / Workspace / Automations stay visible
     const stored=this.app.storage.get('footerCollapsed',null);
-    const collapsed=stored===null?true:!!stored;
+    const collapsed=false;
     const f=$('#sidebar-footer');
     if(f){if(collapsed){f.classList.add('collapsed');f.classList.remove('open')}else{f.classList.remove('collapsed');f.classList.add('open')}}
     this.app.storage.set('footerCollapsed',collapsed);
