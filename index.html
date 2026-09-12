@@ -977,33 +977,58 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 .code-files-list{font-size:.82rem}
 .code-file-row{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;cursor:pointer}
 .code-file-row:hover{background:var(--bg-hover)}
-/* Chat code toolbar */
-.code-header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-tertiary);border-radius:var(--radius-md) var(--radius-md) 0 0;font-size:.75rem;color:var(--text-tertiary);margin-bottom:-1px;border:1px solid var(--border);border-bottom:none}
+/* Chat code blocks — connected header + collapsible body */
+.code-block-wrap{
+  margin:.9em 0;border:1px solid var(--border);border-radius:var(--radius-md);
+  overflow:hidden;background:var(--bg-code);
+}
+.code-block-wrap .code-header{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  padding:7px 10px;margin:0;border:none;border-bottom:1px solid var(--border);
+  border-radius:0;background:var(--bg-tertiary);font-size:.75rem;color:var(--text-tertiary);
+}
+.code-block-wrap.collapsed .code-header{border-bottom:none}
+.code-block-wrap .code-header .ch-lang{
+  cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:6px;
+  color:var(--text-secondary);font-weight:500;
+}
+.code-block-wrap .code-header .ch-lang:hover{color:var(--text-primary)}
+.code-block-wrap .ch-chevron{width:12px;height:12px;opacity:.7;transition:transform .18s ease}
+.code-block-wrap:not(.collapsed) .ch-chevron{transform:rotate(90deg)}
 .code-header .ch-actions{display:flex;align-items:center;gap:4px}
-.code-header .ch-btn{width:28px;height:28px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary);border:1px solid transparent}
+.code-header .ch-btn{width:28px;height:28px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-secondary);border:1px solid transparent;background:transparent;cursor:pointer}
 .code-header .ch-btn:hover{background:var(--bg-hover);color:var(--text-primary);border-color:var(--border)}
 .code-header .ch-btn svg{width:14px;height:14px}
-/* Side panel for play/edit */
+.code-block-wrap pre{
+  margin:0!important;border:none!important;border-radius:0!important;
+  background:var(--bg-code)!important;padding:12px 14px;
+}
+.code-block-wrap.collapsed pre{display:none!important}
+.message-body pre:not(.code-block-wrap pre){margin:.9em 0}
+
+/* Code side panel — fixed to main column */
+.main{position:relative}
 .code-side-panel{
-  position:absolute;top:0;right:0;bottom:0;width:min(480px,48vw);
+  position:absolute;top:0;right:0;bottom:0;width:min(520px,46%);
   background:var(--bg-elevated);border-left:1px solid var(--border);
-  box-shadow:var(--shadow-lg);z-index:30;display:none;flex-direction:column;
-  animation:cspIn .22s cubic-bezier(.4,0,.2,1);
+  box-shadow:-8px 0 28px rgba(0,0,0,.12);z-index:45;
+  display:none;flex-direction:column;
+  animation:cspIn .2s cubic-bezier(.4,0,.2,1);
 }
 .code-side-panel.open{display:flex}
-@keyframes cspIn{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
-.csp-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);gap:8px}
+@keyframes cspIn{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+.csp-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);gap:8px;flex-shrink:0}
 .csp-head strong{font-size:.9rem}
-.csp-body{flex:1;min-height:0;display:flex;flex-direction:column}
-.csp-preview-frame{flex:1;border:0;width:100%;background:#fff;min-height:200px}
+.csp-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.csp-preview-frame{flex:1;border:0;width:100%;min-height:0;background:#fff}
 .csp-editor{
   flex:1;min-height:0;margin:0;padding:12px;border:0;resize:none;outline:none;
   font-family:"SF Mono","Fira Code",Menlo,monospace;font-size:.82rem;line-height:1.5;
   background:var(--bg-code);color:var(--text-primary);tab-size:2;
 }
-.csp-out{max-height:160px;overflow:auto;padding:10px 12px;font-size:.8rem;border-top:1px solid var(--border);white-space:pre-wrap;background:var(--bg-secondary)}
+.csp-out{max-height:140px;overflow:auto;padding:10px 12px;font-size:.8rem;border-top:1px solid var(--border);white-space:pre-wrap;background:var(--bg-secondary);flex-shrink:0}
 .csp-out.error{color:var(--error);background:color-mix(in srgb,var(--error) 8%,var(--bg-secondary))}
-.csp-actions{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--border);flex-wrap:wrap}
+.csp-actions{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--border);flex-wrap:wrap;flex-shrink:0}
 .csp-actions button{padding:8px 12px;border-radius:8px;font-size:.8rem;border:1px solid var(--border);background:var(--bg-tertiary);cursor:pointer}
 .csp-actions button.primary{background:var(--accent);color:var(--text-inverse);border-color:transparent}
 .csp-actions button.danger{border-color:var(--error);color:var(--error)}
@@ -1068,6 +1093,63 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 </div>
 </div>
 </header>
+<div class="code-side-panel" id="code-side-panel" aria-hidden="true">
+  <div class="csp-head">
+    <strong id="csp-title">Code</strong>
+    <button type="button" class="icon-btn" id="csp-close" aria-label="Close">×</button>
+  </div>
+  <div class="csp-body">
+    <iframe class="csp-preview-frame" id="csp-preview" style="display:none" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+    <textarea class="csp-editor" id="csp-editor" style="display:none" spellcheck="false"></textarea>
+    <div class="csp-out" id="csp-out" style="display:none"></div>
+    <div class="csp-actions" id="csp-actions">
+      <button type="button" class="primary" id="csp-run">Run</button>
+      <button type="button" id="csp-fix" style="display:none">Fix error</button>
+      <button type="button" class="danger" id="csp-revert" style="display:none">Revert</button>
+    </div>
+  </div>
+</div>
+<div id="pin-bar" class="pin-bar" style="display:none"></div>
+<div class="input-meta">
+          <span id="agent-status">Ready</span>
+          <span id="iteration-info"></span>
+          <input type="checkbox" id="deep-think-toggle" style="display:none">
+        </div>
+</div></div>
+</main>
+</div>
+
+<div class="overlay" id="settings-overlay" aria-hidden="true"><div class="panel">
+<div class="panel-header"><h2 data-i18n="settings.title">Settings</h2><button class="icon-btn" id="close-settings" aria-label="Close settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+<div class="panel-body">
+<div class="tabs" id="settings-tabs">
+<button class="tab active" data-tab="api" data-i18n="settings.tabApi">API</button>
+<button class="tab" data-tab="agent" data-i18n="settings.tabAgent">Agent</button>
+<button class="tab" data-tab="personality" data-i18n="settings.tabPersonality">Personality</button>
+<button class="tab" data-tab="ui" data-i18n="settings.tabUi">UI</button>
+</div>
+<div id="tab-api">
+<div class="preset-grid">
+<button class="preset-btn" data-preset="openai"><strong>OpenAI</strong>api.openai.com</button>
+<button class="preset-btn" data-preset="groq"><strong>Groq</strong>api.groq.com</button>
+<button class="preset-btn" data-preset="openrouter"><strong>OpenRouter</strong>openrouter.ai</button>
+<button class="preset-btn" data-preset="gemini"><strong>Gemini</strong>Google AI (browser)</button>
+<button class="preset-btn" data-preset="custom"><strong>Custom</strong>Any compatible</button>
+</div>
+<div class="form-group"><label>API Base URL</label><input type="text" id="api-base" placeholder="https://api.openai.com/v1"><div class="hint">For Google Gemini use the Gemini preset (native API). Do not use generativelanguage…/chat/completions — that path is blocked by CORS in browsers.</div></div>
+<div class="form-group"><label>API Key</label><input type="password" id="api-key" placeholder="sk-…"><div class="hint">Stored only if you choose to remember it.</div></div>
+<div class="form-group"><label><input type="checkbox" id="remember-key"> Remember API key</label></div>
+<div class="form-group"><label>Main model ID</label><input type="text" id="api-model" placeholder="gpt-4o-mini"></div>
+<div class="form-group"><label>Model library</label>
+  <div class="model-lib-add"><input type="text" id="model-add-id" placeholder="Add another model ID"><button type="button" class="btn-secondary" id="model-add-btn">Add</button></div>
+  <div class="model-lib" id="model-library"></div>
+  <div class="hint">All added models show in the header selector. The main model is used by default.</div>
+<div class="form-group" style="margin-top:10px"><label>Local model file (.pt, .gguf, .onnx)</label>
+<input type="file" id="local-model-file" accept=".pt,.pth,.gguf,.onnx,.bin,.safetensors">
+<div class="hint">Stored in this workspace. The browser cannot run PyTorch weights directly — add a local OpenAI-compatible runtime URL in API Base if you want to serve the file.</div>
+</div>
+</div>
+
 <div class="chat-area" id="chat-area"><div class="chat-topbar"><span class="spacer"></span>
 <button type="button" class="icon-soft" id="chat-files-btn" aria-label="Workspace files" title="Workspace files"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M3 7V5a2 2 0 012-2h4l2 2"/></svg></button>
 </div><div class="chat-inner" id="chat-inner">
@@ -1280,62 +1362,7 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <button class="send-btn" id="send-btn" aria-label="Send message" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
 </div></div></div>
 
-<div class="code-side-panel" id="code-side-panel" aria-hidden="true">
-  <div class="csp-head">
-    <strong id="csp-title">Code</strong>
-    <button type="button" class="icon-btn" id="csp-close" aria-label="Close">×</button>
-  </div>
-  <div class="csp-body">
-    <iframe class="csp-preview-frame" id="csp-preview" style="display:none" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
-    <textarea class="csp-editor" id="csp-editor" style="display:none" spellcheck="false"></textarea>
-    <div class="csp-out" id="csp-out" style="display:none"></div>
-    <div class="csp-actions" id="csp-actions">
-      <button type="button" class="primary" id="csp-run">Run</button>
-      <button type="button" id="csp-fix" style="display:none">Fix error</button>
-      <button type="button" class="danger" id="csp-revert" style="display:none">Revert</button>
-    </div>
-  </div>
-</div>
-<div id="pin-bar" class="pin-bar" style="display:none"></div>
-<div class="input-meta">
-          <span id="agent-status">Ready</span>
-          <span id="iteration-info"></span>
-          <input type="checkbox" id="deep-think-toggle" style="display:none">
-        </div>
-</div></div>
-</main>
-</div>
 
-<div class="overlay" id="settings-overlay" aria-hidden="true"><div class="panel">
-<div class="panel-header"><h2 data-i18n="settings.title">Settings</h2><button class="icon-btn" id="close-settings" aria-label="Close settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
-<div class="panel-body">
-<div class="tabs" id="settings-tabs">
-<button class="tab active" data-tab="api" data-i18n="settings.tabApi">API</button>
-<button class="tab" data-tab="agent" data-i18n="settings.tabAgent">Agent</button>
-<button class="tab" data-tab="personality" data-i18n="settings.tabPersonality">Personality</button>
-<button class="tab" data-tab="ui" data-i18n="settings.tabUi">UI</button>
-</div>
-<div id="tab-api">
-<div class="preset-grid">
-<button class="preset-btn" data-preset="openai"><strong>OpenAI</strong>api.openai.com</button>
-<button class="preset-btn" data-preset="groq"><strong>Groq</strong>api.groq.com</button>
-<button class="preset-btn" data-preset="openrouter"><strong>OpenRouter</strong>openrouter.ai</button>
-<button class="preset-btn" data-preset="gemini"><strong>Gemini</strong>Google AI (browser)</button>
-<button class="preset-btn" data-preset="custom"><strong>Custom</strong>Any compatible</button>
-</div>
-<div class="form-group"><label>API Base URL</label><input type="text" id="api-base" placeholder="https://api.openai.com/v1"><div class="hint">For Google Gemini use the Gemini preset (native API). Do not use generativelanguage…/chat/completions — that path is blocked by CORS in browsers.</div></div>
-<div class="form-group"><label>API Key</label><input type="password" id="api-key" placeholder="sk-…"><div class="hint">Stored only if you choose to remember it.</div></div>
-<div class="form-group"><label><input type="checkbox" id="remember-key"> Remember API key</label></div>
-<div class="form-group"><label>Main model ID</label><input type="text" id="api-model" placeholder="gpt-4o-mini"></div>
-<div class="form-group"><label>Model library</label>
-  <div class="model-lib-add"><input type="text" id="model-add-id" placeholder="Add another model ID"><button type="button" class="btn-secondary" id="model-add-btn">Add</button></div>
-  <div class="model-lib" id="model-library"></div>
-  <div class="hint">All added models show in the header selector. The main model is used by default.</div>
-<div class="form-group" style="margin-top:10px"><label>Local model file (.pt, .gguf, .onnx)</label>
-<input type="file" id="local-model-file" accept=".pt,.pth,.gguf,.onnx,.bin,.safetensors">
-<div class="hint">Stored in this workspace. The browser cannot run PyTorch weights directly — add a local OpenAI-compatible runtime URL in API Base if you want to serve the file.</div>
-</div>
-</div>
 <div class="form-group"><label>Image API Base URL (optional)</label><input type="text" id="image-base" placeholder="Leave blank to use the chat API base"></div>
 <div class="form-group"><label>Image API Key (optional)</label><input type="password" id="image-key" placeholder="Leave blank to use the chat API key"></div>
 <div class="form-group"><label>Image model</label><input type="text" id="image-model" placeholder="dall-e-3 or your image model"></div>
@@ -1925,9 +1952,13 @@ class CloudSync{
     const force=!!opts.force; // force overwrite when admin is pushing site-wide key
     const c=Object.assign({},app.provider.config||{});
     // Site-wide system key fills gaps (and force when admin saves)
-    if(data.apiKey&&String(data.apiKey).trim()&&(force||!c.apiKey||!String(c.apiKey).trim()||c._fromSystem)){
-      c.apiKey=String(data.apiKey).trim();
-      c._fromSystem=true;
+    if(data.apiKey&&String(data.apiKey).trim()){
+      const userHasOwn=c.apiKey&&String(c.apiKey).trim()&&!c._fromSystem;
+      if(force||!userHasOwn){
+        c.apiKey=String(data.apiKey).trim();
+        c._fromSystem=true;
+        c.rememberKey=true; // keep site key in account storage so it survives reloads
+      }
     }
     if(data.baseUrl&&String(data.baseUrl).trim()&&(force||!c.baseUrl||c.baseUrl==='https://api.openai.com/v1'||c._fromSystem)){
       c.baseUrl=String(data.baseUrl).trim();
@@ -1974,7 +2005,17 @@ class CloudSync{
         }
       }
     }catch(e){}
-    if(data)this.applySystemDefaults(app,data,{force:false});
+    if(data){
+      // Prefer site-wide key for every account/guest unless user set a personal key
+      this.applySystemDefaults(app,data,{force:false});
+      // Ensure live config has the key even if storage namespaces differ
+      if(data.apiKey&&app.provider&&app.provider.config){
+        if(!app.provider.config.apiKey||app.provider.config._fromSystem){
+          app.provider.config.apiKey=String(data.apiKey).trim();
+          app.provider.config._fromSystem=true;
+        }
+      }
+    }
     return data;
   }
 
@@ -2476,19 +2517,32 @@ messagesToGemini(messages){
       contents.push({role:'user',parts:[{text:'Tool result ('+name+'): '+t}]});
       continue;
     }
-    let text='';
-    if(typeof msg.content==='string')text=msg.content;
-    else if(Array.isArray(msg.content))text=msg.content.map(p=>p.type==='text'?(p.text||''):(p.text||'')).join('\n');
-    else text=String(msg.content||'');
+    const role=msg.role==='assistant'?'model':'user';
+    const parts=[];
+    if(typeof msg.content==='string'){
+      if(msg.content)parts.push({text:msg.content});
+    }else if(Array.isArray(msg.content)){
+      msg.content.forEach(p=>{
+        if(!p)return;
+        if(p.type==='text'&&p.text)parts.push({text:p.text});
+        else if(p.type==='image_url'&&p.image_url&&p.image_url.url){
+          const url=String(p.image_url.url);
+          const m=url.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+          if(m)parts.push({inlineData:{mimeType:m[1],data:m[2]}});
+          else parts.push({text:'[Image URL: '+url.slice(0,120)+']'});
+        }else if(p.text)parts.push({text:p.text});
+      });
+    }else if(msg.content){
+      parts.push({text:String(msg.content)});
+    }
     if(msg.tool_calls&&msg.tool_calls.length){
       const calls=msg.tool_calls.map(tc=>{
         const fn=tc.function||{};
         return 'Call tool '+((fn.name)||'')+' with '+((fn.arguments)||'{}');
       }).join('\n');
-      text=(text?text+'\n':'')+calls;
+      parts.push({text:calls});
     }
-    const role=msg.role==='assistant'?'model':'user';
-    if(text)contents.push({role,parts:[{text}]});
+    if(parts.length)contents.push({role,parts});
   }
   if(!contents.length)contents.push({role:'user',parts:[{text:'Hello'}]});
   return {system:systemParts.join('\n\n'),contents};
@@ -3872,10 +3926,15 @@ User can expand tool cards to see full code and outputs. Finish when the answer 
 async run(userMessage,history,attachments,onEvent,{deepThink=false}={}){this.running=true;this.abortController=new AbortController();const signal=this.abortController.signal;const maxIter=Number.POSITIVE_INFINITY;const maxTools=Number.POSITIVE_INFINITY;const start=Date.now();const maxMs=Number.POSITIVE_INFINITY;
 if(attachments?.length){for(const a of attachments){
   try{
-    const preview=String(a.content||'').slice(0,1200);
-    onEvent({type:'activity',name:'Reading file',agent:'Agent 1',status:'done',detail:(a.name||'file')+(preview?('\n'+preview):''),expand:true});
-    if(a.content&&!a.dataUrl)this.tools.vfs.write('uploads/'+a.name,a.content,{archiveOld:false});
-    else if(a.dataUrl)this.tools.vfs.write('uploads/'+a.name+'.dataurl.txt',String(a.dataUrl).slice(0,500)+'…[data-url stored for session]',{archiveOld:false});
+    const isImg=a&&(a.isImage||(a.type&&String(a.type).startsWith('image/'))||a.dataUrl);
+    if(isImg&&a.dataUrl){
+      onEvent({type:'activity',name:'Reading image',agent:'Agent 1',status:'done',detail:(a.name||'image')+' (vision)',expand:false});
+      try{this.tools.vfs.write('uploads/'+(a.name||'image.png'),a.dataUrl,{archiveOld:false})}catch(e){}
+    }else{
+      const preview=String(a.content||'').slice(0,1200);
+      onEvent({type:'activity',name:'Reading file',agent:'Agent 1',status:'done',detail:(a.name||'file')+(preview?('\n'+preview):''),expand:true});
+      if(a.content)this.tools.vfs.write('uploads/'+a.name,a.content,{archiveOld:false});
+    }
   }catch(e){}
 }}
 try{
@@ -4232,16 +4291,17 @@ _fileBrief(a){
 }
 _buildUserContent(text,attachments){
   if(!attachments||!attachments.length)return text||'';
-  const imgs=attachments.filter(a=>a&&a.type&&String(a.type).startsWith('image/')&&a.dataUrl);
-  const files=attachments.filter(a=>a&&!(a.type&&String(a.type).startsWith('image/')&&a.dataUrl));
+  const isImage=a=>a&&a.dataUrl&&(a.isImage||(a.type&&String(a.type).startsWith('image/'))||/^data:image\//i.test(a.dataUrl));
+  const imgs=attachments.filter(isImage);
+  const files=attachments.filter(a=>a&&!isImage(a));
   if(imgs.length){
     const parts=[];
     let caption=text||'';
     if(files.length)caption+=(caption?'\n\n':'')+files.map(a=>this._fileBrief(a)).join('\n\n');
-    if(!caption)caption='Please analyze the attached image(s).';
+    caption+=(caption?'\n\n':'')+'Attached image file(s) are provided as real images for vision. Paths under uploads/ are also available for tools/Python if needed: '+imgs.map(a=>'uploads/'+(a.name||'image')).join(', ')+'.';
+    if(!text&&!files.length)caption='Please analyze the attached image(s). Describe shape, content, and any text you see.';
     parts.push({type:'text',text:caption});
     for(const a of imgs){
-      parts.push({type:'text',text:'[Attached image: '+(a.name||'image')+']'});
       parts.push({type:'image_url',image_url:{url:a.dataUrl}});
     }
     return parts;
@@ -5611,10 +5671,17 @@ let sendText=text;
   if(merr.length)sendText+='\n\nEditor diagnostics:\n'+merr.join('\n');
   const savedAtt=this.pendingAttachments.slice().map(a=>{
     try{
-      if(a&&a.name&&(a.content||a.dataUrl)){
-        const path='uploads/'+a.name+(a.dataUrl&&!a.content?'.dataurl.txt':'');
-        this.app.vfs.write(path,a.content||a.dataUrl,{archiveOld:false});
-        return {name:a.name,type:a.type||'',vfsPath:path,dataUrl:a.dataUrl||null,content:a.content?String(a.content).slice(0,20000):null};
+      if(!a||!a.name)return a;
+      if(a.dataUrl&&String(a.type||'').startsWith('image/')){
+        // Keep full data URL for vision models; also store under uploads/ for tools
+        const path='uploads/'+a.name;
+        try{this.app.vfs.write(path,a.dataUrl,{archiveOld:false})}catch(e){}
+        return {name:a.name,type:a.type||'image/png',vfsPath:path,dataUrl:a.dataUrl,isImage:true};
+      }
+      if(a.content){
+        const path='uploads/'+a.name;
+        this.app.vfs.write(path,a.content,{archiveOld:false});
+        return {name:a.name,type:a.type||'',vfsPath:path,content:String(a.content).slice(0,50000)};
       }
     }catch(e){}
     return a;
@@ -5881,7 +5948,6 @@ bindMessageHover(div,msg){
     bar.appendChild(mk('Delete',SVG.trash||'🗑',()=>this.deleteUserTurn(msg.id)));
   } else if(msg.role==='assistant'&&isLast){
     bar.appendChild(mk('Delete',SVG.trash||'🗑',()=>this.deleteAiTurn(msg.id)));
-    bar.appendChild(mk('Forget this',SVG.draft||'⊘',()=>this.forgetAiTurn(msg.id)));
   }
 }
 editUserMessage(msgId){
@@ -5908,10 +5974,27 @@ deleteAiTurn(msgId){
   const msgs=conv.messages;const idx=msgs.findIndex(m=>m.id===msgId);if(idx<0)return;
   if(idx!==msgs.length-1){toast('Only the latest reply can be deleted','error');return}
   let start=idx;if(start>0&&msgs[start-1].role==='user')start--;
+  const removed=msgs.slice(start);
   conv.messages=msgs.slice(0,start);
-  this.app.conversations.persist();this.loadConversation(conv.id);toast('Deleted','success');
+  // Auto-forget: drop matching memory notes and agent context for this turn
+  try{
+    removed.forEach(m=>{
+      const snippet=String(m.content||'').slice(0,80);
+      if(!snippet)return;
+      try{
+        (this.app.vfs.list('memory/')||[]).forEach(p=>{
+          try{
+            const c=String(this.app.vfs.read(p)||'');
+            if(c.includes(snippet.slice(0,40)))this.app.vfs.write(p,'',[/* clear */]);
+          }catch(e){}
+        });
+      }catch(e){}
+    });
+  }catch(e){}
+  try{if(this.app.agent){this.app.agent.pinCtx='';this.app.agent.userProfileCtx=''}}catch(e){}
+  this.app.conversations.persist();this.loadConversation(conv.id);toast('Deleted and forgotten','success');
 }
-forgetAiTurn(msgId){this.deleteAiTurn(msgId)}
+forgetAiTurn(msgId){this.deleteAiTurn(msgId)} /* alias */
 renderMessage(msg,isStreaming=false){const container=$('#messages');const div=document.createElement('div');div.className=`message ${msg.role}`;div.dataset.id=msg.id;const who=this.userLabel();const roleLabel=msg.role==='user'?who.label:'Think Deeper';const avatarText=msg.role==='user'?who.initial:'TD';let attachHtml='';if(msg.attachments?.length){attachHtml='<div class="attachments">';msg.attachments.forEach(a=>{if(a.dataUrl)attachHtml+=`<div class="attachment"><img src="${a.dataUrl}" alt=""></div>`;else attachHtml+=`<div class="attachment"><div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div></div>`});attachHtml+='</div>'}
 const bodyContent=msg.role==='user'?escapeHtml(this.visibleUserText(msg)).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
 div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);const actions=document.createElement('div');actions.className='message-actions';const tokEst=Math.max(1,Math.round(String((msg&&msg.content)||'').length/4));
@@ -6089,29 +6172,34 @@ enhanceCodeBlocks(container){
       pre.replaceWith(wrap);
       return;
     }
+    const wrap=document.createElement('div');
+    wrap.className='code-block-wrap collapsed';
     const header=document.createElement('div');header.className='code-header';
     const actions=document.createElement('div');actions.className='ch-actions';
-    const langSpan=document.createElement('span');langSpan.textContent=lang||'code';
+    const langBtn=document.createElement('button');
+    langBtn.type='button';langBtn.className='ch-lang';
+    langBtn.innerHTML='<svg class="ch-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg><span>'+escapeHtml(lang||'code')+'</span>';
+    langBtn.title='Expand / collapse';
+    langBtn.onclick=e=>{e.preventDefault();e.stopPropagation();wrap.classList.toggle('collapsed')};
     const mkIconBtn=(title,svg,fn)=>{
       const b=document.createElement('button');b.type='button';b.className='ch-btn';b.title=title;b.innerHTML=svg;b.onclick=e=>{e.preventDefault();e.stopPropagation();fn()};return b;
     };
     const playSvg='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
     const editSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
     const copySvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
-    const runnable=/^(html|htm|svg|javascript|js|typescript|ts|python|py|css)$/i.test(lang)||/^\s*<(!doctype|html|svg)/i.test(text)||/^\s*(def |import |print\()/m.test(text);
-    if(runnable||true){
-      actions.appendChild(mkIconBtn('Run / preview',playSvg,()=>this.openCodePlay({lang,code:block.textContent||'',block})));
-      actions.appendChild(mkIconBtn('Edit',editSvg,()=>this.openCodeEdit({lang,code:block.textContent||'',block})));
-    }
-    actions.appendChild(mkIconBtn('Copy',copySvg,()=>{
-      navigator.clipboard.writeText(block.textContent||'');
-      toast('Copied','success');
-    }));
-    header.appendChild(langSpan);header.appendChild(actions);
-    pre.parentElement.insertBefore(header,pre);
+    const codeText=()=>block.textContent||'';
+    actions.appendChild(mkIconBtn('Run / preview',playSvg,()=>this.openCodePlay({lang,code:codeText(),block})));
+    actions.appendChild(mkIconBtn('Edit',editSvg,()=>this.openCodeEdit({lang,code:codeText(),block})));
+    actions.appendChild(mkIconBtn('Copy',copySvg,()=>{navigator.clipboard.writeText(codeText());toast('Copied','success')}));
+    header.appendChild(langBtn);header.appendChild(actions);
+    const parent=pre.parentElement;
+    parent.insertBefore(wrap,pre);
+    wrap.appendChild(header);
+    wrap.appendChild(pre);
     if(window.hljs)try{hljs.highlightElement(block)}catch(e){}
   });
 }
+
 _bindCodeSidePanelOnce(){
   if(this._cspBound)return;this._cspBound=true;
   const close=$('#csp-close');if(close)close.onclick=()=>this.closeCodeSidePanel();
@@ -6131,38 +6219,38 @@ closeCodeSidePanel(){
 }
 openCodePlay(opts){
   this._bindCodeSidePanelOnce();
-  this.closeCodeSidePanel();
-  const p=$('#code-side-panel');if(!p)return;
+  const p=$('#code-side-panel');if(!p){toast('Preview panel missing','error');return}
   this._cspMode='play';
-  this._cspLang=(opts.lang||'').toLowerCase();
-  this._cspCode=opts.code||'';
+  this._cspLang=String(opts.lang||'').toLowerCase();
+  this._cspCode=String(opts.code||'');
   this._cspBlock=opts.block||null;
-  this._cspOrig=opts.code||'';
-  $('#csp-title').textContent='Preview · '+(opts.lang||'code');
+  this._cspOrig=String(opts.code||'');
+  this._cspDirty=false;
+  const title=$('#csp-title');if(title)title.textContent='Preview · '+(opts.lang||'code');
   p.classList.add('open');p.setAttribute('aria-hidden','false');
-  const ed=$('#csp-editor');if(ed)ed.style.display='none';
-  const frame=$('#csp-preview');
-  const out=$('#csp-out');
+  const ed=$('#csp-editor');if(ed){ed.style.display='none';ed.value=''}
+  const out=$('#csp-out');if(out){out.style.display='none';out.textContent='';out.classList.remove('error')}
   const fix=$('#csp-fix');if(fix)fix.style.display='none';
   const rev=$('#csp-revert');if(rev)rev.style.display='none';
   const run=$('#csp-run');if(run)run.style.display='inline-block';
-  this.runCodeSidePanel();
+  const frame=$('#csp-preview');if(frame){frame.style.display='none';frame.removeAttribute('srcdoc')}
+  // defer run so panel is visible first
+  requestAnimationFrame(()=>this.runCodeSidePanel());
 }
 openCodeEdit(opts){
   this._bindCodeSidePanelOnce();
-  this.closeCodeSidePanel();
-  const p=$('#code-side-panel');if(!p)return;
+  const p=$('#code-side-panel');if(!p){toast('Editor panel missing','error');return}
   this._cspMode='edit';
-  this._cspLang=(opts.lang||'').toLowerCase();
-  this._cspCode=opts.code||'';
+  this._cspLang=String(opts.lang||'').toLowerCase();
+  this._cspCode=String(opts.code||'');
   this._cspBlock=opts.block||null;
-  this._cspOrig=opts.code||'';
+  this._cspOrig=String(opts.code||'');
   this._cspDirty=false;
-  $('#csp-title').textContent='Edit · '+(opts.lang||'code');
+  const title=$('#csp-title');if(title)title.textContent='Edit · '+(opts.lang||'code');
   p.classList.add('open');p.setAttribute('aria-hidden','false');
-  const frame=$('#csp-preview');if(frame){frame.style.display='none';frame.srcdoc=''}
+  const frame=$('#csp-preview');if(frame){frame.style.display='none';frame.removeAttribute('srcdoc');frame.removeAttribute('src')}
   const ed=$('#csp-editor');
-  if(ed){ed.style.display='block';ed.value=opts.code||'';ed.focus()}
+  if(ed){ed.style.display='block';ed.value=opts.code||'';setTimeout(()=>ed.focus(),50)}
   const out=$('#csp-out');if(out){out.style.display='none';out.textContent='';out.classList.remove('error')}
   const fix=$('#csp-fix');if(fix)fix.style.display='none';
   const rev=$('#csp-revert');if(rev)rev.style.display='none';
@@ -6185,11 +6273,22 @@ async runCodeSidePanel(){
     if(isHtml||isCss){
       if(frame){
         frame.style.display='block';
+        frame.style.flex='1';
         let doc=code;
-        if(isCss)doc='<!DOCTYPE html><html><head><style>'+code+'</style></head><body><div class="preview">CSS loaded</div></body></html>';
-        frame.srcdoc=doc;
+        if(isCss){
+          doc='<!DOCTYPE html><html><head><meta charset="utf-8"><style>'+code+'</style></head><body></body></html>';
+        }else if(!/<html/i.test(doc)&&!/<!doctype/i.test(doc)){
+          // fragment → full document so preview always renders
+          if(/<svg/i.test(doc))doc='<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100%}svg{max-width:100%}</style></head><body>'+doc+'</body></html>';
+          else doc='<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;margin:16px}</style></head><body>'+doc+'</body></html>';
+        }
+        try{frame.srcdoc=doc}catch(e){
+          // fallback blob URL
+          const blob=new Blob([doc],{type:'text/html'});
+          frame.src=URL.createObjectURL(blob);
+        }
       }
-      if(out){out.style.display='block';out.textContent='Preview updated.';}
+      if(out){out.style.display='none';out.textContent='';}
       return;
     }
     if(isJs){
@@ -6315,6 +6414,18 @@ reloadWorkspaceForAccount(){
     else this.showEmpty&&this.showEmpty();
   }catch(e){console.error('load after login',e);this.showEmpty&&this.showEmpty()}
   this.renderAuth();
+  // Site-wide API key must apply to every account/guest after namespace switch
+  try{
+    if(this.app.cloud&&this.app.cloud.rehydrateSystemDefaults){
+      this.app.cloud.rehydrateSystemDefaults(this.app).then(()=>{
+        try{this.renderModelLabel&&this.renderModelLabel()}catch(e){}
+      }).catch(()=>{});
+    }else{
+      let data=null;
+      try{data=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'null')}catch(e){}
+      if(data&&this.app.cloud&&this.app.cloud.applySystemDefaults)this.app.cloud.applySystemDefaults(this.app,data,{force:false});
+    }
+  }catch(e){console.warn('[system key rehydrate]',e)}
 }
 
 shortDisplayName(name){
