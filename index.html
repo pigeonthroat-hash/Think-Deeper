@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html data-theme="dark" lang="en">
 <head>
-<!-- td-build:2026-09-12T22:58:02Z -->
+<!-- td-build:2026-09-12T23:06:09Z -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Think Deeper — Agentic AI</title>
@@ -2205,7 +2205,7 @@ class CloudSync{
     if(this._syncedUid===user.uid&&this._unsubConv)return;
     try{
       if(app.storage.isGuest()||app.storage.userId!==user.uid){
-        app.storage.setActiveUser({id:user.uid,name:user.displayName,email:user.email,picture:user.photoURL});
+        app.storage.activateUserAndDropGuest({id:user.uid,name:user.displayName,email:user.email,picture:user.photoURL});
       }
       const data=await this.pullAll();
       if(data)this.applyPulled(app,data);
@@ -3092,7 +3092,7 @@ class StorageManager{
   }
   set(k,v){
     try{
-      if(window.__tdLoggingOut)return;
+      if(window.__tdLoggingOut||window.__tdSwitchingAccount)return;
       if(this.isGuest()){
         this.guestMem[k]=v;
         if(this._guestDurable.has(k)){
@@ -3119,6 +3119,16 @@ class StorageManager{
     }catch(e){}
     drop.forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
     return drop.length;
+  }
+  activateUserAndDropGuest(user){
+    window.__tdSwitchingAccount=true;
+    try{this.clearGuestCache()}catch(e){}
+    try{
+      const app=window.__app;
+      if(app&&app.conversations){app.conversations.conversations=[];app.conversations.currentId=null}
+      if(app&&app.vfs){app.vfs.files={}}
+    }catch(e){}
+    try{this.setActiveUser(user)}finally{window.__tdSwitchingAccount=false}
   }
   setActiveUser(user){
     // user: {id,name,email,picture} or null for guest
@@ -3392,7 +3402,7 @@ geminiToOpenAI(data,model){
     model:model||'gemini'
   };
 }
-async chatGemini(messages,{model,tools,signal,temperature,maxTokens}={}){
+async chatGemini(messages,{model,tools,signal,temperature,maxTokens,toolChoice}={}){
   const key=String(this.config.apiKey||'').trim();
   if(!key)throw new Error('API key required (Google AI Studio key)');
   const mid=this.geminiModelId(model);
@@ -3410,7 +3420,9 @@ async chatGemini(messages,{model,tools,signal,temperature,maxTokens}={}){
   const gTools=this.toolsToGemini(tools);
   if(gTools){
     body.tools=gTools;
-    body.toolConfig={functionCallingConfig:{mode:'AUTO'}};
+    const tc=String(toolChoice||this.storage.get('toolChoice','auto')||'auto').toLowerCase();
+    const mode=(tc==='required'||tc==='any'||tc==='force')?'ANY':'AUTO';
+    body.toolConfig={functionCallingConfig:{mode:mode}};
   }
   console.groupCollapsed('[API] Gemini generateContent →');
   console.log('model',mid,'url',url.replace(/key=[^&]+/,'key=***'));
@@ -3503,7 +3515,7 @@ async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTo
   base=this.normalizeBaseUrl(base);
   // Google Gemini: use native generateContent (browser-friendly) instead of OpenAI path that CORS-blocks
   if(this.isGeminiBase(base)&&!(useFallback&&this.config.fallbackBaseUrl&&!this.isGeminiBase(this.config.fallbackBaseUrl))){
-    return await this.chatGemini(messages,{model,tools,signal,temperature,maxTokens});
+    return await this.chatGemini(messages,{model,tools,signal,temperature,maxTokens,toolChoice});
   }
   const url=String(base).replace(/\/$/,'')+'/chat/completions';
   const normalized=this.normalizeMessages(messages);
@@ -4879,7 +4891,7 @@ Goal: reliable answers via careful thinking, tools, testing, and self-correction
 Current local time: ${now.toString()}
 Use the local time only when the user asks about time/date or a search needs a current year.
 If you need a decision from the user, call ask_user with a short question and 3 options, then continue after the tool result. Do not end the turn instead of asking.
-If site mockups are enabled and you are building a website, call show_site_options with 5 small HTML layouts first.
+If site mockups are enabled in normal chat you may call show_site_options. In CODE MODE skip mockups and write the full site immediately with write_file.
 To create an image, call generate_image.
 
 
@@ -4950,7 +4962,7 @@ try{
     onEvent({type:'activity',name:'Monaco check',agent:'Agent 2',status:'done',detail:errs.length?errs.join('\n'):'Returned no errors'});
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE: write files under code/. For HTML apps, embed CSS in <style> and JS in <script> inside the HTML (or write sibling .css/.js with relative links). Preview cannot fetch external relative files unless they exist in the workspace. Link folders as [[folder:code/...]] and HTML as [[preview:code/.../index.html]]. Persist files only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE — BUILD NOW. You are a coding agent. First turn MUST call write_file. Do not say you are ready, do not only plan. Create a complete working HTML+CSS+JS project under code/. Embed CSS in <style> and JS in <script> (or write sibling files with relative links). Then check_code and link [[preview:code/.../index.html]]. Persist files only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 const hardMax=Number.POSITIVE_INFINITY;
 try{while(iteration<hardMax&&this.running){if(!this.running)break;
@@ -4961,12 +4973,16 @@ let response;
 const doChat=async(withTools)=>{
   for(let attempt=0;attempt<4;attempt++){
     try{
+      const codeHot=(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'));
+      const forceTools=!!(withTools&&codeHot&&iteration<=3&&toolCalls===0);
+      const storedChoice=this.storage.get('toolChoice','auto')||'auto';
+      const useTools=!!(withTools&&storedChoice!=='none');
       return await this.provider.chat(messages,{
-        tools:(withTools&&(this.storage.get('toolChoice','auto')||'auto')!=='none')?this.tools.definitions:undefined,
+        tools:useTools?this.tools.definitions:undefined,
         signal,
         model:this._pickModel(deepThink),
         maxTokens:this.maxTokens||INTENSITY[(this.storage.get('intensity','medium')||'medium')].maxTokens||4000,
-        toolChoice:(withTools&&(this.storage.get('toolChoice','auto')||'auto')!=='none')?(this.storage.get('toolChoice','auto')||'auto'):undefined,
+        toolChoice:forceTools?'required':(useTools?storedChoice:undefined),
         temperature:(()=>{const f=this.storage.get('forceTemp',null);if(f!=null&&f!==''&&Number.isFinite(Number(f)))return Math.min(1.2,Math.max(0,Number(f)));return this.temperature!=null?this.temperature:0.4})()
       });
     }catch(e){
@@ -5136,7 +5152,17 @@ if(hasTools){
   continue;
 }
 
-// No tool calls → this is the final natural-language answer
+// No tool calls → final answer, unless code mode still has not written files
+const codeHotEnd=(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'));
+if(codeHotEnd&&iteration<=4){
+  const low=String(assistantMsg.content||'').toLowerCase();
+  const looksReady=/ready to write|i am ready|i'll write|i will write|let me write|shall i write|what would you like/i.test(low);
+  const wrote=messages.some(m=>String(m.name||'')==='write_file'||(m.role==='tool'&&/write_file/.test(String(m.content||''))));
+  if(!wrote||looksReady){
+    messages.push({role:'user',content:'Stop announcing. Immediately call write_file and create a complete working HTML page with embedded CSS and JavaScript that fulfills the original task. Also write any extra .css/.js files. The live preview must work. Then call check_code. Do not ask questions.'});
+    continue;
+  }
+}
 finalContent=(extractTextToolCalls(assistantMsg.content||'').text)||'';console.log('[Agent] final content length',finalContent.length,'finish',finish);
 if(finalContent.trim())break;
 // Empty content without tools — avoid infinite empty loops
@@ -6850,12 +6876,14 @@ async sendCode(){this.ensureAgent();
   const enabled=CODE_SKILLS.filter(s=>{const c=document.querySelector(`input[data-skill="${s.id}"]`);return c&&c.checked});
   const skillText=enabled.map(s=>`### ${s.name}\n${s.body}`).join('\n\n');
   const inten=this.getIntensity();
-  const codePrompt=`CODE MODE (OpenHands-style skills + runtime checks). Intensity: ${inten.label}. ${inten.extra}\n
+  const codePrompt=`CODE MODE — EXECUTE NOW. Intensity: ${inten.label}. ${inten.extra}\n
+Do not reply with "I am ready to write" or any acknowledgement. Your first actions must be write_file calls that create a full working site (HTML + CSS + JS) the preview can open.
 Write project files under code/SESSION/ using the current code/ folder.
 For any HTML page you MUST include working CSS and JS:
 - Prefer embedding CSS in <style> and JS in <script> inside the HTML so preview works immediately.
 - If you use separate style.css / app.js, write those files next to the HTML and link them with relative href/src (same folder).
 Never ship a bare HTML shell without styles or behavior when the user asked for a page/app.
+Never stop after a planning sentence. Build the thing.
 Tools: write_file, read_file, list_files, run_python, check_code, web_search, image_search, github_*, self_check.
 
 RUNTIME CHECK LOOP (required):
@@ -8527,7 +8555,7 @@ mountGoogleButton(host,overlay){
       if(!this.app.cloud)this.app.cloud=new CloudSync();
       if(!this.app.cloud.ready)this.app.cloud.init();
       const user=await this.app.cloud.signInWithGoogle();
-      this.app.storage.setActiveUser(user);
+      this.app.storage.activateUserAndDropGuest(user);
       if(this.app.cloud)this.app.cloud.uid=user.id;
       if(status)status.textContent='Syncing…';
       // Pull with timeout so the modal never hangs forever
@@ -8586,7 +8614,7 @@ mountGoogleButton(host,overlay){
     try{
       const payload=JSON.parse(atob(resp.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
       const user={id:payload.sub,name:payload.name,email:payload.email,picture:payload.picture};
-      this.app.storage.setActiveUser(user);
+      this.app.storage.activateUserAndDropGuest(user);
       this.reloadWorkspaceForAccount();
       this.renderAuth();
       if(overlay)overlay.remove();
@@ -10268,7 +10296,7 @@ async _restoreCloudSession(){
     if(!fu){console.log('[CloudSync] no saved session');return}
     this.cloud.uid=fu.uid;
     const user={id:fu.uid,name:fu.displayName,email:fu.email,picture:fu.photoURL};
-    this.storage.setActiveUser(user);
+    this.storage.activateUserAndDropGuest(user);
     try{
       const data=await this.cloud.pullAll();
       if(data)this.cloud.applyPulled(this,data);
