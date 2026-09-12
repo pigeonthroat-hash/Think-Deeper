@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html data-theme="dark" lang="en">
 <head>
-<!-- td-build:2026-09-12T23:06:09Z -->
+<!-- td-build:2026-09-12T23:10:06Z -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Think Deeper — Agentic AI</title>
@@ -5420,7 +5420,7 @@ init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;
 
   this.t=(k,v)=>this.app.i18n?this.app.i18n.t(k,v):k;
   try{this.app.i18n.load(this.app.storage.get('uiLanguage','en')||'en')}catch(e){}
-  this.bindEvents();try{this.syncProjectBundles()}catch(e){}this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty();
+  this.bindEvents();try{this.syncProjectBundles()}catch(e){}this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);this.newChat();
   window.addEventListener('beforeunload',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}try{this.app.conversations&&this.app.conversations.persist()}catch(e){}});
   window.addEventListener('pagehide',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}}});
@@ -8439,9 +8439,10 @@ reloadWorkspaceForAccount(){
   this.renderCodeFiles&&this.renderCodeFiles();
   this.renderPins&&this.renderPins();
   try{
-    if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);
-    else this.showEmpty&&this.showEmpty();
-  }catch(e){console.error('load after login',e);this.showEmpty&&this.showEmpty()}
+    this.app.conversations.currentId=null;
+    this.app.storage.set('currentConvId',null);
+    this.newChat();
+  }catch(e){console.error('load after login',e);this.newChat()}
   this.renderAuth();
   // Site-wide API key must apply to every account/guest after namespace switch
   try{
@@ -10284,9 +10285,8 @@ start(){
   this.ui.scheduleAutomations&&this.ui.scheduleAutomations();
   this.cloud.bindCrossTab&&this.cloud.bindCrossTab(this);
   if(this.cloud._pendingAuthUser)this.cloud._onAuthUser(this.cloud._pendingAuthUser);
-  // Restore Firebase Auth session after refresh
+  // Restore Firebase Auth session after refresh (do not reopen last chat)
   this._restoreCloudSession();
-  setTimeout(()=>{try{this.ui&&this.ui.tryResumeAgentRun&&this.ui.tryResumeAgentRun()}catch(e){}try{this.ui&&this.ui.tryResumeChatRun&&this.ui.tryResumeChatRun()}catch(e){}},1800);
 }
 async _restoreCloudSession(){
   try{
@@ -10306,8 +10306,7 @@ async _restoreCloudSession(){
     else if(this.ui&&this.ui.renderAuth)this.ui.renderAuth();
     this.cloud.startListening(this);
     console.log('[CloudSync] session restored',fu.uid);
-    try{if(this.ui&&this.ui.tryResumeAgentRun)this.ui.tryResumeAgentRun()}catch(e){}
-    try{if(this.ui&&this.ui.tryResumeChatRun)this.ui.tryResumeChatRun()}catch(e){}
+    try{this.ui&&this.ui.newChat&&this.ui.newChat()}catch(e){}
   }catch(e){console.warn('[CloudSync] restore',e)}
 }
 }
