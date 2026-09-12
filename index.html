@@ -1110,46 +1110,6 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
   </div>
 </div>
 <div id="pin-bar" class="pin-bar" style="display:none"></div>
-<div class="input-meta">
-          <span id="agent-status">Ready</span>
-          <span id="iteration-info"></span>
-          <input type="checkbox" id="deep-think-toggle" style="display:none">
-        </div>
-</div></div>
-</main>
-</div>
-
-<div class="overlay" id="settings-overlay" aria-hidden="true"><div class="panel">
-<div class="panel-header"><h2 data-i18n="settings.title">Settings</h2><button class="icon-btn" id="close-settings" aria-label="Close settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
-<div class="panel-body">
-<div class="tabs" id="settings-tabs">
-<button class="tab active" data-tab="api" data-i18n="settings.tabApi">API</button>
-<button class="tab" data-tab="agent" data-i18n="settings.tabAgent">Agent</button>
-<button class="tab" data-tab="personality" data-i18n="settings.tabPersonality">Personality</button>
-<button class="tab" data-tab="ui" data-i18n="settings.tabUi">UI</button>
-</div>
-<div id="tab-api">
-<div class="preset-grid">
-<button class="preset-btn" data-preset="openai"><strong>OpenAI</strong>api.openai.com</button>
-<button class="preset-btn" data-preset="groq"><strong>Groq</strong>api.groq.com</button>
-<button class="preset-btn" data-preset="openrouter"><strong>OpenRouter</strong>openrouter.ai</button>
-<button class="preset-btn" data-preset="gemini"><strong>Gemini</strong>Google AI (browser)</button>
-<button class="preset-btn" data-preset="custom"><strong>Custom</strong>Any compatible</button>
-</div>
-<div class="form-group"><label>API Base URL</label><input type="text" id="api-base" placeholder="https://api.openai.com/v1"><div class="hint">For Google Gemini use the Gemini preset (native API). Do not use generativelanguage…/chat/completions — that path is blocked by CORS in browsers.</div></div>
-<div class="form-group"><label>API Key</label><input type="password" id="api-key" placeholder="sk-…"><div class="hint">Stored only if you choose to remember it.</div></div>
-<div class="form-group"><label><input type="checkbox" id="remember-key"> Remember API key</label></div>
-<div class="form-group"><label>Main model ID</label><input type="text" id="api-model" placeholder="gpt-4o-mini"></div>
-<div class="form-group"><label>Model library</label>
-  <div class="model-lib-add"><input type="text" id="model-add-id" placeholder="Add another model ID"><button type="button" class="btn-secondary" id="model-add-btn">Add</button></div>
-  <div class="model-lib" id="model-library"></div>
-  <div class="hint">All added models show in the header selector. The main model is used by default.</div>
-<div class="form-group" style="margin-top:10px"><label>Local model file (.pt, .gguf, .onnx)</label>
-<input type="file" id="local-model-file" accept=".pt,.pth,.gguf,.onnx,.bin,.safetensors">
-<div class="hint">Stored in this workspace. The browser cannot run PyTorch weights directly — add a local OpenAI-compatible runtime URL in API Base if you want to serve the file.</div>
-</div>
-</div>
-
 <div class="chat-area" id="chat-area"><div class="chat-topbar"><span class="spacer"></span>
 <button type="button" class="icon-soft" id="chat-files-btn" aria-label="Workspace files" title="Workspace files"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M3 7V5a2 2 0 012-2h4l2 2"/></svg></button>
 </div><div class="chat-inner" id="chat-inner">
@@ -1362,6 +1322,41 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <button class="send-btn" id="send-btn" aria-label="Send message" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
 </div></div></div>
 
+
+
+</main>
+</div>
+
+<div class="overlay" id="settings-overlay" aria-hidden="true"><div class="panel">
+<div class="panel-header"><h2 data-i18n="settings.title">Settings</h2><button class="icon-btn" id="close-settings" aria-label="Close settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+<div class="panel-body">
+<div class="tabs" id="settings-tabs">
+<button class="tab active" data-tab="api" data-i18n="settings.tabApi">API</button>
+<button class="tab" data-tab="agent" data-i18n="settings.tabAgent">Agent</button>
+<button class="tab" data-tab="personality" data-i18n="settings.tabPersonality">Personality</button>
+<button class="tab" data-tab="ui" data-i18n="settings.tabUi">UI</button>
+</div>
+<div id="tab-api">
+<div class="preset-grid">
+<button class="preset-btn" data-preset="openai"><strong>OpenAI</strong>api.openai.com</button>
+<button class="preset-btn" data-preset="groq"><strong>Groq</strong>api.groq.com</button>
+<button class="preset-btn" data-preset="openrouter"><strong>OpenRouter</strong>openrouter.ai</button>
+<button class="preset-btn" data-preset="gemini"><strong>Gemini</strong>Google AI (browser)</button>
+<button class="preset-btn" data-preset="custom"><strong>Custom</strong>Any compatible</button>
+</div>
+<div class="form-group"><label>API Base URL</label><input type="text" id="api-base" placeholder="https://api.openai.com/v1"><div class="hint">For Google Gemini use the Gemini preset (native API). Do not use generativelanguage…/chat/completions — that path is blocked by CORS in browsers.</div></div>
+<div class="form-group"><label>API Key</label><input type="password" id="api-key" placeholder="sk-…"><div class="hint">Stored only if you choose to remember it.</div></div>
+<div class="form-group"><label><input type="checkbox" id="remember-key"> Remember API key</label></div>
+<div class="form-group"><label>Main model ID</label><input type="text" id="api-model" placeholder="gpt-4o-mini"></div>
+<div class="form-group"><label>Model library</label>
+  <div class="model-lib-add"><input type="text" id="model-add-id" placeholder="Add another model ID"><button type="button" class="btn-secondary" id="model-add-btn">Add</button></div>
+  <div class="model-lib" id="model-library"></div>
+  <div class="hint">All added models show in the header selector. The main model is used by default.</div>
+<div class="form-group" style="margin-top:10px"><label>Local model file (.pt, .gguf, .onnx)</label>
+<input type="file" id="local-model-file" accept=".pt,.pth,.gguf,.onnx,.bin,.safetensors">
+<div class="hint">Stored in this workspace. The browser cannot run PyTorch weights directly — add a local OpenAI-compatible runtime URL in API Base if you want to serve the file.</div>
+</div>
+</div>
 
 <div class="form-group"><label>Image API Base URL (optional)</label><input type="text" id="image-base" placeholder="Leave blank to use the chat API base"></div>
 <div class="form-group"><label>Image API Key (optional)</label><input type="password" id="image-key" placeholder="Leave blank to use the chat API key"></div>
@@ -5284,7 +5279,7 @@ refreshCodePreview(){
   const frame=$('#code-preview-frame');const empty=$('#code-preview-empty');if(!frame)return;
   const paths=this.app.vfs.filesInFolder(this.codeRoot())||[];
   const htmlPath=paths.find(p=>/index\.html$/i.test(p))||paths.find(p=>/\.html$/i.test(p));
-  if(!htmlPath){if(empty)empty.style.display='flex';frame.removeAttribute('srcdoc');return}
+  if(!htmlPath){if(empty)empty.style.display='flex';if(frame&&frame.removeAttribute)frame.removeAttribute('srcdoc');return}
   if(empty)empty.style.display='none';
   try{
     let html=this.app.vfs.read(htmlPath);
@@ -5299,7 +5294,7 @@ refreshCodePreview(){
       return m;
     });
     frame.srcdoc=html;
-  }catch(e){frame.removeAttribute('srcdoc')}
+  }catch(e){if(frame&&frame.removeAttribute)frame.removeAttribute('srcdoc')}
 }
 renderCodeFiles(){
   const el=$('#code-file-tree');if(!el)return;
