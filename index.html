@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html data-theme="dark" lang="en">
 <head>
-<!-- td-build:2026-09-12T22:50:45Z -->
+<!-- td-build:2026-09-12T22:58:02Z -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Think Deeper — Agentic AI</title>
@@ -735,7 +735,7 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .theme-mode-btn.on{border-color:var(--accent);color:var(--text-primary);box-shadow:0 0 0 1px var(--accent)}
 .theme-swatches{display:flex;gap:8px;flex-wrap:wrap}
 .swatch{width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}
-.swatch.on{border-color:var(--text-primary);box-shadow:0 0 0 2px var(--bg-primary),0 0 0 3px var(--accent)}
+.swatch.on,.swatch.active{border-color:var(--text-primary);box-shadow:0 0 0 2px var(--bg-primary),0 0 0 3px var(--accent);transform:scale(1.08)}
 .td-select{position:relative;flex:1}
 .td-select-btn{width:100%;text-align:left;padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);cursor:pointer;font-size:.85rem}
 .td-select-menu{display:none;position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;max-height:240px;overflow:auto;box-shadow:0 8px 24px rgba(0,0,0,.16)}
@@ -1723,12 +1723,10 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <div class="form-group"><label>Font theme</label>
 <select id="font-theme"><option value="default">Default (Anthropic pair)</option><option value="serif">Serif editorial</option><option value="mono">Mono technical</option><option value="round">Soft rounded</option></select>
 </div>
-<div id="acct-dev-box">
-<label>Developer access</label>
-<p class="hint">Turn this on for the signed-in account to show Dev panel in the sidebar and edit local site defaults. Cloud-wide key publish still needs a listed owner account.</p>
-<label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" id="acct-dev-toggle"> Enable Dev panel for this account</label>
+<div id="acct-dev-box" style="display:none">
+<label>Developer tools</label>
+<p class="hint">This account is a listed owner. The Dev panel is only available on these two owner accounts.</p>
 <button type="button" class="btn-secondary" id="acct-open-dev">Open Dev panel</button>
-<div class="model-lib-add" style="margin-top:8px"><input type="email" id="acct-dev-email" placeholder="Grant another account email"><button type="button" class="btn-secondary" id="acct-dev-grant">Grant</button></div>
 </div>
 <div class="btn-row"><button type="button" class="btn-secondary" id="acct-logout">Log out</button><button type="button" class="btn-primary" id="save-account">Save</button></div>
 </div></div></div>
@@ -1897,19 +1895,9 @@ const $$= (s,el=document)=>[...el.querySelectorAll(s)];
 const uid=()=>Math.random().toString(36).slice(2,11);
 const DEV_EMAILS_BASE=['monsterbag293@gmail.com','pigeonthroat@gmail.com'];
 function devAllowList(){
-  let extra=[];
-  try{extra=JSON.parse(localStorage.getItem('thinkdeeper_v2_devEmails')||'[]')||[]}catch(e){}
-  return [...new Set(DEV_EMAILS_BASE.concat(extra).map(e=>String(e||'').trim().toLowerCase()).filter(Boolean))];
+  return DEV_EMAILS_BASE.map(e=>String(e||'').trim().toLowerCase()).filter(Boolean);
 }
-function grantDevEmail(email){
-  const e=String(email||'').trim().toLowerCase();
-  if(!e||!e.includes('@'))return false;
-  let extra=[];
-  try{extra=JSON.parse(localStorage.getItem('thinkdeeper_v2_devEmails')||'[]')||[]}catch(err){}
-  if(!extra.includes(e))extra.push(e);
-  try{localStorage.setItem('thinkdeeper_v2_devEmails',JSON.stringify(extra))}catch(err){}
-  return true;
-}
+function grantDevEmail(email){ return false; }
 function currentAccountEmail(){
   try{
     if(window.__app&&window.__app.storage&&window.__app.storage.getActiveUser){
@@ -1930,19 +1918,6 @@ function isDevAccount(email){
   try{
     const u=JSON.parse(localStorage.getItem('thinkdeeper_v2_activeUser')||'null');
     if(u&&u.email&&allow.includes(String(u.email).trim().toLowerCase()))return true;
-  }catch(err){}
-  try{
-    if(localStorage.getItem('thinkdeeper_v2_devMode')==='1')return true;
-  }catch(err){}
-  try{
-    const p=JSON.parse(localStorage.getItem('thinkdeeper_v2_profile')||'null')||{};
-    if(p&&p.devMode)return true;
-  }catch(err){}
-  try{
-    if(window.__app&&window.__app.storage){
-      const p=window.__app.storage.get('profile',{})||{};
-      if(p&&p.devMode)return true;
-    }
   }catch(err){}
   return false;
 }
@@ -3117,6 +3092,7 @@ class StorageManager{
   }
   set(k,v){
     try{
+      if(window.__tdLoggingOut)return;
       if(this.isGuest()){
         this.guestMem[k]=v;
         if(this._guestDurable.has(k)){
@@ -3131,6 +3107,19 @@ class StorageManager{
     if(this.isGuest()){delete this.guestMem[k];return}
     try{localStorage.removeItem(this._key(k))}catch{}
   }
+  clearGuestCache(){
+    this.guestMem={};
+    const prefix=this.root+'guest_';
+    const drop=[];
+    try{
+      for(let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i);
+        if(k&&k.indexOf(prefix)===0)drop.push(k);
+      }
+    }catch(e){}
+    drop.forEach(k=>{try{localStorage.removeItem(k)}catch(e){}});
+    return drop.length;
+  }
   setActiveUser(user){
     // user: {id,name,email,picture} or null for guest
     if(user&&user.id){
@@ -3139,7 +3128,7 @@ class StorageManager{
       try{localStorage.setItem(this.root+'googleUser_'+user.id,JSON.stringify(user))}catch{}
     }else{
       this.userId=null;
-      this.guestMem={};
+      this.clearGuestCache();
       try{localStorage.removeItem(this.root+'activeUser')}catch{}
     }
   }
@@ -5406,8 +5395,8 @@ init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;
   this.t=(k,v)=>this.app.i18n?this.app.i18n.t(k,v):k;
   try{this.app.i18n.load(this.app.storage.get('uiLanguage','en')||'en')}catch(e){}
   this.bindEvents();try{this.syncProjectBundles()}catch(e){}this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty();
-  window.addEventListener('beforeunload',()=>{try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}try{this.app.conversations&&this.app.conversations.persist()}catch(e){}});
-  window.addEventListener('pagehide',()=>{try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}});
+  window.addEventListener('beforeunload',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}try{this.app.conversations&&this.app.conversations.persist()}catch(e){}});
+  window.addEventListener('pagehide',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}}});
   window.addEventListener('online',()=>{try{if(this.app.cloud)this.app.cloud.pushNow(this.app)}catch(e){}try{this.tryResumeAgentRun()}catch(e){}try{this.tryResumeChatRun()}catch(e){}});
 }
@@ -6971,7 +6960,19 @@ applyTextSize(scale){
   document.documentElement.style.setProperty('--ui-scale',String(s));
   try{this.app.storage.set('uiTextSize',String(s))}catch(e){}
 }
-applyTheme(t){t=t==='light'?'light':'dark';document.documentElement.setAttribute('data-theme',t);document.querySelectorAll('.theme-mode-btn').forEach(b=>b.classList.toggle('on',b.dataset.themeSet===t));const pal=this.app.storage.get('palette','default');document.querySelectorAll('.swatch').forEach(b=>b.classList.toggle('on',(b.dataset.palette||'default')===(pal||'default')));document.documentElement.setAttribute('data-palette',pal&&pal!=='default'?pal:'');this.applyFontTheme&&this.applyFontTheme();document.documentElement.style.colorScheme=t;this.app.storage.set('theme',t);const d=$('#hljs-dark'),l=$('#hljs-light');if(d)d.disabled=t!=='dark';if(l)l.disabled=t==='dark';const btn=$('#theme-btn');if(btn)btn.title=t==='dark'?'Switch to light':'Switch to dark'}
+applyPalette(pal){
+  pal=String(pal||this.app.storage.get('palette','default')||'default');
+  this.app.storage.set('palette',pal);
+  document.documentElement.setAttribute('data-palette',pal==='default'?'':pal);
+  document.querySelectorAll('.swatch,[data-palette]').forEach(b=>{
+    const v=b.dataset.palette||'default';
+    const on=v===pal;
+    b.classList.toggle('on',on);
+    b.classList.toggle('active',on);
+    b.setAttribute('aria-pressed',on?'true':'false');
+  });
+}
+applyTheme(t){t=t==='light'?'light':'dark';document.documentElement.setAttribute('data-theme',t);document.querySelectorAll('.theme-mode-btn,[data-theme-set]').forEach(b=>b.classList.toggle('on',b.dataset.themeSet===t));this.applyPalette(this.app.storage.get('palette','default'));this.applyFontTheme&&this.applyFontTheme();document.documentElement.style.colorScheme=t;this.app.storage.set('theme',t);const d=$('#hljs-dark'),l=$('#hljs-light');if(d)d.disabled=t!=='dark';if(l)l.disabled=t==='dark';const btn=$('#theme-btn');if(btn)btn.title=t==='dark'?'Switch to light':'Switch to dark'}
 toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')||'dark';this.applyTheme(cur==='dark'?'light':'dark')}
 openSettings(){try{this.hideSelToolbar()}catch(e){}const ov=$('#settings-overlay');if(!ov){toast('Settings panel missing','error');return}ov.classList.add('open');ov.setAttribute('aria-hidden','false');try{const c=(this.app.provider&&this.app.provider.config)||{};$('#api-base').value=c.baseUrl||'';$('#api-key').value=c._fromSystem?'':(c.apiKey||'');if($('#api-key'))$('#api-key').placeholder=c._fromSystem?'•••• site-wide key (managed in Dev panel)':'sk-…';$('#api-model').value=c.model||'';this.renderModelLibrary();if($('#image-base'))$('#image-base').value=c.imageBaseUrl||'';if($('#image-key'))$('#image-key').value=c.imageApiKey||'';if($('#image-model'))$('#image-model').value=c.imageModel||'';if($('#site-mockups'))$('#site-mockups').checked=!!this.app.storage.get('siteMockups',false);$('#api-org').value=c.org||'';$('#api-project').value=c.project||'';$('#remember-key').checked=!!c.rememberKey;if($('#fallback-base')){$('#fallback-base').value=c.fallbackBaseUrl||'';$('#fallback-key').value=c.fallbackApiKey||'';$('#fallback-model').value=c.fallbackModel||''}if($('#google-client-id'))$('#google-client-id').value=c.googleClientId||this.app.storage.get('googleClientId','')||'';
 const roles=this.app.storage.get('modelRoles',{})||{};
@@ -8488,8 +8489,7 @@ renderAuth(){
     if(isDev){devBtn.style.display='flex';devBtn.removeAttribute('hidden')}
     else {devBtn.style.display='none'}
   }
-  const box=$('#acct-dev-box');if(box)box.style.display=signed?'block':'none';
-  const tg=$('#acct-dev-toggle');if(tg)tg.checked=!!isDev;
+  const box=$('#acct-dev-box');if(box)box.style.display=isDev?'block':'none';
 
   if(user&&user.id){
     const avatar=user.picture?`<img class="auth-avatar" src="${escapeHtml(user.picture)}" alt="">`:`<span class="auth-avatar" style="display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-size:.7rem">${escapeHtml((user.name||user.email||'?')[0]||'?')}</span>`;
@@ -8611,13 +8611,33 @@ loginWithGoogle(overlay){
   this.openAuthModal('login');
 }
 logoutGoogle(){
+  window.__tdLoggingOut=true;
+  try{this.app._loggingOut=true}catch(e){}
+  try{if(this.app.cloud)this.app.cloud._loggingOut=true}catch(e){}
+  const reloadFresh=()=>{
+    try{
+      const u=new URL(location.href);
+      u.searchParams.delete('logout');
+      u.searchParams.set('logout', String(Date.now()));
+      location.replace(u.pathname+u.search+u.hash);
+    }catch(e){
+      location.reload();
+    }
+  };
   const fin=()=>{
+    try{this.app.storage.clearGuestCache()}catch(e){}
     try{this.app.storage.setActiveUser(null)}catch(e){}
     try{if(this.app.cloud)this.app.cloud.uid=null}catch(e){}
     try{sessionStorage.clear()}catch(e){}
     try{localStorage.removeItem('thinkdeeper_v2_activeUser')}catch(e){}
-    const url=location.pathname+(location.search||'')+(location.hash||'');
-    location.replace(url||'/');
+    const afterCaches=()=>reloadFresh();
+    try{
+      if(window.caches&&caches.keys){
+        caches.keys().then(keys=>Promise.all(keys.map(k=>caches.delete(k)))).catch(()=>{}).then(afterCaches);
+        return;
+      }
+    }catch(e){}
+    afterCaches();
   };
   if(this.app.cloud&&this.app.cloud.ready&&this.app.cloud.signOut)this.app.cloud.signOut().then(fin).catch(fin);else fin();
 }
@@ -9110,11 +9130,7 @@ bindAccountUi(){
   const ps=$('#proj-setup-save');if(ps)ps.onclick=()=>this.saveProjectSetup();
   const pc=$('#proj-setup-close');if(pc)pc.onclick=()=>$('#proj-setup-overlay').classList.remove('open');
   document.querySelectorAll('[data-theme-set]').forEach(b=>b.onclick=()=>this.applyTheme(b.dataset.themeSet));
-  document.querySelectorAll('[data-palette]').forEach(b=>b.onclick=()=>{
-    const pal=b.dataset.palette||'default';
-    this.app.storage.set('palette',pal);
-    document.documentElement.setAttribute('data-palette',pal==='default'?'':pal);
-  });
+  document.querySelectorAll('[data-palette]').forEach(b=>b.onclick=()=>this.applyPalette(b.dataset.palette||'default'));
   const ft=$('#font-theme');if(ft)ft.onchange=()=>this.applyFontTheme(ft.value);
   const lm=$('#local-model-file');if(lm)lm.onchange=()=>this.importLocalModel(lm);
   const ppb=$('#code-phone-preview-btn');if(ppb)ppb.onclick=()=>this.openPhonePreview();
@@ -9328,7 +9344,7 @@ publishVersionFromDev(){
 }
 openDevPanel(){
   const user=this.app.storage.getActiveUser()||{};
-  if(!isDevAccount(user.email)){toast('Enable Dev panel in Account first','error');return}
+  if(!isDevAccount(user.email)){toast('Dev panel is limited to owner accounts','error');return}
   const ov=$('#dev-panel-overlay');
   if(!ov){toast('Dev panel UI missing','error');return}
   this._bindDevPanelOnce();
@@ -9606,26 +9622,8 @@ openAccountMenu(){
   this._acctPicData=(pic&&String(pic).startsWith('data:'))?pic:null;
   const signed=!!(user&&user.id);
   const isDev=isDevAccount(user.email);
-  const box=$('#acct-dev-box');if(box)box.style.display=signed?'block':'none';
-  const tg=$('#acct-dev-toggle');
-  if(tg){
-    tg.checked=!!isDev;
-    tg.onchange=()=>{
-      const on=!!tg.checked;
-      try{localStorage.setItem('thinkdeeper_v2_devMode',on?'1':'0')}catch(e){}
-      const p=this.app.storage.get('profile',{})||{};
-      p.devMode=on;this.app.storage.set('profile',p);
-      if(on&&user.email)grantDevEmail(user.email);
-      this.renderAuth();
-      toast(on?'Dev panel enabled for this account':'Dev panel disabled','success');
-    };
-  }
+  const box=$('#acct-dev-box');if(box)box.style.display=isDev?'block':'none';
   const od=$('#acct-open-dev');if(od)od.onclick=()=>{$('#account-overlay').classList.remove('open');this.openDevPanel()};
-  const gd=$('#acct-dev-grant');if(gd)gd.onclick=()=>{
-    const em=($('#acct-dev-email')&&$('#acct-dev-email').value)||'';
-    if(grantDevEmail(em)){toast('Granted dev access to '+em.trim().toLowerCase(),'success');if($('#acct-dev-email'))$('#acct-dev-email').value='';this.renderAuth()}
-    else toast('Enter a valid email','error');
-  };
   $('#account-overlay').classList.add('open');
 }
 saveAccountProfile(){
