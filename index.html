@@ -863,7 +863,32 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .agent-quick-btn{font-size:.75rem;padding:5px 10px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-tertiary);cursor:pointer}
 .agent-quick-btn:hover,.agent-quick-btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
 .dev-badge{font-size:.65rem;padding:2px 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent);margin-left:6px}
-#dev-panel-overlay .panel{max-width:560px}
+#dev-panel-overlay .panel{max-width:720px}
+.version-chip{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.95rem;letter-spacing:.04em;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);border-radius:12px;padding:12px 16px;cursor:pointer;width:100%;text-align:left}
+.version-chip:hover{border-color:var(--accent);background:var(--accent-soft)}
+#version-overlay{position:fixed;inset:0;z-index:12000;background:rgba(6,8,12,.72);backdrop-filter:blur(14px);display:none;align-items:stretch;justify-content:center}
+#version-overlay.open{display:flex}
+.version-sheet{width:min(920px,100%);height:100%;margin:0 auto;background:var(--bg-elevated);border-left:1px solid var(--border);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.version-sheet-head{display:flex;align-items:center;gap:12px;padding:18px 22px;border-bottom:1px solid var(--border)}
+.version-sheet-head h2{margin:0;font-size:1.15rem}
+.version-sheet-head .ver{font-family:ui-monospace,Menlo,monospace;opacity:.7}
+.version-sheet-body{flex:1;overflow:auto;padding:22px 26px 48px;line-height:1.55}
+.version-sheet-body h3{margin:22px 0 8px;font-size:1rem}
+.version-sheet-body ul{margin:0 0 8px 18px}
+.version-sheet-body li{margin:4px 0}
+.dev-console{background:#0b0f14;color:#d7e0ea;border:1px solid var(--border);border-radius:10px;min-height:140px;max-height:220px;overflow:auto;font:12px/1.45 ui-monospace,Menlo,monospace;padding:8px 10px}
+.dev-console .err{color:#ff8b8b}
+.dev-console .warn{color:#ffd27a}
+.dev-console .info{color:#9ad4ff}
+.hist-item-wrap{position:relative}
+.ah-more{margin-left:auto;border:0;background:transparent;color:var(--text-secondary);cursor:pointer;padding:2px 6px}
+.hist-pop{display:none;position:absolute;right:6px;top:28px;z-index:8;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;min-width:120px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.hist-item-wrap.open .hist-pop{display:block}
+.hist-pop button{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--text-primary);padding:6px 8px;border-radius:8px;cursor:pointer;font-size:.8rem}
+.hist-pop button:hover{background:var(--bg-hover)}
+.code-msg .msg-who{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:.78rem;font-weight:600}
+.code-msg .msg-who .avatar{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;font-size:.7rem}
+.code-msg .msg-who img{width:22px;height:22px;object-fit:cover}
 .dev-model-row{display:flex;gap:8px;align-items:flex-start;padding:8px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;background:var(--bg-elevated)}
 .dev-model-row input,.dev-model-row textarea{flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font-size:.82rem}
 
@@ -1335,6 +1360,7 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <button class="tab" data-tab="agent" data-i18n="settings.tabAgent">Agent</button>
 <button class="tab" data-tab="personality" data-i18n="settings.tabPersonality">Personality</button>
 <button class="tab" data-tab="ui" data-i18n="settings.tabUi">UI</button>
+<button class="tab" data-tab="version">Version</button>
 </div>
 <div id="tab-api">
 <div class="preset-grid">
@@ -1388,30 +1414,10 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <div class="btn-row"><button class="btn-primary" id="save-personality">Save Personality</button></div>
 </div>
 <div id="tab-ui" style="display:none">
-<div class="form-group"><label data-i18n="settings.language">Language</label>
-<select id="ui-language">
-<option value="en">English</option>
-<option value="es">Español</option>
-<option value="fr">Français</option>
-<option value="de">Deutsch</option>
-<option value="pt">Português</option>
-<option value="zh-Hans">简体中文</option>
-<option value="zh-Hant">繁體中文</option>
-<option value="ja">日本語</option>
-<option value="ko">한국어</option>
-<option value="ru">Русский</option>
-<option value="ar">العربية</option>
-<option value="hi">हिन्दी</option>
-<option value="it">Italiano</option>
-<option value="nl">Nederlands</option>
-<option value="pl">Polski</option>
-<option value="tr">Türkçe</option>
-<option value="uk">Українська</option>
-<option value="vi">Tiếng Việt</option>
-<option value="id">Bahasa Indonesia</option>
-<option value="sv">Svenska</option>
-</select>
-<div class="hint">Loads translations from the Think Deeper Weblate catalog (<code>locales/&lt;lang&gt;.json</code>). Falls back to English if a language is incomplete.</div>
+<div class="form-group"><label>Language</label>
+<div style="padding:8px 0;font-weight:600">English</div>
+<div class="hint">Only English is enabled. Extra languages are added after a Weblate catalog is marked ready and synced — unfinished packs are not shipped.</div>
+<input type="hidden" id="ui-language" value="en">
 </div>
 <div class="form-group"><label>Text size</label>
 <select id="ui-text-size">
@@ -1426,6 +1432,12 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 </div>
 <div class="form-group"><label data-i18n="settings.thinkingGif">Working animation GIF URL</label><input type="text" id="thinking-gif" placeholder="https://…/loading.gif or leave empty"><div class="hint">Leave blank for default dots.</div></div>
 <div class="btn-row"><button class="btn-primary" id="save-ui" data-i18n="settings.saveUi">Save UI Settings</button></div>
+</div>
+<div id="tab-version" style="display:none">
+<div class="form-group"><label>App version</label>
+<button type="button" class="version-chip" id="version-open-btn" title="Open version notes">V1.0.0</button>
+<div class="hint">Tap the version to read the full V1.0.0 notes. New versions are published from the Dev panel.</div>
+</div>
 </div>
 </div></div></div>
 
@@ -1565,8 +1577,36 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <div id="dev-model-list"></div>
 <div class="model-lib-add" style="margin-top:8px"><input type="text" id="dev-model-id" placeholder="model id"><input type="text" id="dev-model-desc" placeholder="short description"><button type="button" class="btn-secondary" id="dev-model-add">Add</button></div>
 </div>
+<div class="form-group"><label>Publish a version</label>
+<input type="text" id="dev-ver-id" placeholder="e.g. V1.0.1">
+<input type="text" id="dev-ver-title" placeholder="Short title" style="margin-top:6px">
+<textarea id="dev-ver-notes" placeholder="What changed in this version…" style="min-height:90px;margin-top:6px"></textarea>
+<label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="dev-ver-current"> Make this the live version label</label>
+<button type="button" class="btn-secondary" id="dev-ver-add" style="margin-top:8px">Save version notes</button>
+<div class="hint">Use this so you can ship notes without waiting on a code edit. The shipped baseline stays V1.0.0 until you publish another label.</div>
+</div>
+<div class="form-group"><label>Live code console</label>
+<div class="dev-console" id="dev-live-console">Waiting for errors and warnings…</div>
+<div class="btn-row" style="margin-top:8px">
+<button type="button" class="btn-secondary" id="dev-console-clear">Clear</button>
+<button type="button" class="btn-primary" id="dev-console-ai">AI overview</button>
+</div>
+<div id="dev-console-ai-out" class="hint" style="margin-top:8px;white-space:pre-wrap"></div>
+</div>
 <div class="btn-row"><button type="button" class="btn-secondary" id="dev-panel-cancel">Cancel</button><button type="button" class="btn-primary" id="dev-panel-save">Save system defaults</button></div>
 </div></div></div>
+<div id="version-overlay" aria-hidden="true">
+  <div class="version-sheet">
+    <div class="version-sheet-head">
+      <div>
+        <div class="ver" id="version-sheet-ver">V1.0.0</div>
+        <h2 id="version-sheet-title">Think Deeper</h2>
+      </div>
+      <button type="button" class="icon-btn" id="version-overlay-close" aria-label="Close" style="margin-left:auto">×</button>
+    </div>
+    <div class="version-sheet-body" id="version-sheet-body"></div>
+  </div>
+</div>
 
 <script src="./config.local.js" onerror="console.info('[Think Deeper] config.local.js not found — Google login needs Client ID in that file or Settings')"></script>
 <script>
@@ -1617,6 +1657,33 @@ const $= (s,el=document)=>el.querySelector(s);
 const $$= (s,el=document)=>[...el.querySelectorAll(s)];
 const uid=()=>Math.random().toString(36).slice(2,11);
 const now=()=>Date.now();
+const APP_VERSION='V1.0.0';
+const MAX_FILE_BYTES=1048575;
+const ErrorSink={
+  logs:[],
+  listeners:[],
+  _inited:false,
+  init(){
+    if(this._inited)return;this._inited=true;
+    const push=(level,args)=>{
+      const text=Array.from(args||[]).map(a=>{
+        if(a&&a.stack)return String(a.stack);
+        try{return typeof a==='string'?a:JSON.stringify(a)}catch(e){return String(a)}
+      }).join(' ').slice(0,2000);
+      const rec={ts:Date.now(),level,text};
+      this.logs.push(rec);if(this.logs.length>120)this.logs.shift();
+      this.listeners.forEach(fn=>{try{fn(rec)}catch(e){}});
+    };
+    const wrap=(name,level)=>{
+      const orig=console[name].bind(console);
+      console[name]=function(){push(level,arguments);return orig.apply(console,arguments)};
+    };
+    wrap('error','error');wrap('warn','warn');
+    window.addEventListener('error',e=>push('error',[e.message,e.filename+':'+e.lineno]));
+    window.addEventListener('unhandledrejection',e=>push('error',['unhandledrejection',e.reason]));
+  }
+};
+ErrorSink.init();
 const fmtTime=ts=>new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
 function toast(msg,type='info',detail){const el=document.createElement('div');el.className=`toast ${type}`;el.innerHTML='<div class="toast-title"></div>'+(detail?'<div class="toast-detail"></div>':'');el.querySelector('.toast-title').textContent=msg;if(detail)el.querySelector('.toast-detail').textContent=detail;$('#toasts').appendChild(el);setTimeout(()=>el.remove(),5200)}
 function escapeHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
@@ -1627,11 +1694,10 @@ function countLines(t){return t?t.split('\n').length:0}
 class I18n{
   constructor(storage){
     this.storage=storage;
-    this.lng=storage.get('uiLanguage','en')||'en';
+    this.lng='en';
     this.dict={};
     this.fallback={};
-    this.base='https://raw.githubusercontent.com/pigeonthroat-hash/Think-Deeper/main/locales';
-    this.ready=false;
+    this.ready=true;
   }
   t(key,vars){
     const builtins={
@@ -1660,28 +1726,14 @@ class I18n{
     return s;
   }
   async load(lng){
-    const lang=String(lng||this.lng||'en').trim()||'en';
-    this.lng=lang;
-    this.storage.set('uiLanguage',lang);
-    // Always load English fallback first
-    try{
-      if(!Object.keys(this.fallback).length){
-        const en=await fetch(this.base+'/en.json',{cache:'no-cache'}).then(r=>r.ok?r.json():{}).catch(()=>({}));
-        this.fallback=en||{};
-      }
-    }catch(e){this.fallback=this.fallback||{}}
-    if(lang==='en'){
-      this.dict=Object.assign({},this.fallback);
-    }else{
-      try{
-        const data=await fetch(this.base+'/'+encodeURIComponent(lang)+'.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null);
-        this.dict=Object.assign({},this.fallback,data||{});
-      }catch(e){this.dict=Object.assign({},this.fallback)}
-    }
+    this.lng='en';
+    this.storage.set('uiLanguage','en');
+    this.dict={};
+    this.fallback={};
     this.ready=true;
-    this.applyDom();
-    try{document.documentElement.lang=lang.split('-')[0]}catch(e){}
-    try{document.documentElement.dir=/^ar|he|fa|ur/i.test(lang)?'rtl':'ltr'}catch(e){}
+    this.applyDom&&this.applyDom();
+    try{document.documentElement.lang='en'}catch(e){}
+    try{document.documentElement.dir='ltr'}catch(e){}
     return this.dict;
   }
   applyDom(root){
@@ -1868,7 +1920,7 @@ class CloudSync{
       const setDoc=await base.collection('settings').doc('app').get();
       if(setDoc.exists){
         const s=setDoc.data()||{};
-        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','agentRunState','chatRunState','uiLanguage','uiTextSize'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
+        ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','agentRunState','chatRunState','uiLanguage','uiTextSize','appVersion','versionLog'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
       }
       const remoteAutos=await this.pullAutomations(base);
       const deleted=new Set(((out.deletedAutomations)||[]).map(String));
@@ -2150,6 +2202,8 @@ class CloudSync{
         agentQuality:s.get('agentQuality','auto'),
         agentRunState:s.get('agentRunState',null),
         chatRunState:s.get('chatRunState',null),
+        appVersion:s.get('appVersion',APP_VERSION),
+        versionLog:s.get('versionLog',[]),
         updatedAt:firebase.firestore.FieldValue.serverTimestamp()
       };
       const nowTs=Date.now();
@@ -2225,7 +2279,7 @@ class CloudSync{
     for(const path of Object.keys(files)){
       const f=files[path]||{};
       let content=f.content==null?'':String(f.content);
-      if(content.length>750000)content=content.slice(0,750000)+'\n…[truncated for cloud]';
+      if(content.length>MAX_FILE_BYTES)content=content.slice(0,MAX_FILE_BYTES-32)+'\n…[truncated for cloud]';
       const sig=path+'|'+(f.updated||'')+'|'+content.length+'|'+(f.version||0);
       if(this._vfsHash[path]===sig)continue;
       try{
@@ -2305,7 +2359,7 @@ class CloudSync{
       s.set('conversations',[...map.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0)));
     }
     if(data.currentConvId!==undefined&&data.currentConvId)s.set('currentConvId',data.currentConvId);
-    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','uiLanguage','uiTextSize'].forEach(k=>{
+    ['apiConfig','agentSettings','plugins','vfs','projects','automations','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','uiLanguage','uiTextSize','appVersion','versionLog'].forEach(k=>{
       if(data[k]===undefined||data[k]===null)return;
       if(k==='vfs'&&data.vfs&&typeof data.vfs==='object'){
         s.set('vfs',Object.assign({},s.get('vfs',{})||{},data.vfs));
@@ -2511,7 +2565,12 @@ read(p){
   if(!f)throw new Error('File not found: '+p);
   return f.content
 }
-write(p,c,{archiveOld=true}={}){const old=this.files[p];const ln=countLines(c);let added=ln,removed=0;if(old){const lo=old.lines||countLines(old.content);added=Math.max(0,ln-lo);removed=Math.max(0,lo-ln);if(archiveOld){const ap=`archive/${p.replace(/\//g,'__')}_${Date.now()}.bak`;this.files[ap]={...old,archivedFrom:p,archivedAt:now()}}}this.files[p]={content:c,updated:now(),version:(old?.version||0)+1,lines:ln};this.persist();return{path:p,added,removed,lines:ln,isNew:!old}}
+write(p,c,{archiveOld=true}={}){
+  let text=c==null?'':String(c);
+  if(text.length>MAX_FILE_BYTES){
+    throw new Error('FILE_TOO_LARGE: '+p+' is '+text.length+' bytes. Firebase/Think Deeper limit is '+MAX_FILE_BYTES+' bytes. Split the file or shorten it, then write again.');
+  }
+  const old=this.files[p];const ln=countLines(text);let added=ln,removed=0;if(old){const lo=old.lines||countLines(old.content);added=Math.max(0,ln-lo);removed=Math.max(0,lo-ln);if(archiveOld){const ap=`archive/${p.replace(/\//g,'__')}_${Date.now()}.bak`;this.files[ap]={...old,archivedFrom:p,archivedAt:now()}}}this.files[p]={content:text,updated:now(),version:(old?.version||0)+1,lines:ln};this.persist();return{path:p,added,removed,lines:ln,isNew:!old}}
 delete(p){if(!this.files[p])throw new Error('File not found');const lines=this.files[p].lines||0;const ap=`archive/${p.replace(/\//g,'__')}_${Date.now()}_deleted.bak`;this.files[ap]={...this.files[p],archivedFrom:p,archivedAt:now()};delete this.files[p];this.persist();return{path:p,removed:lines}}
 persist(){this.storage.set('vfs',this.files);try{if(window.__app&&window.__app.cloud)window.__app.cloud.schedulePush(window.__app)}catch(e){}}
 tree(){const root={name:'',children:{},files:[]};for(const path of Object.keys(this.files).sort()){const parts=path.split('/');let node=root;for(let i=0;i<parts.length-1;i++){const p=parts[i];if(!node.children[p])node.children[p]={name:p,children:{},files:[]};node=node.children[p]}node.files.push({name:parts[parts.length-1],path,meta:this.files[path]})}return root}}
@@ -2967,7 +3026,7 @@ case'read_file':{
   const slice=length?text.slice(start,start+length):text.slice(start,start+8000);
   return {path:p,bytes:text.length,start,length:slice.length,content:slice,note:text.length>slice.length?('Use start/length to read more. Total '+text.length+' chars.'):undefined};
 }
-case'write_file':{const path=String((args&&args.path)||'');const content=args&&args.content;if(/\.(html?|js|css)$/i.test(path)||/<(?:script|html)/i.test(String(content||''))){const web=CrashGuard.inspectWeb(String(content||''));if(!web.ok){try{CrashGuard.note(web.error+' @ '+path)}catch(e){}return{ok:false,error:web.error,blocked:true,path}}}if(/\.(py)$/i.test(path)){const py=CrashGuard.inspectPython(String(content||''));if(!py.ok){try{CrashGuard.note(py.error+' @ '+path)}catch(e){}return{ok:false,error:py.error,blocked:true,path}}}return this.vfs.write(path,content);}
+case'write_file':{const path=String((args&&args.path)||'');const content=args&&args.content;if(String(content||'').length>MAX_FILE_BYTES)return{ok:false,error:'FILE_TOO_LARGE: '+String(content||'').length+' bytes. Keep each file under '+MAX_FILE_BYTES+' bytes (1,048,575). Split into smaller files.'};if(/\.(html?|js|css)$/i.test(path)||/<(?:script|html)/i.test(String(content||''))){const web=CrashGuard.inspectWeb(String(content||''));if(!web.ok){try{CrashGuard.note(web.error+' @ '+path)}catch(e){}return{ok:false,error:web.error,blocked:true,path}}}if(/\.(py)$/i.test(path)){const py=CrashGuard.inspectPython(String(content||''));if(!py.ok){try{CrashGuard.note(py.error+' @ '+path)}catch(e){}return{ok:false,error:py.error,blocked:true,path}}}return this.vfs.write(path,content);}
 case'delete_file':return this.vfs.delete(args.path);
 case'run_python':return await this.python.run(args.code);
 case'self_check':return{recorded:true,observation:args.observation,passed:!!args.passed};
@@ -4116,7 +4175,7 @@ FORMATTING RULES (critical — follow exactly):
 - Finish every response cleanly. Never stop mid-sentence or mid-table.
 
 Process: understand → plan (only when tools are needed) → use tools → verify → revise → final answer.
-ALWAYS save generated code/artifacts with write_file under artifacts/ (e.g. artifacts/solution.py).
+FILE SIZE RULE: every write_file must stay under 1,048,575 bytes. If a draft is larger, split it into multiple files. Never write a 1.1MB+ file. ALWAYS save generated code/artifacts with write_file under artifacts/ (e.g. artifacts/solution.py).
 Internal FS: artifacts/ (current work), archive/ (history), uploads/ (user files), memory/ (long-term notes the agent should read/write to remember facts across chats).
 ${deep}
 ${personality?'Personality:\n'+personality+'\n':''}${pluginInj?'Plugins:\n'+pluginInj+'\n':''}
@@ -4344,7 +4403,8 @@ if((this.teamSize||1)>1){try{finalContent=await this.runTeamFollowups(this.teamS
 onEvent({type:'final',content:finalContent});onEvent({type:'status',text:''});onEvent({type:'done'});return finalContent}
 catch(e){if(e.name==='AbortError'){onEvent({type:'status',text:'Stopped'});onEvent({type:'final',content:finalContent||'*(Stopped)*'});onEvent({type:'done'});return finalContent}
 console.error('[Agent] fatal',e);
-onEvent({type:'error',message:e.message||String(e)});onEvent({type:'status',text:'Error'});onEvent({type:'done'});throw e}
+try{onEvent({type:'error',message:e.message||String(e)});onEvent({type:'status',text:'Error'});onEvent({type:'done'})}catch(e2){console.warn('fatal ui',e2)}
+return finalContent||('Error: '+(e.message||e))}
 finally{this.running=false}}
 
 
@@ -4577,7 +4637,7 @@ init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;
 
   this.t=(k,v)=>this.app.i18n?this.app.i18n.t(k,v):k;
   try{this.app.i18n.load(this.app.storage.get('uiLanguage','en')||'en')}catch(e){}
-  this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty();
+  this.bindEvents();this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.showEmpty();
   window.addEventListener('beforeunload',()=>{try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}try{this.app.conversations&&this.app.conversations.persist()}catch(e){}});
   window.addEventListener('pagehide',()=>{try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}}});
@@ -4720,10 +4780,12 @@ persistLiveAgent(force){
       k.agents.list().forEach(a=>{lines.push('## '+a.id+' ('+a.role+' / '+a.status+')');(a.thoughts||[]).slice(-5).forEach(t=>lines.push('- '+String(t.detail||'').replace(/\s+/g,' ').slice(0,320)))});
       this.app.vfs.write('memory/agent-live.md',lines.join('\n'),{archiveOld:false});
     }catch(e){}
-    try{this.writeSharedMemoryPack()}catch(e){}
+    if(force){try{this.writeSharedMemoryPack()}catch(e){}}
     if(this.app.cloud){
-      try{this.app.cloud.pushLiveThinking&&this.app.cloud.pushLiveThinking(this.app,{kind:'agent',sessionId:sid,alive:!!(k.alive&&!k.solved),goal:String(k.goal||'').slice(0,400)})}catch(e){}
-      if(force&&this.app.cloud.pushNow)this.app.cloud.pushNow(this.app);else this.app.cloud.schedulePush(this.app);
+      if(force){
+        try{this.app.cloud.pushLiveThinking&&this.app.cloud.pushLiveThinking(this.app,{kind:'agent',sessionId:sid,alive:!!(k.alive&&!k.solved),goal:String(k.goal||'').slice(0,400)})}catch(e){}
+        if(this.app.cloud.pushNow)this.app.cloud.pushNow(this.app);
+      }else this.app.cloud.schedulePush(this.app);
     }
   }catch(e){console.warn('[persistLiveAgent]',e)}
 }
@@ -4912,6 +4974,35 @@ saveAgentSession(partial){
   this.renderAgentHist();
   return s;
 }
+_histMenuClick(e,el,kind){
+  const act=e.target&&e.target.dataset&&e.target.dataset.act;
+  const id=el.dataset.id;
+  if(act==='menu'){e.stopPropagation();document.querySelectorAll('.hist-item-wrap').forEach(x=>{if(x!==el)x.classList.remove('open')});el.classList.toggle('open');return}
+  if(act==='rename'){e.stopPropagation();const cur=el.querySelector('.ah-title');const t=prompt('Rename',cur?cur.textContent:'');if(!t)return;this._renameSession(kind,id,t);return}
+  if(act==='pin'){e.stopPropagation();const title=(el.querySelector('.ah-title')||{}).textContent||kind;const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:title,from:kind});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();el.classList.remove('open');toast('Pinned','success');return}
+  if(act==='refer'){e.stopPropagation();this._referQuote=(el.querySelector('.ah-title')||{}).textContent||kind+' chat';el.classList.remove('open');toast('Will refer to this chat on send','info');return}
+  if(act==='delete'){e.stopPropagation();this._deleteSession(kind,id);return}
+  if(kind==='agent')this.loadAgentSession(id);else this.loadCodeSession(id);
+}
+_renameSession(kind,id,title){
+  title=String(title||'').trim().slice(0,48);if(!title)return;
+  if(kind==='agent'){const list=this.agentSessions();const s=list.find(x=>x.id===id);if(s){s.title=title;this.app.storage.set('agentSessions',list);this.renderAgentHist()}}
+  else {const list=this.codeSessions();const s=list.find(x=>x.id===id);if(s){s.title=title;this.app.storage.set('codeSessions',list);this.renderCodeHist()}}
+  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+}
+_deleteSession(kind,id){
+  if(!confirm('Delete this chat?'))return;
+  if(kind==='agent'){
+    this.app.storage.set('agentSessions',this.agentSessions().filter(x=>x.id!==id));
+    if(this._currentAgentSessionId===id)this.resetAgentChatView();
+    this.renderAgentHist();
+  }else{
+    this.app.storage.set('codeSessions',this.codeSessions().filter(x=>x.id!==id));
+    if(this.app.storage.get('currentCodeId')===id)this.newCodeSession();
+    this.renderCodeHist();
+  }
+  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+}
 renderAgentHist(){
   const sec=$('#agent-hist-section'),listEl=$('#agent-hist-list');
   const inAgent=this.mode==='swarm';
@@ -4919,8 +5010,8 @@ renderAgentHist(){
   if(listEl)listEl.style.display=inAgent?'':'none';
   if(!listEl||!inAgent)return;
   const list=this.agentSessions();
-  listEl.innerHTML=list.slice(0,30).map(s=>'<div class="agent-hist-item'+(s.id===this._currentAgentSessionId?' active':'')+'" data-id="'+s.id+'"><span class="ah-title">'+escapeHtml(s.title||'Agent chat')+'</span><span class="ah-meta"></span></div>').join('')||'<div class="hint" style="padding:8px">No agent chats yet</div>';
-  listEl.querySelectorAll('.agent-hist-item').forEach(el=>el.onclick=()=>this.loadAgentSession(el.dataset.id));
+  listEl.innerHTML=list.slice(0,30).map(s=>'<div class="agent-hist-item hist-item-wrap'+(s.id===this._currentAgentSessionId?' active':'')+'" data-id="'+s.id+'"><span class="ah-title">'+escapeHtml(s.title||'Agent chat')+'</span><button type="button" class="ah-more" data-act="menu" aria-label="Menu">⁝</button><div class="hist-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div></div>').join('')||'<div class="hint" style="padding:8px">No agent chats yet</div>';
+  listEl.querySelectorAll('.agent-hist-item').forEach(el=>el.onclick=e=>this._histMenuClick(e,el,'agent'));
   const nb=$('#agent-new-btn');if(nb)nb.onclick=()=>{this.resetAgentChatView();toast('New agent chat','success')};
 }
 renderCodeHist(){
@@ -4931,8 +5022,8 @@ renderCodeHist(){
   if(!listEl||!inCode)return;
   const list=this.codeSessions();
   const cur=this.app.storage.get('currentCodeId',null);
-  listEl.innerHTML=list.slice(0,30).map(s=>'<div class="agent-hist-item'+(s.id===cur?' active':'')+'" data-id="'+s.id+'"><span class="ah-title">'+escapeHtml(s.title||'Code chat')+'</span></div>').join('')||'<div class="hint" style="padding:8px">No code chats yet</div>';
-  listEl.querySelectorAll('.agent-hist-item').forEach(el=>el.onclick=()=>this.loadCodeSession(el.dataset.id));
+  listEl.innerHTML=list.slice(0,30).map(s=>'<div class="agent-hist-item hist-item-wrap'+(s.id===cur?' active':'')+'" data-id="'+s.id+'"><span class="ah-title">'+escapeHtml(s.title||'Code chat')+'</span><button type="button" class="ah-more" data-act="menu" aria-label="Menu">⁝</button><div class="hist-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div></div>').join('')||'<div class="hint" style="padding:8px">No code chats yet</div>';
+  listEl.querySelectorAll('.agent-hist-item').forEach(el=>el.onclick=e=>this._histMenuClick(e,el,'code'));
   const nb=$('#code-new-btn');if(nb)nb.onclick=()=>this.newCodeSession();
 }
 loadCodeSession(id){
@@ -4946,7 +5037,9 @@ loadCodeSession(id){
     // lightweight restore
     const div=document.createElement('div');
     div.className='code-msg message '+(m.role==='user'?'user':'assistant');
-    div.innerHTML='<div class="message-body">'+(m.role==='user'?escapeHtml(m.content||''):(this.renderMarkdown?this.renderMarkdown(m.content||''):escapeHtml(m.content||'')))+'</div>';
+    const who=this.userLabel();
+    const head=m.role==='user'?('<div class="msg-who"><span class="avatar">'+(who.img||who.initial)+'</span><span>'+escapeHtml(who.label)+'</span></div>'):'<div class="msg-who"><span class="avatar">TD</span><span>Think Deeper</span></div>';
+    div.innerHTML=head+'<div class="message-body">'+(m.role==='user'?escapeHtml(m.content||''):(this.renderMarkdown?this.renderMarkdown(m.content||''):escapeHtml(m.content||'')))+'</div>';
     box.appendChild(div);
   });
   this.renderCodeHist();
@@ -5171,6 +5264,7 @@ async startSwarm(opts){
     this._agentSession=this.saveAgentSession({id:sid,title:(prev&&prev.title)||goal.slice(0,40),messages});
     this._currentAgentSessionId=this._agentSession.id;
     k.sessionId=this._currentAgentSessionId;
+    if(!reuse) this.generateSessionTitle('agent',this._currentAgentSessionId,goal);
   }
 
   this._agentIntent=intent;
@@ -5332,9 +5426,9 @@ renderSwarm(ev){
   }
   this.scrollAgentChat&&this.scrollAgentChat(false);
   clearTimeout(this._liveAgentTimer);
-  this._liveAgentTimer=setTimeout(()=>this.persistLiveAgent(false),280);
-  if(ev&&(ev.t==='agent.think'||ev.t==='agent.tool'||ev.t==='agent.done'||ev.t==='agent.fail')){
-    try{if(this.app.cloud&&this.app.cloud.pushNow)this.app.cloud.pushNow(this.app)}catch(e){}
+  this._liveAgentTimer=setTimeout(()=>this.persistLiveAgent(false),1800);
+  if(ev&&(ev.t==='agent.done'||ev.t==='agent.fail'||ev.t==='agent.final')){
+    try{this.persistLiveAgent(true)}catch(e){}
   }
 }
 openProjectSetup(){
@@ -5458,6 +5552,25 @@ getIntensity(){
   const k=this.app.storage.get('intensity','medium')||'medium';
   return INTENSITY[k]||INTENSITY.medium;
 }
+async generateSessionTitle(kind,id,userText){
+  try{
+    const prompt='Reply with ONLY a short conversation title (3-6 words). No quotes.\nTopic: '+String(userText||'').slice(0,180);
+    const data=await this.app.provider.chat(
+      [{role:'system',content:'You name chat threads. Output only the title text.'},{role:'user',content:prompt}],
+      {temperature:0.3,tools:undefined,maxTokens:40}
+    );
+    let title=(data.choices?.[0]?.message?.content||'').trim();
+    title=title.replace(/^["'“”]|["'“”]$/g,'').replace(/^Title:\s*/i,'').split('\n')[0].trim().slice(0,48);
+    if(!title||title.length<2)return;
+    if(kind==='agent'){
+      const list=this.agentSessions();
+      const sess=list.find(x=>x.id===id);if(sess){sess.title=title;this.app.storage.set('agentSessions',list);this.renderAgentHist&&this.renderAgentHist();try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}}
+    }else if(kind==='code'){
+      const list=this.codeSessions();
+      const sess=list.find(x=>x.id===id);if(sess){sess.title=title;this.app.storage.set('codeSessions',list);this.renderCodeHist&&this.renderCodeHist();try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}}
+    }
+  }catch(e){console.warn('session title',e)}
+}
 async generateChatTitle(convId,userText,assistantText){
   try{
     const prompt='Reply with ONLY a short conversation title (3-6 words). No quotes, no punctuation at the end, no "Title:".\nTopic: '+(userText||'').slice(0,180);
@@ -5566,7 +5679,9 @@ restoreCodeTranscript(){
     const div=document.createElement('div');
     div.className='code-msg '+(m.role==='user'?'user':'agent');
     const body=m.html&&m.role==='assistant'?m.html:escapeHtml(m.content||'');
-    div.innerHTML=`<div class="role">${m.role==='user'?'You':'Supervisor'}</div><div class="message-body">${body}</div>`;
+    const who=this.userLabel();
+    const head=m.role==='user'?(`<div class="msg-who"><span class="avatar"${who.bg?(' style="'+who.bg+'"'):''}>${who.img||who.initial}</span><span>${escapeHtml(who.label)}</span></div>`):'<div class="msg-who"><span class="avatar">TD</span><span>Think Deeper</span></div>';
+    div.innerHTML=head+'<div class="message-body">'+body+'</div>';
     box.appendChild(div);
     if(m.activities&&m.activities.length)this.hydrateThoughts(div,{activities:m.activities,thinkMs:m.thinkMs});
   });
@@ -5674,13 +5789,18 @@ async sendCode(){this.ensureAgent();
   if(sendBtn)sendBtn.style.display='none';
 
   const box=$('#code-messages');
+  const who=this.userLabel();
   const userDiv=document.createElement('div');userDiv.className='code-msg user';
-  userDiv.innerHTML=`<div class="role">You</div><div>${escapeHtml(text)}</div>`;
+  userDiv.innerHTML=`<div class="msg-who"><span class="avatar"${who.bg?(' style="'+who.bg+'"'):''}>${who.img||who.initial}</span><span>${escapeHtml(who.label)}</span></div><div>${escapeHtml(text)}</div>`;
   box.appendChild(userDiv);
   const aiDiv=document.createElement('div');aiDiv.className='code-msg agent';
-  aiDiv.innerHTML=`<div class="role">Agent</div><div class="message-body"><div class="thinking-indicator"><span class="code-status-pill">Running · code/</span></div></div>`;
+  aiDiv.innerHTML=`<div class="msg-who"><span class="avatar">TD</span><span>Think Deeper</span></div><div class="message-body"><div class="thinking-indicator"><span class="code-status-pill">Working…</span></div></div>`;
   box.appendChild(aiDiv);
   box.scrollTop=box.scrollHeight;
+  try{
+    const cur=this.currentCodeSession&&this.currentCodeSession();
+    if(cur&&(!cur.title||cur.title==='Code chat'))this.generateSessionTitle('code',cur.id,text);
+  }catch(e){}
   // selected skills
   const enabled=CODE_SKILLS.filter(s=>{const c=document.querySelector(`input[data-skill="${s.id}"]`);return c&&c.checked});
   const skillText=enabled.map(s=>`### ${s.name}\n${s.body}`).join('\n\n');
@@ -5753,7 +5873,7 @@ $('#save-ui').onclick=()=>{
   })();
 };
 
-$$('#settings-tabs .tab').forEach(tab=>{tab.onclick=()=>{$$('#settings-tabs .tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');['api','agent','personality','ui'].forEach(id=>{$(`#tab-${id}`).style.display=tab.dataset.tab===id?'block':'none'})}})}
+$$('#settings-tabs .tab').forEach(tab=>{tab.onclick=()=>{$$('#settings-tabs .tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');['api','agent','personality','ui','version'].forEach(id=>{const el=$(`#tab-${id}`);if(el)el.style.display=tab.dataset.tab===id?'block':'none'});if(tab.dataset.tab==='version')this.syncVersionChip&&this.syncVersionChip()})}})}
 isPhone(){return window.matchMedia&&window.matchMedia('(max-width:768px)').matches}
 toggleSidebar(c){
   const sb=$('#sidebar');const bd=$('#sidebar-backdrop');const openBtn=$('#open-sidebar');
@@ -5957,7 +6077,7 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
     if((c.title||'').toLowerCase().includes(q))return true;
     return (c.messages||[]).some(m=>String(m.content||'').toLowerCase().includes(q));
   })}
-  chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="canvas">Canvas</button><button type="button" data-act="delete">Delete</button></div>`;div.onclick=e=>{if(e.target.dataset.act==='delete'){e.stopPropagation();this.app.conversations.delete(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}else if(e.target.dataset.act==='rename'){e.stopPropagation();const t=prompt('Rename',c.title);if(t){this.app.conversations.rename(c.id,t);this.renderConversations()}}else if(e.target.dataset.act==='canvas'){e.stopPropagation();this.openChatCanvas(c.id)}
+  chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div>`;div.onclick=e=>{if(e.target.dataset.act==='delete'){e.stopPropagation();this.app.conversations.delete(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}else if(e.target.dataset.act==='rename'){e.stopPropagation();const t=prompt('Rename',c.title);if(t){this.app.conversations.rename(c.id,t);this.renderConversations()}}else if(e.target.dataset.act==='canvas'){e.stopPropagation();toast('Canvas chat was removed','info')}
     else if(e.target.dataset.act==='pin'){e.stopPropagation();const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:c.title||'Chat',from:'chat'});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();div.classList.remove('open-menu')}
     else if(e.target.dataset.act==='refer'){e.stopPropagation();this._referQuote=c.title||'this chat';div.classList.remove('open-menu');toast('Will refer to this chat on send')}
     else if(e.target.dataset.act==='menu'){e.stopPropagation();document.querySelectorAll('.conv-item').forEach(x=>{if(x!==div)x.classList.remove('open-menu')});div.classList.toggle('open-menu')}else this.loadConversation(c.id)};list.appendChild(div)})}
@@ -6055,11 +6175,11 @@ try{
 }catch(e){toast(e.message,'error');const body=aiEl.querySelector('.message-body');if(body&&!body.querySelector('.final-content')?.textContent.trim())body.innerHTML+=`<p style="color:var(--error)">Error: ${escapeHtml(e.message)}</p>`}
 finally{
   this.app.agent.settings=prevSettings;this.app.agent.intensityExtra='';
-  $('#stop-btn').classList.remove('visible');$('#send-btn').style.display='flex';$('#send-btn').disabled=false;$('#agent-status').textContent='Ready';$('#iteration-info').textContent='';const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();this.app.conversations.persist();
+  $('#stop-btn').classList.remove('visible');$('#send-btn').style.display='flex';$('#send-btn').disabled=false;{const s=$('#agent-status');if(s)s.textContent='Ready';const it=$('#iteration-info');if(it)it.textContent='';}const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();this.app.conversations.persist();
   try{this.app.storage.set('chatRunState',Object.assign({},this.app.storage.get('chatRunState',{})||{},{alive:false,ts:Date.now()}));if(this.app.cloud)this.app.cloud.pushNow(this.app,conv.id)}catch(e){}
 }}
-handleAgentEvent(ev,aiEl,aiMsg){if(!aiEl||typeof aiEl.querySelector!=='function'){console.error('handleAgentEvent: aiEl is not a DOM node',aiEl);return}if(ev.type==='status'){const s=$('#agent-status');if(s){s.textContent=ev.text||'';s.classList.toggle('busy',!!ev.text);}}
-else if(ev.type==='iteration')$('#iteration-info').textContent=`Cycle ${ev.current}`;
+handleAgentEvent(ev,aiEl,aiMsg){try{if(!aiEl||typeof aiEl.querySelector!=='function'){console.error('handleAgentEvent: aiEl is not a DOM node',aiEl);return}if(ev.type==='status'){const s=$('#agent-status');if(s){s.textContent=ev.text||'';s.classList.toggle('busy',!!ev.text);}}
+else if(ev.type==='iteration'){const it=$('#iteration-info');if(it)it.textContent=`Cycle ${ev.current}`;}
 else if(ev.type==='activity'){
   const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();
   let root=aiEl.querySelector('.thought-process');
@@ -6226,8 +6346,8 @@ const br=actions.querySelector('[data-act=branch]');if(br)br.onclick=()=>this.br
 const del=actions.querySelector('[data-act=delete]');if(del)del.onclick=()=>this.deleteMessage(aiMsg.id);
 this.setupMessageSelection(aiEl);
 this.scrollToBottom()}
-else if(ev.type==='done'){$('#agent-status').textContent='';$('#iteration-info').textContent='';const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();try{this.app.conversations.persist()}catch{}}
-else if(ev.type==='error')toast(ev.message,'error')}
+else if(ev.type==='done'){const s=$('#agent-status');if(s)s.textContent='';const it=$('#iteration-info');if(it)it.textContent='';const thinking=aiEl&&aiEl.querySelector&&aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();try{this.app.conversations.persist()}catch{}}
+else if(ev.type==='error')toast(ev.message,'error')}catch(err){console.warn('handleAgentEvent',err)}}
 snapshotThoughts(aiMsg,aiEl){
   try{
     if(!aiMsg||!aiEl)return;
@@ -6353,7 +6473,7 @@ deleteAiTurn(msgId){
 forgetAiTurn(msgId){this.deleteAiTurn(msgId)} /* alias */
 renderMessage(msg,isStreaming=false){const container=$('#messages');const div=document.createElement('div');div.className=`message ${msg.role}`;div.dataset.id=msg.id;const who=this.userLabel();const roleLabel=msg.role==='user'?who.label:'Think Deeper';const avatarText=msg.role==='user'?who.initial:'TD';let attachHtml='';if(msg.attachments?.length){attachHtml='<div class="attachments">';msg.attachments.forEach(a=>{if(a.dataUrl)attachHtml+=`<div class="attachment"><img src="${a.dataUrl}" alt=""></div>`;else attachHtml+=`<div class="attachment"><div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div></div>`});attachHtml+='</div>'}
 const bodyContent=msg.role==='user'?escapeHtml(this.visibleUserText(msg)).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
-div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);const actions=document.createElement('div');actions.className='message-actions';const tokEst=Math.max(1,Math.round(String((msg&&msg.content)||'').length/4));
+div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.activities&&msg.activities.length){try{this.hydrateThoughts(div,msg)}catch(e){console.warn('hydrate',e)}}this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);const actions=document.createElement('div');actions.className='message-actions';const tokEst=Math.max(1,Math.round(String((msg&&msg.content)||'').length/4));
 actions.innerHTML=`<span class="token-badge">~${tokEst} tokens</span><button type="button" data-act="copy" title="Copy">${SVG.copy}</button><button type="button" data-act="edit" title="Edit">${SVG.edit}</button><button type="button" data-act="branch" title="Branch chat">${SVG.branch}</button><button type="button" data-act="regen" title="Regenerate">↻</button><button type="button" data-act="continue" title="Continue">→</button><button type="button" data-act="delete" title="Delete">${SVG.trash}</button>`;actions.querySelector('[data-act=copy]').onclick=()=>this.copyMessage(msg.content);actions.querySelector('[data-act=edit]').onclick=()=>this.editMessage(msg.id,div);const rg=actions.querySelector('[data-act=regen]');if(rg)rg.onclick=()=>this.regenerateLast();const ct=actions.querySelector('[data-act=continue]');if(ct)ct.onclick=()=>this.continueLast();const br=actions.querySelector('[data-act=branch]');if(br)br.onclick=()=>this.branchFromMessage(msg.id);const del=actions.querySelector('[data-act=delete]');if(del)del.onclick=()=>this.deleteMessage(msg.id);div.querySelector('.message-content').appendChild(actions)}if(msg.role==='assistant')this.hydrateThoughts(div,msg);this.setupMessageSelection(div);this.scrollToBottom();return div}
 renderMarkdown(text){
   if(!text)return '';
@@ -7394,6 +7514,8 @@ bindAccountUi(){
     if($('#dev-model-id'))$('#dev-model-id').value='';if($('#dev-model-desc'))$('#dev-model-desc').value='';
     this.renderDevCatalog();
   };
+  const dva=$('#dev-ver-add');if(dva)dva.onclick=()=>this.publishVersionFromDev();
+  };
 
   const ly=$('#logout-yes');if(ly)ly.onclick=()=>{$('#logout-confirm').classList.remove('open');this.logoutGoogle()};
   const lc=$('#logout-cancel');if(lc)lc.onclick=()=>$('#logout-confirm').classList.remove('open');
@@ -7447,7 +7569,141 @@ bindAccountUi(){
   }}
 }
 
-openDevPanel(){
+
+currentAppVersion(){
+  const published=(this.app.storage.get('appVersion',null))||(window.__THINK_DEEPER_VERSION)||APP_VERSION;
+  return String(published||'V1.0.0');
+}
+versionCatalog(){
+  const builtin=[{
+    version:'V1.0.0',
+    title:'Think Deeper — first public build',
+    notes: this.v1Notes()
+  }];
+  const extra=this.app.storage.get('versionLog',[])||[];
+  const map=new Map();
+  builtin.concat(extra).forEach(v=>{if(v&&v.version)map.set(String(v.version),v)});
+  return [...map.values()];
+}
+v1Notes(){
+  return `<p>This is the V1.0.0 snapshot of Think Deeper: a single-page workspace where chat, code, and a supervisor-led agent team share one filesystem, one memory pack, and optional Firebase sync.</p>
+<h3>Modes</h3>
+<ul>
+<li><strong>Chat</strong> — normal conversation with tools, thought cards, intensity presets, and follow-up actions (copy, edit, branch, regenerate, continue).</li>
+<li><strong>Code</strong> — project files under <code>code/</code>, Monaco checks, preview, GitHub helpers, and skill checklists.</li>
+<li><strong>Agent</strong> — a Supervisor assigns workers (<code>w0001</code>…) with <code>contact_agent</code> and finishes through <code>createfinalresponse</code>. Mystery mode keeps searching until a concrete new result exists.</li>
+</ul>
+<h3>Models and providers</h3>
+<ul>
+<li>OpenAI-compatible APIs, Groq, OpenRouter, Gemini, and custom bases.</li>
+<li>Site-wide system key from the Dev panel for guests; personal keys stay private.</li>
+<li>Model library, fallback model, local file import notes, and header model picker.</li>
+</ul>
+<h3>Tools the AI can use</h3>
+<ul>
+<li>Workspace files: list, read, write, delete, search, folder zip, HTML preview.</li>
+<li>Python in the browser (Pyodide) with crash guards, timeouts, and a 1,048,575-byte write cap.</li>
+<li>Web search, image search, ONNX run, code checks, GitHub create/commit/pages.</li>
+<li>Ask-user prompts, site mockup picks, image generation, self-check.</li>
+</ul>
+<h3>Memory and files</h3>
+<ul>
+<li>Internal FS folders: <code>artifacts/</code>, <code>archive/</code>, <code>uploads/</code>, <code>memory/</code>, <code>code/</code>, <code>plugins/</code>.</li>
+<li>Long-term notes in <code>memory/</code> are injected into chat, quick-ask, and the Supervisor.</li>
+<li>After refresh, missing <code>artifacts/</code> links resolve to the latest <code>archive/</code> copy.</li>
+</ul>
+<h3>Cloud and accounts</h3>
+<ul>
+<li>Optional Google sign-in and Firebase sync for chats, settings, agent sessions, and files.</li>
+<li>Live thinking snapshots so a refresh can resume an unfinished run when you are online.</li>
+<li>Thought cards saved on the message are restored after a cloud resync.</li>
+</ul>
+<h3>Safety and reliability</h3>
+<ul>
+<li>Crash blockers for infinite loops, process calls, and page reloads.</li>
+<li>Supervisor cannot treat the human as an agent; invalid contacts return an error and retry.</li>
+<li>File writes above the Firebase document limit are rejected so the model can split the work.</li>
+</ul>
+<h3>Workspace extras</h3>
+<ul>
+<li>Projects, pins, personality text, plugins, automations hub, intensity bar, themes, text size.</li>
+<li>English UI only in this build. Other languages wait for a finished Weblate sync.</li>
+<li>Dev panel (restricted accounts): site API defaults, version publishing, and a live error console with an optional AI review.</li>
+</ul>
+<p>Version labels after V1.0.0 are written from the Dev panel. This shipped baseline stays V1.0.0 until you publish another one.</p>`;
+}
+syncVersionChip(){
+  const v=this.currentAppVersion();
+  const b=$('#version-open-btn');if(b)b.textContent=v;
+}
+bindVersionUi(){
+  if(this._versionBound)return;this._versionBound=true;
+  this.syncVersionChip();
+  const open=$('#version-open-btn');if(open)open.onclick=()=>this.openVersionSheet();
+  const close=$('#version-overlay-close');if(close)close.onclick=()=>this.closeVersionSheet();
+  const ov=$('#version-overlay');if(ov)ov.onclick=e=>{if(e.target===ov)this.closeVersionSheet()};
+}
+openVersionSheet(ver){
+  const v=ver||this.currentAppVersion();
+  const item=this.versionCatalog().find(x=>String(x.version)===String(v))||this.versionCatalog()[0];
+  const ov=$('#version-overlay');if(!ov)return;
+  const lab=$('#version-sheet-ver');if(lab)lab.textContent=(item&&item.version)||v;
+  const title=$('#version-sheet-title');if(title)title.textContent=(item&&item.title)||'Think Deeper';
+  const body=$('#version-sheet-body');
+  if(body)body.innerHTML=(item&&item.notes)||'<p>No notes for this version.</p>';
+  ov.classList.add('open');ov.setAttribute('aria-hidden','false');
+}
+closeVersionSheet(){
+  const ov=$('#version-overlay');if(!ov)return;
+  ov.classList.remove('open');ov.setAttribute('aria-hidden','true');
+}
+bindDevConsole(){
+  if(this._devConsoleBound)return;this._devConsoleBound=true;
+  const paint=()=>{
+    const el=$('#dev-live-console');if(!el)return;
+    const rows=(ErrorSink.logs||[]).slice(-80).map(r=>{
+      const t=new Date(r.ts).toLocaleTimeString();
+      return '<div class="'+(r.level==='error'?'err':r.level==='warn'?'warn':'info')+'">['+t+'] '+escapeHtml(String(r.text||''))+'</div>';
+    });
+    el.innerHTML=rows.join('')||'No errors or warnings yet.';
+    el.scrollTop=el.scrollHeight;
+  };
+  ErrorSink.listeners.push(paint);
+  const clr=$('#dev-console-clear');if(clr)clr.onclick=()=>{ErrorSink.logs=[];paint()};
+  const ai=$('#dev-console-ai');if(ai)ai.onclick=()=>this.reviewDevConsole();
+  paint();
+}
+async reviewDevConsole(){
+  const out=$('#dev-console-ai-out');
+  const logs=(ErrorSink.logs||[]).slice(-40).map(r=>r.level+': '+r.text).join('\\n');
+  if(!logs.trim()){if(out)out.textContent='Nothing to review.';return}
+  if(out)out.textContent='Reviewing console output…';
+  try{
+    const data=await this.app.provider.chat([
+      {role:'system',content:'You review Think Deeper browser console logs. Write a short overview. For each issue say FIX or NOT FIX and why. Prefer safe, specific advice. No exploit steps.'},
+      {role:'user',content:logs.slice(0,8000)}
+    ],{temperature:0.2,maxTokens:900,tools:undefined});
+    const txt=((data&&data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'').trim()||'No review.';
+    if(out)out.textContent=txt;
+  }catch(e){if(out)out.textContent='Review failed: '+(e.message||e)}
+}
+publishVersionFromDev(){
+  const version=($('#dev-ver-id')?.value||'').trim();
+  const title=($('#dev-ver-title')?.value||'').trim()||version;
+  const notes=($('#dev-ver-notes')?.value||'').trim();
+  if(!version){toast('Version label required','error');return}
+  const html='<h3>'+escapeHtml(title)+'</h3><pre style="white-space:pre-wrap">'+escapeHtml(notes)+'</pre>';
+  const log=this.app.storage.get('versionLog',[])||[];
+  const next={version,title,notes:html,created:Date.now()};
+  const i=log.findIndex(x=>x.version===version);
+  if(i>=0)log[i]=next;else log.unshift(next);
+  this.app.storage.set('versionLog',log.slice(0,30));
+  if($('#dev-ver-current')?.checked)this.app.storage.set('appVersion',version);
+  this.syncVersionChip();
+  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+  toast('Version notes saved','success');
+}
+openDevPanel(){openDevPanel(){
   const user=this.app.storage.getActiveUser()||{};
   if(!(this.app.cloud&&this.app.cloud.isDevAccount(user.email))){toast('Dev panel is restricted','error');return}
   const ov=$('#dev-panel-overlay');
