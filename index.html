@@ -1158,6 +1158,34 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 .refer-banner .refer-remove{flex-shrink:0;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);border-radius:8px;padding:4px 10px;font-size:.75rem;cursor:pointer}
 .refer-banner .refer-remove:hover{border-color:var(--accent);color:var(--accent)}
 
+
+/* pinned tools + no list leak */
+.sidebar{display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden}
+.conv-list{flex:1 1 auto;min-height:0;overflow-x:hidden;overflow-y:auto}
+.project-list{flex-shrink:0}
+.sidebar-footer-head{flex-shrink:0}
+.sidebar-footer{
+  display:flex !important;
+  flex-direction:column;
+  gap:4px;
+  flex-shrink:0;
+  max-height:none !important;
+  opacity:1 !important;
+  transform:none !important;
+  pointer-events:auto !important;
+  overflow:visible;
+  padding:8px 12px 12px !important;
+  border-top:1px solid var(--border);
+  background:var(--bg-sidebar);
+}
+.sidebar-footer.collapsed{display:none !important}
+.sidebar-dock{display:none !important}
+.header-right .settings-open-btn{display:none !important}
+@media(max-width:768px){
+  .sidebar-footer{display:flex !important}
+  .sidebar-footer.collapsed{display:none !important}
+}
+
 </style>
 </head>
 <body>
@@ -1199,12 +1227,10 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <button id="workspace-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> External Workspace</button>
 <button type="button" id="workspace-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg> Remove workspace</button>
 <button id="automations-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M17.5 14v7M14 17.5h7"/></svg> Build Automations</button>
-<button type="button" id="settings-btn-footer" class="settings-open-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
-<button class="icon-btn" id="theme-btn" aria-label="Toggle theme" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> Theme</button>
-</div><div class="sidebar-dock" id="sidebar-dock" style="display:none">
 <button id="dev-panel-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Dev panel</button>
+<button id="settings-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
+<button class="icon-btn" id="theme-btn" aria-label="Toggle theme" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> Theme</button>
 </div>
-
 </aside>
 <main class="main">
 <header class="main-header">
@@ -6450,7 +6476,7 @@ handleCodeAgentEvent(ev,aiEl,aiMsg){
   // Reuse chat handler against code message element
   this.handleAgentEvent(ev,aiEl,aiMsg);
 }
-bindEvents(){$('#new-chat-btn').onclick=()=>this.newChat();document.querySelectorAll('#settings-btn,#settings-btn-dock,#settings-btn-footer,.settings-open-btn').forEach(b=>{if(b)b.onclick=()=>this.openSettings()});$('#close-settings').onclick=()=>this.closeSettings();$('#settings-overlay').onclick=e=>{if(e.target===$('#settings-overlay'))this.closeSettings()};$('#theme-btn').onclick=()=>this.toggleTheme();$('#collapse-sidebar').onclick=()=>this.toggleSidebar(true);$('#open-sidebar').onclick=()=>this.toggleSidebar(false);$('#workspace-btn').onclick=()=>this.selectWorkspace();const wsc=$('#workspace-clear-btn');if(wsc)wsc.onclick=()=>this.clearExternalWorkspace();const fb=$('#chat-files-btn');if(fb)fb.onclick=()=>this.openFiles();$('#files-fab')&&($('#files-fab').onclick=()=>this.openFiles());$('#close-files').onclick=()=>$('#files-overlay').classList.remove('open');$('#files-overlay').onclick=e=>{if(e.target===$('#files-overlay'))$('#files-overlay').classList.remove('open')};$('#plugins-btn').onclick=()=>this.openPlugins();$('#close-plugins').onclick=()=>$('#plugins-overlay').classList.remove('open');$('#plugins-overlay').onclick=e=>{if(e.target===$('#plugins-overlay'))$('#plugins-overlay').classList.remove('open')};$('#new-plugin-btn').onclick=()=>this.editPlugin(null);$('#import-plugin-btn').onclick=()=>$('#import-plugin-file').click();$('#import-plugin-file').onchange=e=>this.importPlugin(e.target.files[0]);$('#save-plugin').onclick=()=>this.savePlugin();$('#cancel-plugin').onclick=()=>{$('#plugin-editor').style.display='none'};
+bindEvents(){$('#new-chat-btn').onclick=()=>this.newChat();const _sb=$('#settings-btn');if(_sb)_sb.onclick=()=>this.openSettings();document.querySelectorAll('#settings-btn,#settings-btn-footer,#settings-btn-dock,.settings-open-btn').forEach(b=>{if(b)b.onclick=()=>this.openSettings()});$('#close-settings').onclick=()=>this.closeSettings();$('#settings-overlay').onclick=e=>{if(e.target===$('#settings-overlay'))this.closeSettings()};$('#theme-btn').onclick=()=>this.toggleTheme();$('#collapse-sidebar').onclick=()=>this.toggleSidebar(true);$('#open-sidebar').onclick=()=>this.toggleSidebar(false);$('#workspace-btn').onclick=()=>this.selectWorkspace();const wsc=$('#workspace-clear-btn');if(wsc)wsc.onclick=()=>this.clearExternalWorkspace();const fb=$('#chat-files-btn');if(fb)fb.onclick=()=>this.openFiles();$('#files-fab')&&($('#files-fab').onclick=()=>this.openFiles());$('#close-files').onclick=()=>$('#files-overlay').classList.remove('open');$('#files-overlay').onclick=e=>{if(e.target===$('#files-overlay'))$('#files-overlay').classList.remove('open')};$('#plugins-btn').onclick=()=>this.openPlugins();$('#close-plugins').onclick=()=>$('#plugins-overlay').classList.remove('open');$('#plugins-overlay').onclick=e=>{if(e.target===$('#plugins-overlay'))$('#plugins-overlay').classList.remove('open')};$('#new-plugin-btn').onclick=()=>this.editPlugin(null);$('#import-plugin-btn').onclick=()=>$('#import-plugin-file').click();$('#import-plugin-file').onchange=e=>this.importPlugin(e.target.files[0]);$('#save-plugin').onclick=()=>this.savePlugin();$('#cancel-plugin').onclick=()=>{$('#plugin-editor').style.display='none'};
 $('#model-btn').onclick=e=>{e.stopPropagation();this.toggleModelDropdown()};document.addEventListener('click',()=>this.closeModelDropdown());$('#model-search').oninput=e=>this.filterModels(e.target.value);$('#send-btn').onclick=()=>this.send();$('#stop-btn').onclick=()=>this.app.agent.stop();$('#user-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.send()}};$('#user-input').oninput=()=>{this.autoResizeInput();$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length};$('#attach-btn').onclick=()=>$('#file-input').click();$('#file-input').onchange=e=>this.handleFiles(e.target.files);
 $$('.suggestion').forEach(btn=>{btn.onclick=()=>{$('#user-input').value=btn.dataset.prompt;$('#send-btn').disabled=false;this.autoResizeInput();this.send()}});
 $$('.preset-btn').forEach(btn=>{btn.onclick=()=>this.applyPreset(btn.dataset.preset)});
@@ -8355,7 +8381,7 @@ bindAccountUi(){
   try{
     // Default open so Plugins / Workspace / Automations stay visible
     const stored=this.app.storage.get('footerCollapsed',null);
-    const collapsed=false;
+    const collapsed=false; /* tools stay visible */
     const f=$('#sidebar-footer');
     if(f){if(collapsed){f.classList.add('collapsed');f.classList.remove('open')}else{f.classList.remove('collapsed');f.classList.add('open')}}
     this.app.storage.set('footerCollapsed',collapsed);
