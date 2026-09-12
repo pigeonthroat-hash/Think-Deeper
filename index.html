@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html data-theme="dark" lang="en">
 <head>
-<!-- td-build:2026-09-12T22:33:08Z -->
+<!-- td-build:2026-09-12T22:43:22Z -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Think Deeper — Agentic AI</title>
@@ -1265,6 +1265,10 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 #app-dialog .app-dialog-actions button{padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);cursor:pointer}
 #app-dialog .app-dialog-actions button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 
+
+#code-view .code-left-head,#code-session-select,#code-new-session{display:none !important}
+#code-view .code-phone-preview-btn{display:none}
+@media(max-width:768px){#code-view .code-phone-preview-btn{display:flex !important}}
 </style>
 </head>
 <body>
@@ -3282,6 +3286,10 @@ messagesToGemini(messages){
       continue;
     }
     const role=msg.role==='assistant'?'model':'user';
+    if(role==='model'&&msg._geminiParts&&msg._geminiParts.length){
+      contents.push({role:'model',parts:msg._geminiParts});
+      continue;
+    }
     const parts=[];
     if(typeof msg.content==='string'){
       if(msg.content)parts.push({text:msg.content});
@@ -3304,12 +3312,38 @@ messagesToGemini(messages){
         const fn=tc.function||{};
         let args={};
         try{args=typeof fn.arguments==='string'?JSON.parse(fn.arguments||'{}'):(fn.arguments||{});}catch(e){args={_raw:String(fn.arguments||'')}}
-        parts.push({functionCall:{name:fn.name||'',args:args&&typeof args==='object'?args:{}}});
+        const sig=tc.thoughtSignature||tc.thought_signature||(tc.extra_content&&tc.extra_content.google&&(tc.extra_content.google.thoughtSignature||tc.extra_content.google.thought_signature))||null;
+        const fcPart={functionCall:{name:fn.name||'',args:args&&typeof args==='object'&&!Array.isArray(args)?args:{}}};
+        if(sig){
+          fcPart.thoughtSignature=sig;
+          fcPart.thought_signature=sig;
+          fcPart.functionCall.thoughtSignature=sig;
+        }
+        parts.push(fcPart);
       });
     }
     if(parts.length)contents.push({role,parts});
   }
   if(!contents.length)contents.push({role:'user',parts:[{text:'Hello'}]});
+  contents.forEach(c=>{
+    if(!c||c.role!=='model'||!c.parts)return;
+    const fcs=c.parts.filter(p=>p&&p.functionCall);
+    if(!fcs.length)return;
+    const hasSig=fcs.some(p=>p.thoughtSignature||p.thought_signature||(p.functionCall&&(p.functionCall.thoughtSignature||p.functionCall.thought_signature)));
+    if(hasSig){
+      const first=fcs[0];
+      if(!(first.thoughtSignature||first.thought_signature||first.functionCall.thoughtSignature)){
+        const donor=fcs.find(p=>p.thoughtSignature||p.thought_signature||(p.functionCall&&p.functionCall.thoughtSignature));
+        const sig=donor&&(donor.thoughtSignature||donor.thought_signature||donor.functionCall.thoughtSignature);
+        if(sig){first.thoughtSignature=sig;first.thought_signature=sig;}
+      }
+      return;
+    }
+    c.parts=c.parts.map(p=>{
+      if(!p||!p.functionCall)return p;
+      return {text:'Called '+p.functionCall.name+'(' + JSON.stringify(p.functionCall.args||{}) + ')'};
+    });
+  });
   return {system:systemParts.join('\n\n'),contents};
 }
 toolsToGemini(tools){
@@ -3336,14 +3370,21 @@ geminiToOpenAI(data,model){
   parts.forEach((p,i)=>{
     if(p.text)text+=p.text;
     if(p.functionCall){
-      tool_calls.push({
+      const sig=p.thoughtSignature||p.thought_signature||p.functionCall.thoughtSignature||p.functionCall.thought_signature||null;
+      const tc={
         id:'call_gem_'+i+'_'+Math.random().toString(36).slice(2,8),
         type:'function',
         function:{
           name:p.functionCall.name||'',
-          arguments:JSON.stringify(p.functionCall.args||{})
+          arguments:JSON.stringify(p.functionCall.args||p.functionCall.arguments||{})
         }
-      });
+      };
+      if(sig){
+        tc.thoughtSignature=sig;
+        tc.thought_signature=sig;
+        tc.extra_content={google:{thought_signature:sig,thoughtSignature:sig}};
+      }
+      tool_calls.push(tc);
     }
   });
   const extracted=extractTextToolCalls(text||'');
@@ -3355,6 +3396,7 @@ geminiToOpenAI(data,model){
   }
   const msg={role:'assistant',content:text||(tool_calls.length?null:'')};
   if(tool_calls.length)msg.tool_calls=tool_calls;
+  msg._geminiParts=parts;
   return {
     choices:[{message:msg,finish_reason:tool_calls.length?'tool_calls':(cand.finishReason||'stop')}],
     usage:{total_tokens:((data.usageMetadata&&data.usageMetadata.totalTokenCount)||0)},
@@ -4983,6 +5025,7 @@ const hasTools=Array.isArray(toolCallsList)&&toolCallsList.length>0;
 const assistantMsg={role:'assistant',content:msg.content==null?'':String(msg.content)};
 if(msg.reasoning_content!=null)assistantMsg.reasoning_content=msg.reasoning_content;
 if(msg.extra_content!=null)assistantMsg.extra_content=msg.extra_content;
+if(msg._geminiParts)assistantMsg._geminiParts=msg._geminiParts;
 if(hasTools){
   assistantMsg.tool_calls=toolCallsList.map((tc,i)=>{
     const item={
@@ -5763,17 +5806,65 @@ _renameSession(kind,id,title){
   else {const list=this.codeSessions();const s=list.find(x=>x.id===id);if(s){s.title=title;s.titleLocked=true;this.app.storage.set('codeSessions',list);this.renderCodeHist();this.renderCodeSessions&&this.renderCodeSessions()}}
   try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
 }
+wipeConversation(id){
+  if(!id)return;
+  try{this.app.conversations.delete(id)}catch(e){}
+  try{
+    const projects=this.app.storage.get('projects',[])||[];
+    let dirty=false;
+    projects.forEach(p=>{
+      if(p&&Array.isArray(p.chatIds)&&p.chatIds.includes(id)){p.chatIds=p.chatIds.filter(x=>x!==id);dirty=true}
+    });
+    if(dirty)this.app.storage.set('projects',projects);
+  }catch(e){}
+  try{
+    const pins=(this.app.storage.get('pins',[])||[]).filter(p=>p&&p.convId!==id&&p.from!=='chat'|| (p.from==='chat'&&p.convId&&p.convId!==id) || (p.from&&p.from!=='chat'));
+    // drop pins tied to this chat id
+    this.app.storage.set('pins',(this.app.storage.get('pins',[])||[]).filter(p=>!p||p.convId!==id));
+  }catch(e){}
+  try{this.renderPins&&this.renderPins()}catch(e){}
+  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+}
+archiveCodeSessionFiles(id){
+  if(!id||!this.app.vfs)return;
+  const root='code/'+id;
+  const paths=(this.app.vfs.filesInFolder(root)||[]).slice();
+  paths.forEach(p=>{
+    try{this.app.vfs.delete(p)}catch(e){
+      try{delete this.app.vfs.files[p]}catch(e2){}
+    }
+  });
+  try{this.app.vfs.persist&&this.app.vfs.persist()}catch(e){}
+}
+resetCodePreview(){
+  const frame=$('#code-preview-frame');if(frame){frame.removeAttribute('srcdoc');frame.removeAttribute('src')}
+  const empty=$('#code-preview-empty');if(empty)empty.style.display='flex';
+  const tree=$('#code-file-tree');if(tree)tree.innerHTML='<div style="color:#8b949e;padding:8px">No files in code/ yet</div>';
+}
 _deleteSession(kind,id){
   this.appConfirm('Delete this chat?','Delete chat').then(ok=>{
   if(!ok)return;
   if(kind==='agent'){
     this.app.storage.set('agentSessions',this.agentSessions().filter(x=>x.id!==id));
+    try{this.app.storage.set('pins',(this.app.storage.get('pins',[])||[]).filter(p=>!(p&&p.from==='agent'&&p.text&&false)))}catch(e){}
     if(this._currentAgentSessionId===id)this.resetAgentChatView();
     this.renderAgentHist();
   }else{
+    try{this.archiveCodeSessionFiles(id)}catch(e){}
     this.app.storage.set('codeSessions',this.codeSessions().filter(x=>x.id!==id));
-    if(this.app.storage.get('currentCodeId')===id)this.newCodeSession();
+    if(this.app.storage.get('currentCodeId')===id || this._currentCodeId===id){
+      const next=(this.codeSessions()||[])[0];
+      this.app.storage.set('currentCodeId',next&&next.id||null);
+      this._currentCodeId=next&&next.id||null;
+      if(next)this.loadCodeSession(next.id);
+      else {
+        const box=$('#code-messages');if(box){box.querySelectorAll('.code-msg').forEach(n=>n.remove());const em=$('#code-empty');if(em)em.classList.remove('hidden')}
+        this.resetCodePreview();
+      }
+    }else this.resetCodePreview();
     this.renderCodeHist();
+    this.renderCodeFiles&&this.renderCodeFiles();
+    this.refreshCodePreview&&this.refreshCodePreview();
   }
   try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
   });
@@ -6587,9 +6678,12 @@ renderCodeSessions(){
     });
     el.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{
       e.stopPropagation();
-      const list=this.codeSessions().filter(s=>s.id!==b.dataset.del);
+      const delId=b.dataset.del;
+      try{this.archiveCodeSessionFiles(delId)}catch(err){}
+      const list=this.codeSessions().filter(s=>s.id!==delId);
       this.app.storage.set('codeSessions',list);
-      if(this.app.storage.get('currentCodeId')===b.dataset.del)this.app.storage.set('currentCodeId',list[0]&&list[0].id||null);
+      if(this.app.storage.get('currentCodeId')===delId)this.app.storage.set('currentCodeId',list[0]&&list[0].id||null);
+      this.resetCodePreview&&this.resetCodePreview();
       this.restoreCodeTranscript();
     });
   }
@@ -6660,31 +6754,37 @@ refreshCodePreview(){
       }
       return null;
     };
-    const dataUrl=(mime,text)=>'data:'+mime+';charset=utf-8,'+encodeURIComponent(text);
-    html=html.replace(/(src|href)=["'](?!https?:|data:|blob:|#|mailto:)([^"']+)["']/gi,(m,attr,rel)=>{
+    html=html.replace(/<link\b([^>]*?)href=["'](?!https?:|data:|blob:)([^"']+)["']([^>]*)>/gi,(m,pre,rel,post)=>{
       const hit=resolveRel(rel);if(!hit)return m;
-      if(/\.css$/i.test(rel)||attr==='href'&&/\.css(\?|$)/i.test(rel))return attr+'="'+dataUrl('text/css',hit.text)+'"';
-      if(/\.js$/i.test(rel))return attr+'="'+dataUrl('text/javascript',hit.text)+'"';
-      return m;
+      if(!/\.css/i.test(rel)&&!/stylesheet/i.test(m))return m;
+      return '<style data-td-inline="1">\n'+hit.text+'\n</style>';
+    });
+    html=html.replace(/<script\b([^>]*?)src=["'](?!https?:|data:|blob:)([^"']+)["']([^>]*)><\/script>/gi,(m,pre,rel,post)=>{
+      const hit=resolveRel(rel);if(!hit)return m;
+      return '<script data-td-inline="1">\n'+hit.text+'\n</scr'+'ipt>';
     });
     const folder=base;
-    const extrasCss=pool.filter(p=>p.startsWith(folder)&&/\.css$/i.test(p));
-    const extrasJs=pool.filter(p=>p.startsWith(folder)&&/\.js$/i.test(p));
+    const extrasCss=pool.filter(p=>/\.css$/i.test(p)&&p.startsWith(folder));
+    const extrasJs=pool.filter(p=>/\.js$/i.test(p)&&p.startsWith(folder));
     let inject='';
     extrasCss.forEach(p=>{
       const leaf=p.split('/').pop();
-      if(html.indexOf(leaf)>=0)return;
-      try{inject+='\n<style data-td-inline="1">\n'+this.app.vfs.read(p)+'\n</style>'}catch(e){}
+      if(html.indexOf(leaf)>=0 && html.indexOf(this.app.vfs.read(p).slice(0,40))>=0)return;
+      if(new RegExp('<style[^>]*>[\\s\\S]*'+leaf.replace('.','\\.'),'i').test(html))return;
+      try{if(html.indexOf(String(this.app.vfs.read(p)).slice(0,80))>=0)return;inject+='\n<style data-td-inline="1">\n'+this.app.vfs.read(p)+'\n</style>'}catch(e){}
     });
     extrasJs.forEach(p=>{
-      const leaf=p.split('/').pop();
-      if(html.indexOf(leaf)>=0)return;
-      try{inject+='\n<script data-td-inline="1">\n'+this.app.vfs.read(p)+'\n</scr'+'ipt>'}catch(e){}
+      try{
+        const body=String(this.app.vfs.read(p)||'');
+        if(html.indexOf(body.slice(0,80))>=0)return;
+        inject+='\n<script data-td-inline="1">\n'+body+'\n</scr'+'ipt>';
+      }catch(e){}
     });
     if(inject){
       if(/<\/head>/i.test(html))html=html.replace(/<\/head>/i, inject+'\n</head>');
       else html=inject+'\n'+html;
     }
+    try{if(window.CrashGuard&&CrashGuard.wrapPreviewHtml)html=CrashGuard.wrapPreviewHtml(html)}catch(e){}
     frame.srcdoc=html;
   }catch(e){console.warn('preview',e);frame.removeAttribute('srcdoc')}
 }
@@ -7039,7 +7139,7 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
     if((c.title||'').toLowerCase().includes(q))return true;
     return (c.messages||[]).some(m=>String(m.content||'').toLowerCase().includes(q));
   })}
-  chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div>`;div.onclick=e=>{if(e.target.dataset.act==='delete'){e.stopPropagation();this.app.conversations.delete(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}else if(e.target.dataset.act==='rename'){e.stopPropagation();this.appPrompt('Rename chat',c.title).then(v=>{if(v){this.app.conversations.rename(c.id,v);this.renderConversations()}})}else if(e.target.dataset.act==='canvas'){e.stopPropagation();toast('Canvas chat was removed','info')}
+  chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div>`;div.onclick=e=>{if(e.target.dataset.act==='delete'){e.stopPropagation();this.wipeConversation(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}else if(e.target.dataset.act==='rename'){e.stopPropagation();this.appPrompt('Rename chat',c.title).then(v=>{if(v){this.app.conversations.rename(c.id,v);this.renderConversations()}})}else if(e.target.dataset.act==='canvas'){e.stopPropagation();toast('Canvas chat was removed','info')}
     else if(e.target.dataset.act==='pin'){e.stopPropagation();const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:c.title||'Chat',from:'chat'});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();div.classList.remove('open-menu')}
     else if(e.target.dataset.act==='refer'){e.stopPropagation();this.setReferQuote(c.title||'this chat');div.classList.remove('open-menu')}
     else if(e.target.dataset.act==='menu'){e.stopPropagation();
@@ -7047,7 +7147,7 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
         {label:'Rename',fn:()=>{this.appPrompt('Rename chat',c.title).then(v=>{if(v){this.app.conversations.rename(c.id,v);this.renderConversations()}})}},
         {label:'Pin',fn:()=>{const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:c.title||'Chat',from:'chat'});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();toast('Pinned','success')}},
         {label:'Refer',fn:()=>this.setReferQuote(c.title||'this chat')},
-        {label:'Delete',fn:()=>{this.app.conversations.delete(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}}
+        {label:'Delete',fn:()=>{this.wipeConversation(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}}
       ]);
     }else this.loadConversation(c.id)};list.appendChild(div)})}
 showEmpty(){
