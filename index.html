@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html data-theme="dark" lang="en">
 <head>
-<!-- td-build:2026-09-12T22:43:22Z -->
+<!-- td-build:2026-09-12T22:50:45Z -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Think Deeper — Agentic AI</title>
@@ -5842,31 +5842,56 @@ resetCodePreview(){
   const tree=$('#code-file-tree');if(tree)tree.innerHTML='<div style="color:#8b949e;padding:8px">No files in code/ yet</div>';
 }
 _deleteSession(kind,id){
-  this.appConfirm('Delete this chat?','Delete chat').then(ok=>{
-  if(!ok)return;
-  if(kind==='agent'){
-    this.app.storage.set('agentSessions',this.agentSessions().filter(x=>x.id!==id));
-    try{this.app.storage.set('pins',(this.app.storage.get('pins',[])||[]).filter(p=>!(p&&p.from==='agent'&&p.text&&false)))}catch(e){}
-    if(this._currentAgentSessionId===id)this.resetAgentChatView();
-    this.renderAgentHist();
-  }else{
-    try{this.archiveCodeSessionFiles(id)}catch(e){}
-    this.app.storage.set('codeSessions',this.codeSessions().filter(x=>x.id!==id));
-    if(this.app.storage.get('currentCodeId')===id || this._currentCodeId===id){
-      const next=(this.codeSessions()||[])[0];
-      this.app.storage.set('currentCodeId',next&&next.id||null);
-      this._currentCodeId=next&&next.id||null;
-      if(next)this.loadCodeSession(next.id);
-      else {
-        const box=$('#code-messages');if(box){box.querySelectorAll('.code-msg').forEach(n=>n.remove());const em=$('#code-empty');if(em)em.classList.remove('hidden')}
-        this.resetCodePreview();
+  const delId=String(id||'').trim();
+  if(!delId){toast('Nothing to delete','error');return}
+  let title='this chat';
+  try{
+    if(kind==='agent'){
+      const s=(this.agentSessions()||[]).find(x=>String(x.id)===delId);
+      title=(s&&s.title)||'Agent chat';
+    }else{
+      const s=(this.codeSessions()||[]).find(x=>String(x.id)===delId);
+      title=(s&&s.title)||'Code chat';
+    }
+  }catch(e){}
+  this.appConfirm('Delete "'+title+'"? This cannot be undone.','Delete chat').then(ok=>{
+    if(!ok)return;
+    if(kind==='agent'||kind==='swarm'){
+      const keep=(this.agentSessions()||[]).filter(x=>String(x.id)!==delId);
+      this.app.storage.set('agentSessions',keep);
+      if(String(this._currentAgentSessionId||'')===delId)this.resetAgentChatView();
+      this.renderAgentHist();
+    }else{
+      const current=String(this._currentCodeId||this.app.storage.get('currentCodeId')||'');
+      if(current && current!==delId){
+        try{this.saveCodeTranscript()}catch(e){}
       }
-    }else this.resetCodePreview();
-    this.renderCodeHist();
-    this.renderCodeFiles&&this.renderCodeFiles();
-    this.refreshCodePreview&&this.refreshCodePreview();
-  }
-  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+      const exists=(this.codeSessions()||[]).some(s=>String(s.id)===delId);
+      if(!exists){toast('That code chat was not found','error');return}
+      try{this.archiveCodeSessionFiles(delId)}catch(e){}
+      const list=(this.codeSessions()||[]).filter(s=>String(s.id)!==delId);
+      this.app.storage.set('codeSessions',list);
+      if(current===delId){
+        const next=list[0]||null;
+        this._currentCodeId=next?next.id:null;
+        this.app.storage.set('currentCodeId',this._currentCodeId);
+        const box=$('#code-messages');
+        if(next){
+          try{this.restoreCodeTranscript(next)}catch(e){}
+          this.markCodeActive&&this.markCodeActive(next.id);
+        }else if(box){
+          box.querySelectorAll('.code-msg').forEach(n=>n.remove());
+          const em=$('#code-empty');if(em)em.classList.remove('hidden');
+          this.resetCodePreview&&this.resetCodePreview();
+        }
+      }
+      this.renderCodeHist&&this.renderCodeHist();
+      this.renderCodeSessions&&this.renderCodeSessions();
+      this.renderCodeFiles&&this.renderCodeFiles();
+      this.refreshCodePreview&&this.refreshCodePreview();
+    }
+    try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+    toast('Deleted "'+title+'"','success');
   });
 }
 renderAgentHist(){
@@ -5909,9 +5934,11 @@ persistCodeSessions(list){
 }
 loadCodeSession(id){
   if(!id)return;
-  try{this.saveCodeTranscript()}catch(e){}
+  const nextId=String(id);
+  const prev=String(this._currentCodeId||this.app.storage.get('currentCodeId')||'');
+  if(prev && prev!==nextId){try{this.saveCodeTranscript()}catch(e){}}
   const list=this.codeSessions();
-  const s=list.find(x=>String(x.id)===String(id));
+  const s=list.find(x=>String(x.id)===nextId);
   if(!s){toast('Code chat not found','error');return}
   this._currentCodeId=s.id;
   this.app.storage.set('currentCodeId',s.id);
@@ -6678,13 +6705,7 @@ renderCodeSessions(){
     });
     el.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{
       e.stopPropagation();
-      const delId=b.dataset.del;
-      try{this.archiveCodeSessionFiles(delId)}catch(err){}
-      const list=this.codeSessions().filter(s=>s.id!==delId);
-      this.app.storage.set('codeSessions',list);
-      if(this.app.storage.get('currentCodeId')===delId)this.app.storage.set('currentCodeId',list[0]&&list[0].id||null);
-      this.resetCodePreview&&this.resetCodePreview();
-      this.restoreCodeTranscript();
+      this._deleteSession('code', b.dataset.del);
     });
   }
 }
@@ -8590,8 +8611,15 @@ loginWithGoogle(overlay){
   this.openAuthModal('login');
 }
 logoutGoogle(){
-  const fin=()=>{this.app.storage.setActiveUser(null);if(this.app.cloud)this.app.cloud.uid=null;this.reloadWorkspaceForAccount();try{this.app.cloud.rehydrateSystemDefaults(this.app)}catch(e){}this.renderAuth();toast('Signed out — guest mode','success')};
-  if(this.app.cloud&&this.app.cloud.ready)this.app.cloud.signOut().then(fin).catch(fin);else fin();
+  const fin=()=>{
+    try{this.app.storage.setActiveUser(null)}catch(e){}
+    try{if(this.app.cloud)this.app.cloud.uid=null}catch(e){}
+    try{sessionStorage.clear()}catch(e){}
+    try{localStorage.removeItem('thinkdeeper_v2_activeUser')}catch(e){}
+    const url=location.pathname+(location.search||'')+(location.hash||'');
+    location.replace(url||'/');
+  };
+  if(this.app.cloud&&this.app.cloud.ready&&this.app.cloud.signOut)this.app.cloud.signOut().then(fin).catch(fin);else fin();
 }
 filterConversations(q){this._convQuery=(q||'').trim().toLowerCase();this.renderConversations()}
 visibleUserText(msg){
