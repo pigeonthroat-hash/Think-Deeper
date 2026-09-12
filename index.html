@@ -3667,7 +3667,7 @@ class AgentManager{
       const txt=String(a.result||'');
       const done=/^SOLVED\s*:/im.test(txt);
       const run=txt.match(/RUN\s+([A-Za-z0-9_-]+)\s*:\s*(.+)/i);
-      const maxRounds=this.k.mustFullySolve!==false?48:12;
+      const maxRounds=this.k.mystery?160:(this.k.mustFullySolve!==false?48:12);
       const timedOut=this.k.deadline&&Date.now()>this.k.deadline;
       if(done){
         const answer=txt.replace(/^SOLVED\s*:\s*/i,'').trim();
@@ -3696,19 +3696,40 @@ class AgentManager{
             }
           }
         }
-        if(this.k.mystery&&!this._mysteryShapeOk(answer)){
+        if(this.k.mystery && (!this._mysteryShapeOk(answer) || !this._mysteryHasNew(answer))){
           a.thoughts=a.thoughts||[];
-          a.thoughts.push({name:'Thought',detail:'SOLVED lacked the required mystery conclusion headings. Composing the final four-part writeup.',status:'running'});
-          const composed=await this._composeMysteryFinal();
-          this.k.solved=composed;this.k.alive=false;a.result=composed;return a.result;
+          a.thoughts.push({name:'Thought',detail:'Conclusion was not a new result. Swarm will keep working.',status:'running'});
+          const workers=this.list().filter(x=>x.role!=='supervisor');
+          let next=workers.find(x=>x.status==='idle')||workers.find(x=>x.status==='completed'||x.status==='failed')||workers[0];
+          if(next){
+            next.task='NOT NEW YET. Previous draft:\n'+answer.slice(0,1200)+'\n\nFind a concrete NEW result for: '+(this.k.goal||'')+'\nUse run_python and web_search. Do not restate the problem.';
+            next.status='idle';next.result=null;next.ended=null;next.thoughts=[];
+            a.status='waiting';
+            this.k.scheduler.enqueue(next.id,'keep-seeking');
+            return a.result;
+          }
         }
         this.k.solved=answer;this.k.alive=false;return a.result;
       }
-      // Only force-finish on hard timeout or extreme round cap — never treat partial work as SOLVED
+      // Mystery: extend instead of stopping when nothing new was found
       if(timedOut||a.rounds>=maxRounds){
         if(this.k.mystery){
-          const composed=await this._composeMysteryFinal();
-          this.k.solved=composed;this.k.alive=false;a.result=composed;return a.result;
+          this.k._mysteryExt=(this.k._mysteryExt||0)+1;
+          if(this.k._mysteryExt<=6){
+            this.k.deadline=Date.now()+8*60*1000;
+            a.rounds=Math.max(0,(a.rounds||0)-12);
+            a.thoughts=a.thoughts||[];
+            a.thoughts.push({name:'Thought',detail:'Time/round soft limit — extending search for a NEW result (wave '+(this.k._mysteryExt)+').',status:'running'});
+            const workers=this.list().filter(x=>x.role!=='supervisor');
+            let next=workers.find(x=>x.status==='completed'||x.status==='idle'||x.status==='failed')||workers[0];
+            if(next){
+              next.task='CONTINUE. Nothing new enough yet. Produce a NEW concrete result (proof step, closed form, computation, or counterexample) for: '+(this.k.goal||'')+'. web_search first, then run_python. Do not wrap up.';
+              next.status='idle';next.result=null;next.ended=null;next.thoughts=[];
+              a.status='waiting';
+              this.k.scheduler.enqueue(next.id,'mystery-extend');
+              return a.result;
+            }
+          }
         }
         this.k.solved=(txt||'').replace(/^SOLVED\s*:\s*/i,'').trim()||'Time or round limit reached before a complete solution. Partial notes:\n'+this.list().filter(x=>x.result).map(x=>x.id+': '+String(x.result).slice(0,400)).join('\n');
         this.k.alive=false;return a.result;
@@ -3755,6 +3776,14 @@ class AgentManager{
     const t=String(text||'');
     return /##\s*What was solved/i.test(t) && /##\s*Why it is new/i.test(t) && /##\s*Evidence/i.test(t);
   }
+  _mysteryHasNew(text){
+    const t=String(text||'');
+    if(t.replace(/\s+/g,' ').trim().length<80)return false;
+    if(/\b(not established|progress report|nothing new|not new|already known|not a discovery|did not produce a new|no new result|cannot (be )?solved|as stated)\b/i.test(t)
+       && !/\b(theorem|lemma|counterexample|closed form|we prove|we show|computed that|explicit formula)\b/i.test(t))return false;
+    if(/\b(unknown|unsolved|open problem|restate the problem)\b/i.test(t) && !/\b(proof|counterexample|computed|closed form)\b/i.test(t))return false;
+    return /\b(theorem|lemma|proof|counterexample|computed|closed form|explicit|bound|identity|we prove|we show|new result)\b/i.test(t) || t.length>400;
+  }
   async _composeMysteryFinal(){
     const notes=this.list().filter(x=>x.role!=='supervisor').map(x=>x.id+' ('+x.role+'): '+String(x.result||x.error||'').slice(0,1800)).join('\n\n');
     const thoughts=this.list().map(x=>x.id+': '+((x.thoughts||[]).slice(-3).map(t=>String(t.detail||'')).join(' | '))).join('\n');
@@ -3793,7 +3822,10 @@ class AgentManager{
       let answer=String((args&&(args.answer||args.content||args.text))||'').trim();
       if(!answer)return {ok:false,error:'answer is required'};
       if(this.k.mystery&&!this._mysteryShapeOk(answer)){
-        return {ok:false,error:'MYSTERY_FINAL_REQUIRED: rewrite with headings ## What was solved, ## Why it is new, ## Evidence, ## Limits. Explain the exact result and why it is new (or not new). Then call createfinalresponse again.'};
+        return {ok:false,error:'MYSTERY_FINAL_REQUIRED: rewrite with headings ## What was solved, ## Why it is new, ## Evidence, ## Limits. Then call createfinalresponse again.'};
+      }
+      if(this.k.mystery&&!this._mysteryHasNew(answer)){
+        return {ok:false,error:'NOT_NEW_YET: that writeup does not contain a concrete new result. Keep assigning workers (including ones who already finished). Use web_search + run_python. Do not finalize until Why it is new names a specific new claim.'};
       }
       this.k.solved=answer;a.result=answer;a._finalized=true;
       this.k.events.emit('agent.final',{id:a.id,answer:answer.slice(0,400)});
@@ -3897,7 +3929,7 @@ class Coordinator{
     const groupMode=!!this.k.groupMode;
     let supPrompt='You are the Supervisor (coordinator). Never speak to the human directly. Call contact_agent to assign work and createfinalresponse when fully solved. ENVIRONMENT SAFETY: this is a browser tab. Never assign while True, unbounded loops, os.system, subprocess, threading, eval, location.reload, or huge allocations. If a tool returns CRASH_BLOCKED, rewrite smaller. Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nCRITICAL RULE: Do NOT output SOLVED until the goal is completely solved to the user\'s standard — partial progress is not enough. Keep assigning workers until the work is finished. Only then synthesize the final answer from all agent results (prefer majority when they agree). When workers submit Python, you optimize it for maximum Pyodide speed (all modules available) before execution; agents stay idle until that returns. In your own notes use short thoughts only — no titles/headings; LaTeX math is fine.';
     if(mystery){
-      supPrompt+='\nMYSTERY MODE: You must finish with createfinalresponse that uses EXACTLY these headings:\n## What was solved\nOne precise statement of the claim, theorem, computation, or counterexample.\n## Why it is new\nExplain exactly why this is new relative to prior art, or honestly say it is NOT new and cite the earlier result. Never bluff novelty.\n## Evidence\nMethods, searches, and computations that support the claim.\n## Limits\nWhat remains open.\nBefore novelty claims a worker MUST web_search. A worker finishing their own note is NOT the end — keep assigning more RUN/contact_agent tasks, including workers who already concluded, until the four-part final exists.';
+      supPrompt+='\nMYSTERY MODE: Do NOT wrap up early. Keep assigning workers until you have a CONCRETE NEW result (proof, closed form, computation, counterexample) that web_search does not already list as known. A progress report is not finished work. createfinalresponse must use:\n## What was solved\n## Why it is new\n## Evidence\n## Limits\nIf a draft is not new, ignore it and RUN another worker. Reuse workers who already concluded. Never stop only because time feels short.';
     }
     if(groupMode){
       supPrompt+='\nGROUP MODE: First create groups by assigning roles like "leader-A", "member-A". Group leaders may message their members; members report to their leader; leaders report to you. Still only ONE live RUN at a time.';
@@ -4801,6 +4833,7 @@ initSwarmUi(){
   if(this._swarmBound)return;this._swarmBound=true;
   const k=this.ensureSwarm();
   k.events.on('*',ev=>this.renderSwarm(ev));
+  try{this.bindScrollLock&&this.bindScrollLock()}catch(e){}
   const stop=$('#swarm-stop');if(stop)stop.onclick=()=>this.stopAgentRun();
   const send=$('#swarm-send-btn');if(send)send.onclick=()=>this.openAgentSetup();
   const goalEl=$('#swarm-goal');
@@ -4992,8 +5025,9 @@ openAgentSetup(){
   if(this._agentQuick){
     return this.runAgentQuickAsk(goal);
   }
-  // Follow-up in same session: skip setup sheet, reuse prior settings
-  if(this._currentAgentSessionId&&this._agentFollowupReady){
+  // Same agent chat: every later message stays in this thread
+  if(this._currentAgentSessionId && !this._wantNewAgentChat){
+    this._agentFollowupReady=true;
     return this.confirmAgentSetup(true);
   }
   const ov=$('#agent-setup-overlay');
@@ -5013,8 +5047,10 @@ async runAgentQuickAsk(goal){
   }
   const qFresh=!!this._wantNewAgentChat||!this._currentAgentSessionId;
   const qid=qFresh?uid():this._currentAgentSessionId;
+  const prevQ=(!qFresh&&qid)?this.agentSessions().find(x=>x.id===qid):null;
   this._wantNewAgentChat=false;
-  const sess=this.saveAgentSession({id:qid,title:goal.slice(0,40),messages:[{role:'user',content:goal}]});
+  const seed=((prevQ&&prevQ.messages)||[]).concat([{role:'user',content:goal}]);
+  const sess=this.saveAgentSession({id:qid,title:(prevQ&&prevQ.title)||goal.slice(0,40),messages:seed});
   this._currentAgentSessionId=sess.id;
   this.setAgentRunningUi(true);
   this._quickAbort=new AbortController();
@@ -5089,7 +5125,7 @@ setAgentRunningUi(running){
   if(running){
     if(send)send.classList.add('hidden-by-stop');
     if(stop)stop.classList.add('visible');
-    if(ta){ta.disabled=true;ta.placeholder='Working…'}
+    if(ta){ta.disabled=false;ta.placeholder='Send another message in this chat…'}
     if(topStop)topStop.style.display='none';
   }else{
     if(send)send.classList.remove('hidden-by-stop');
@@ -5125,13 +5161,13 @@ async startSwarm(opts){
   else if(q==='heavy'){opts.count=Math.max(opts.count||8,8);opts.budgetMs=Math.max(budgetMs,20*60*1000)}
   else if(q==='auto'){/* supervisor decides via prompt */}
   {
-    const fresh=!!this._wantNewAgentChat || !opts.followup || !this._currentAgentSessionId;
-    if(this._wantNewAgentChat || (!opts.followup && !this._currentAgentSessionId)) this._currentAgentSessionId=null;
-    const sid=(!fresh && this._currentAgentSessionId)?this._currentAgentSessionId:uid();
-    const prev=(!this._wantNewAgentChat && this._currentAgentSessionId)?this.agentSessions().find(x=>x.id===this._currentAgentSessionId):null;
-    const baseMsgs=(opts.followup&&prev&&prev.messages)?prev.messages.slice():[];
+    const reuse=!!this._currentAgentSessionId && !this._wantNewAgentChat;
+    const sid=reuse?this._currentAgentSessionId:uid();
+    const prev=reuse?this.agentSessions().find(x=>x.id===sid):null;
+    const baseMsgs=(prev&&prev.messages)?prev.messages.slice():[];
     const messages=baseMsgs.concat([{role:'user',content:goal}]);
     this._wantNewAgentChat=false;
+    this._agentFollowupReady=true;
     this._agentSession=this.saveAgentSession({id:sid,title:(prev&&prev.title)||goal.slice(0,40),messages});
     this._currentAgentSessionId=this._agentSession.id;
     k.sessionId=this._currentAgentSessionId;
@@ -5149,9 +5185,10 @@ async startSwarm(opts){
     const work=document.createElement('div');work.className='agent-msg assistant';work.id='agent-live-msg';
     work.innerHTML='<div class="agent-msg-head"><div class="avatar">TD</div><span class="agent-msg-role">Supervisor</span><span class="agent-clock" id="agent-live-clock">0:00</span></div><div class="agent-work open" id="agent-work"><button type="button" class="agent-work-toggle" id="agent-work-toggle"><span class="aw-ico spinning" id="agent-work-ico">'+(SVG.thinkOrbit||SVG.spin)+'</span> <span id="agent-work-label">Working for 0:00</span> <span style="margin-left:auto;opacity:.6" id="agent-work-meta"></span></button><div class="agent-work-body" id="agent-work-body"><div class="hint">Supervisor is assembling the team…</div></div></div><div class="agent-msg-body" id="agent-final-body" style="display:none"></div>';
     box.appendChild(work);
+    document.querySelectorAll('#agent-live-msg').forEach((el,i,arr)=>{if(i<arr.length-1)el.removeAttribute('id')});
     const tog=$('#agent-work-toggle');
     if(tog)tog.onclick=()=>$('#agent-work')?.classList.toggle('open');
-    box.scrollTop=box.scrollHeight;
+    this.scrollAgentChat?this.scrollAgentChat(true): (box.scrollTop=box.scrollHeight);
   }
   this.setAgentRunningUi(true);
   this._setAgentStatus('Running · '+count+' agents');
@@ -5293,7 +5330,7 @@ renderSwarm(ev){
     const t=k.usage.totals||{};
     use.textContent=(nWork?nWork+' agents · ':'')+(t.reqs||0)+' requests'+(k.alive?' · live':'');
   }
-  const box=$('#swarm-think');if(box)box.scrollTop=box.scrollHeight;
+  this.scrollAgentChat&&this.scrollAgentChat(false);
   clearTimeout(this._liveAgentTimer);
   this._liveAgentTimer=setTimeout(()=>this.persistLiveAgent(false),280);
   if(ev&&(ev.t==='agent.think'||ev.t==='agent.tool'||ev.t==='agent.done'||ev.t==='agent.fail')){
@@ -8236,10 +8273,15 @@ bindScrollLock(){
     },{passive:true});
     area._stick=true;
   };
-  lock($('#chat-area'));lock($('#code-messages'));
+  lock($('#chat-area'));lock($('#code-messages'));lock($('#swarm-think'));
+}
+scrollAgentChat(force){
+  const box=$('#swarm-think');
+  if(!box)return;
+  if(force || box._stick!==false) box.scrollTop=box.scrollHeight;
 }
 scrollToBottom(){
-  const areas=[$('#chat-area'),$('#code-messages')].filter(Boolean);
+  const areas=[$('#chat-area'),$('#code-messages'),$('#swarm-think')].filter(Boolean);
   requestAnimationFrame(()=>{
     areas.forEach(area=>{if(area._stick!==false)area.scrollTop=area.scrollHeight});
   });
