@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html data-theme="dark" lang="en">
 <head>
-<!-- td-build:2026-09-12T14:40:12Z -->
+<!-- td-build:2026-09-12T14:46:25Z -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Think Deeper — Agentic AI</title>
@@ -1230,6 +1230,26 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 .agent-attach-row{max-width:none!important;margin:0 0 6px!important;width:100%}
 #swarm-goal{width:100%!important;flex:1 1 auto!important}
 
+
+
+/* CODE MODE LAYOUT + PANE REPAIR */
+#code-view{display:none;flex:1 1 auto;min-height:0;flex-direction:column;width:100%;background:var(--bg-primary)}
+#code-view.active{display:flex !important}
+#code-view .code-shell{display:flex !important;flex:1 1 auto;min-height:0;width:100%;height:100%;flex-direction:row}
+#code-view .code-left{display:flex !important;flex-direction:column;min-height:0;width:min(420px,40%);min-width:280px;max-width:480px;height:auto !important;border-right:1px solid var(--border);background:var(--bg-sidebar)}
+#code-view .code-right{display:flex !important;flex:1 1 auto;min-width:0;min-height:0;height:auto !important;flex-direction:column}
+#code-view .code-messages{flex:1 1 auto;min-height:0;overflow:auto}
+#code-view .code-input-area{flex-shrink:0;width:100% !important;display:flex !important;flex-direction:column !important;align-items:stretch !important}
+#code-view .code-input-area .input-box{width:100% !important;max-width:none !important}
+#code-view .code-right-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+#code-view .code-preview-wrap,#code-view .code-edit-wrap{flex:1 1 auto;min-height:0}
+#code-empty{padding:28px 16px;text-align:center;color:var(--text-secondary)}
+#code-empty.hidden{display:none !important}
+@media(max-width:768px){
+  #code-view .code-shell{flex-direction:column}
+  #code-view .code-left{width:100% !important;max-width:none !important;min-width:0;height:50% !important;border-right:none;border-bottom:1px solid var(--border)}
+  #code-view .code-right{height:50% !important;display:flex !important}
+}
 
 </style>
 </head>
@@ -5333,7 +5353,7 @@ initCodeMode(){
   if(input)input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.sendCode()}});
   this.renderCodeSkills();
   this.renderCodeFiles();
-  this.restoreCodeTranscript();
+  try{this.restoreCodeTranscript()}catch(e){console.warn('code restore',e)}
   const ns=$('#code-new-session');if(ns)ns.onclick=()=>this.newCodeSession();
   const tp=$('#code-tab-preview'),tc=$('#code-tab-code');
   if(tp)tp.onclick=()=>this.setCodePane('preview');
@@ -6366,8 +6386,11 @@ setMode(mode){
   if(intensityChat)intensityChat.style.display='none';
   if(mode==='code'){
     this._currentCodeId=this._currentCodeId||this.app.storage.get('currentCodeId',null);
-    this.renderCodeFiles();
-    try{this.restoreCodeTranscript()}catch(e){}
+    try{this.renderCodeFiles()}catch(e){}
+    try{
+      if(this._shownCodeId!==this._currentCodeId)this.restoreCodeTranscript();
+    }catch(e){console.warn('code restore',e)}
+    try{this.refreshCodePreview&&this.refreshCodePreview()}catch(e){}
   }
   if(mode==='auto')this.renderAutoHub();
   if(mode==='canvas')this.openAutoBuilder();
@@ -6407,10 +6430,12 @@ currentCodeSession(){
   this.app.storage.set('currentCodeId',list[0].id);
   return list[0];
 }
-saveCodeTranscript(){
+saveCodeTranscript(force){
   try{
     const box=$('#code-messages');if(!box)return;
-    const msgs=[...box.querySelectorAll('.code-msg')].map(el=>{
+    const els=[...box.querySelectorAll('.code-msg')];
+    if(!els.length && !force)return;
+    const msgs=els.map(el=>{
       const role=el.classList.contains('user')?'user':'assistant';
       if(!el.dataset.mid)el.dataset.mid=uid();
       const body=el.querySelector('.final-content')||el.querySelector('.message-body')||el;
@@ -6449,21 +6474,35 @@ saveCodeTranscript(){
 restoreCodeTranscript(session){
   const box=$('#code-messages');if(!box)return;
   const cur=session||this.currentCodeSession();
-  const msgs=(cur&&Array.isArray(cur.messages)&&cur.messages.length)?cur.messages:((cur&&cur.messages)||[]);
+  const msgs=(cur&&Array.isArray(cur.messages))?cur.messages.slice():[];
   box.querySelectorAll('.code-msg').forEach(n=>n.remove());
+  let empty=$('#code-empty');
+  if(!empty){
+    empty=document.createElement('div');empty.id='code-empty';empty.className='code-empty';
+    empty.innerHTML='<h2>Code workspace</h2><p>Describe what to build. Files save under <code>code/</code>.</p>';
+    box.prepend(empty);
+  }
+  empty.classList.toggle('hidden', msgs.length>0);
+  const who=this.userLabel?this.userLabel():{label:'You',initial:'Y',img:'',bg:''};
   msgs.forEach(m=>{
-    const div=document.createElement('div');
-    div.className='code-msg '+(m.role==='user'?'user':'agent');
-    const body=m.html&&m.role==='assistant'?m.html:escapeHtml(m.content||'');
-    const who=this.userLabel();
-    const head=m.role==='user'?(`<div class="msg-who"><span class="avatar"${who.bg?(' style="'+who.bg+'"'):''}>${who.img||who.initial}</span><span>${escapeHtml(who.label)}</span></div>`):'<div class="msg-who"><span class="avatar">TD</span><span>Think Deeper</span></div>';
-    div.dataset.mid=m.id||uid();
-    div.innerHTML=head+'<div class="message-body">'+body+'</div>';
-    box.appendChild(div);
-    if(m.activities&&m.activities.length)this.hydrateThoughts(div,{activities:m.activities,thinkMs:m.thinkMs});
-    this.paintMsgActions(div,{kind:'code',id:div.dataset.mid,role:m.role,text:m.content||''});
+    try{
+      if(!m)return;
+      const div=document.createElement('div');
+      const isUser=m.role==='user';
+      div.className='code-msg '+(isUser?'user':'agent');
+      div.dataset.mid=m.id||uid();
+      const text=String(m.content||'').slice(0,20000);
+      const safe=escapeHtml(text);
+      const avatar=isUser?(who.img||escapeHtml(who.initial||'Y')):'TD';
+      const name=isUser?escapeHtml(who.label||'You'):'Think Deeper';
+      div.innerHTML='<div class="msg-who"><span class="avatar">'+avatar+'</span><span>'+name+'</span></div><div class="message-body">'+safe+'</div>';
+      box.appendChild(div);
+      try{if(m.activities&&m.activities.length)this.hydrateThoughts(div,{activities:m.activities,thinkMs:m.thinkMs})}catch(e){}
+      try{this.paintMsgActions(div,{kind:'code',id:div.dataset.mid,role:isUser?'user':'assistant',text:text})}catch(e){}
+    }catch(e){console.warn('restore msg',e)}
   });
-  this.renderCodeSessions();
+  this._shownCodeId=cur&&cur.id;
+  try{this.renderCodeSessions()}catch(e){}
 }
 renderCodeSessions(){
   const list=this.codeSessions().slice().sort((a,b)=>(b.updated||0)-(a.updated||0));
@@ -6586,7 +6625,8 @@ async sendCode(){this.ensureAgent();
   if(stopBtn)stopBtn.classList.add('visible');
   if(sendBtn)sendBtn.style.display='none';
 
-  const box=$('#code-messages');
+  const box=$('#code-messages');if(!box){toast('Code workspace missing','error');return}
+  const empty=$('#code-empty');if(empty)empty.classList.add('hidden');
   const who=this.userLabel();
   const userDiv=document.createElement('div');userDiv.className='code-msg user';
   userDiv.dataset.mid=uid();
@@ -7133,7 +7173,12 @@ else if(ev.type==='activity-update'){
 }
 else if(ev.type==='final'){aiMsg.content=ev.content;
   try{
-    const conv=this.app.conversations.get(this.app.conversations.currentId);
+    if(this.mode==='code'||this.app.mode==='code'){
+      try{this.saveCodeTranscript(true)}catch(e){}
+      try{this.refreshCodePreview&&this.refreshCodePreview()}catch(e){}
+      try{this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}
+    }
+    const conv=(this.mode==='code'||this.app.mode==='code')?null:this.app.conversations.get(this.app.conversations.currentId);
     if(conv){
       const m=(conv.messages||[]).find(x=>x.id===aiMsg.id);
       if(m)m.content=ev.content;
