@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html data-theme="dark" lang="en">
 <head>
-<!-- td-build:2026-09-12T14:46:25Z -->
+<!-- td-build:2026-09-12T14:56:16Z -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Think Deeper — Agentic AI</title>
@@ -4877,7 +4877,7 @@ try{
     onEvent({type:'activity',name:'Monaco check',agent:'Agent 2',status:'done',detail:errs.length?errs.join('\n'):'Returned no errors'});
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE: prefer paths under code/ for project files. You may use image_search and github_* tools. Link folders as [[folder:code/...]] and HTML as [[preview:code/.../index.html]]. Persist files only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE: write files under code/. For HTML apps, embed CSS in <style> and JS in <script> inside the HTML (or write sibling .css/.js with relative links). Preview cannot fetch external relative files unless they exist in the workspace. Link folders as [[folder:code/...]] and HTML as [[preview:code/.../index.html]]. Persist files only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 const hardMax=Number.POSITIVE_INFINITY;
 try{while(iteration<hardMax&&this.running){if(!this.running)break;
@@ -5707,7 +5707,7 @@ _histMenuClick(e,el,kind){
     ]);
     return}
   if(act==='rename'){e.stopPropagation();const cur=el.querySelector('.ah-title');const t=prompt('Rename',cur?cur.textContent:'');if(!t)return;this._renameSession(kind,id,t);return}
-  if(act==='pin'){e.stopPropagation();const title=(el.querySelector('.ah-title')||{}).textContent||kind;const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:title,from:kind});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();el.classList.remove('open');toast('Pinned','success');return}
+  if(act==='pin'){e.stopPropagation();const title=(el.querySelector('.ah-title')||{}).textContent||kind;const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:title,from:kind==='swarm'?'agent':kind});this.app.storage.set('pins',pins.slice(0,24));this.renderPins&&this.renderPins();el.classList.remove('open');toast('Pinned','success');return}
   if(act==='refer'){e.stopPropagation();this.setReferQuote((el.querySelector('.ah-title')||{}).textContent||kind+' chat');el.classList.remove('open');return}
   if(act==='delete'){e.stopPropagation();this._deleteSession(kind,id);return}
   if(kind==='agent'){this._currentAgentSessionId=id;this.loadAgentSession(id);this.renderAgentHist&&this.renderAgentHist()}
@@ -5752,8 +5752,7 @@ renderCodeHist(){
   if(!listEl)return;
   if(!inCode)return;
   const pid=this.activeProjectId?this.activeProjectId():null;
-  const list=(this.codeSessions()||[]).filter(s=>s&&(!pid||s.projectId===pid||!s.projectId))
-    .slice().sort((a,b)=>(Number(b.updated||0))-(Number(a.updated||0)));
+  const list=(this.codeSessions()||[]).filter(s=>s&&(!pid||s.projectId===pid||!s.projectId)).slice();
   const cur=this._currentCodeId||this.app.storage.get('currentCodeId',null);
   listEl.innerHTML=list.slice(0,30).map(s=>'<div class="agent-hist-item hist-item-wrap'+(String(s.id)===String(cur)?' active':'')+'" data-id="'+s.id+'"><span class="ah-title">'+escapeHtml(s.title||'Code chat')+'</span><button type="button" class="ah-more" data-act="menu" aria-label="Menu">⁝</button></div>').join('')||'<div class="hint" style="padding:8px">No code chats yet</div>';
   listEl.querySelectorAll('.agent-hist-item').forEach(el=>el.onclick=e=>this._histMenuClick(e,el,'code'));
@@ -6411,6 +6410,7 @@ setMode(mode){
   if(showAgent){this.initSwarmUi();this.renderAgentHist&&this.renderAgentHist()}
   if(showCode){this.renderCodeHist&&this.renderCodeHist()}
   if(showChat){this.renderConversations&&this.renderConversations()}
+  try{this.renderPins&&this.renderPins()}catch(e){}
 }
 renderCodeSkills(){
   const el=$('#code-skills-list');if(!el)return;
@@ -6438,25 +6438,38 @@ saveCodeTranscript(force){
     const msgs=els.map(el=>{
       const role=el.classList.contains('user')?'user':'assistant';
       if(!el.dataset.mid)el.dataset.mid=uid();
-      const body=el.querySelector('.final-content')||el.querySelector('.message-body')||el;
       const tp=el.querySelector('.thought-process');
+      const final=el.querySelector('.final-content');
+      let body=final;
+      if(!body){
+        const raw=el.querySelector('.message-body');
+        if(raw){
+          const clone=raw.cloneNode(true);
+          clone.querySelectorAll('.thought-process,.thinking-indicator,.message-actions,.tp-panel,.tp-toggle').forEach(n=>n.remove());
+          body=clone;
+        }else body=el;
+      }
       const activities=tp?[...tp.querySelectorAll('.tp-step')].map(st=>({
         agent:(st.dataset.agent||st.querySelector('.tp-agent')?.textContent||'').trim(),
         name:(st.querySelector('.tp-step-title')?.innerText||'').trim(),
         detail:(st.querySelector('.tp-step-body')?.innerText||'').trim().slice(0,8000)
       })):undefined;
+      let content=String((body.innerText||body.textContent||'')).replace(/\s+/g,' ').trim().slice(0,20000);
+      if(role!=='user' && (!content || /^(Working|Thinking|Planned|Planning|Deep thought)/i.test(content))){
+        content='';
+      }
       return {
         id:el.dataset.mid,
         role,
-        content:(body.innerText||body.textContent||'').slice(0,20000),
-        html:(body.innerHTML||'').slice(0,40000),
+        content,
+        html: role==='user' ? '' : '',
         activities
       };
-    }).filter(m=>(m.content||m.html)&&!/^Running ·/.test(m.content||''));
+    }).filter(m=>(m.content||m.activities||m.role==='user')&&!/^Running ·/.test(m.content||''));
     const list=this.codeSessions();
     const cur=this.currentCodeSession();
     cur.messages=msgs.slice(-50);
-    cur.updated=Date.now();
+    if(force)cur.updated=Date.now();
     if(!cur.titleLocked&&(!cur.title||cur.title==='Code chat')&&msgs[0]&&msgs[0].role==='user'){
       cur.title=String(msgs[0].content).replace(/\s+/g,' ').slice(0,36)||cur.title;
     }
@@ -6505,7 +6518,7 @@ restoreCodeTranscript(session){
   try{this.renderCodeSessions()}catch(e){}
 }
 renderCodeSessions(){
-  const list=this.codeSessions().slice().sort((a,b)=>(b.updated||0)-(a.updated||0));
+  const list=this.codeSessions().slice();
   const cur=this._currentCodeId||this.app.storage.get('currentCodeId',null);
   const wrap=$('#code-session-select');
   const btn=$('#code-session-btn');
@@ -6576,24 +6589,57 @@ codeRoot(){
 }
 refreshCodePreview(){
   const frame=$('#code-preview-frame');const empty=$('#code-preview-empty');if(!frame)return;
-  const paths=this.app.vfs.filesInFolder(this.codeRoot())||[];
-  const htmlPath=paths.find(p=>/index\.html$/i.test(p))||paths.find(p=>/\.html$/i.test(p));
+  const root=this.codeRoot?this.codeRoot():'code';
+  const scoped=(this.app.vfs.filesInFolder(root)||[]);
+  const all=(this.app.vfs.filesInFolder('code')||[]);
+  const pool=scoped.concat(all.filter(p=>scoped.indexOf(p)<0));
+  const htmlPath=scoped.find(p=>/index\.html$/i.test(p))||scoped.find(p=>/\.html$/i.test(p))||all.find(p=>/index\.html$/i.test(p))||all.find(p=>/\.html$/i.test(p));
   if(!htmlPath){if(empty)empty.style.display='flex';frame.removeAttribute('srcdoc');return}
   if(empty)empty.style.display='none';
   try{
-    let html=this.app.vfs.read(htmlPath);
+    let html=String(this.app.vfs.read(htmlPath)||'');
     const base=htmlPath.replace(/[^/]+$/,'');
-    html=html.replace(/(src|href)=["'](?!https?:|data:|#)([^"']+)["']/gi,(m,attr,rel)=>{
-      try{
-        const full=rel.startsWith('/')?rel.slice(1):(base+rel);
-        const file=this.app.vfs.read(full.startsWith('code/')?full:('code/'+full.replace(/^code\//,'')));
-        if(/\.css$/i.test(rel))return attr+'="data:text/css;base64,'+btoa(file)+'"';
-        if(/\.js$/i.test(rel))return attr+'="data:text/javascript;base64,'+btoa(unescape(encodeURIComponent(file)))+'"';
-      }catch(e){}
+    const resolveRel=(rel)=>{
+      rel=String(rel||'').split('?')[0].split('#')[0].replace(/^\.\//,'');
+      if(!rel||/^(https?:|data:|blob:|#|mailto:)/i.test(rel))return null;
+      const name=rel.split('/').pop();
+      const cands=[];
+      if(rel.startsWith('/'))cands.push(rel.replace(/^\/+/,''));
+      cands.push(base+rel, root.replace(/\/$/,'')+'/'+rel.replace(/^\/+/,''));
+      cands.push('code/'+rel.replace(/^code\//,''), rel);
+      pool.forEach(p=>{if(p===rel||p.endsWith('/'+name)||p===name)cands.push(p)});
+      for(const c of cands){
+        try{const txt=this.app.vfs.read(c);if(txt!=null)return {path:c,text:String(txt)}}catch(e){}
+      }
+      return null;
+    };
+    const dataUrl=(mime,text)=>'data:'+mime+';charset=utf-8,'+encodeURIComponent(text);
+    html=html.replace(/(src|href)=["'](?!https?:|data:|blob:|#|mailto:)([^"']+)["']/gi,(m,attr,rel)=>{
+      const hit=resolveRel(rel);if(!hit)return m;
+      if(/\.css$/i.test(rel)||attr==='href'&&/\.css(\?|$)/i.test(rel))return attr+'="'+dataUrl('text/css',hit.text)+'"';
+      if(/\.js$/i.test(rel))return attr+'="'+dataUrl('text/javascript',hit.text)+'"';
       return m;
     });
+    const folder=base;
+    const extrasCss=pool.filter(p=>p.startsWith(folder)&&/\.css$/i.test(p));
+    const extrasJs=pool.filter(p=>p.startsWith(folder)&&/\.js$/i.test(p));
+    let inject='';
+    extrasCss.forEach(p=>{
+      const leaf=p.split('/').pop();
+      if(html.indexOf(leaf)>=0)return;
+      try{inject+='\n<style data-td-inline="1">\n'+this.app.vfs.read(p)+'\n</style>'}catch(e){}
+    });
+    extrasJs.forEach(p=>{
+      const leaf=p.split('/').pop();
+      if(html.indexOf(leaf)>=0)return;
+      try{inject+='\n<script data-td-inline="1">\n'+this.app.vfs.read(p)+'\n</scr'+'ipt>'}catch(e){}
+    });
+    if(inject){
+      if(/<\/head>/i.test(html))html=html.replace(/<\/head>/i, inject+'\n</head>');
+      else html=inject+'\n'+html;
+    }
     frame.srcdoc=html;
-  }catch(e){frame.removeAttribute('srcdoc')}
+  }catch(e){console.warn('preview',e);frame.removeAttribute('srcdoc')}
 }
 renderCodeFiles(){
   const el=$('#code-file-tree');if(!el)return;
@@ -6618,6 +6664,7 @@ async sendCode(){this.ensureAgent();
   if(!text)text='Use the attached files.';
   const attNote=(codeAtt&&codeAtt.length)?('\n\nAttached files (also in uploads/):\n'+codeAtt.map(a=>'- '+(a.vfsPath||a.name)).join('\n')):'';
 
+  if(this.applyPinCtx)this.applyPinCtx('code');
   if(this.app.agent.running){toast('Already running — press stop first','error');return}
   if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');return}
   $('#code-user-input').value='';
@@ -6647,7 +6694,11 @@ async sendCode(){this.ensureAgent();
   const skillText=enabled.map(s=>`### ${s.name}\n${s.body}`).join('\n\n');
   const inten=this.getIntensity();
   const codePrompt=`CODE MODE (OpenHands-style skills + runtime checks). Intensity: ${inten.label}. ${inten.extra}\n
-Write project files under code/ (e.g. code/src/app.js, code/index.html).
+Write project files under code/SESSION/ using the current code/ folder.
+For any HTML page you MUST include working CSS and JS:
+- Prefer embedding CSS in <style> and JS in <script> inside the HTML so preview works immediately.
+- If you use separate style.css / app.js, write those files next to the HTML and link them with relative href/src (same folder).
+Never ship a bare HTML shell without styles or behavior when the user asked for a page/app.
 Tools: write_file, read_file, list_files, run_python, check_code, web_search, image_search, github_*, self_check.
 
 RUNTIME CHECK LOOP (required):
@@ -7042,9 +7093,7 @@ async send(){this.ensureAgent();const text=$('#user-input').value.trim();if(!tex
 this.hideEmpty();let conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv){conv=this.app.conversations.create();const pid=this._pendingProjectId||this.app.storage.get('currentProjectId',null);if(pid){conv.projectId=pid;this.app.conversations.update(conv.id,{projectId:pid});this.attachChatToProject(conv.id)}this._pendingProjectId=null;this.app.conversations.setCurrent(conv.id);this.renderConversations()}
 let sendText=text;
   if(this._referQuote){sendText='User referred to the following statement:\n"'+this._referQuote+'"\n\nUser response: '+text;const bar=$('#refer-bar');if(bar)bar.remove();this._referQuote=null}
-  const pins=(this.app.storage.get('pins',[])||[]).slice(0,8);
-  const pinCtx=pins.length?('\n\nPINNED CONTEXT (use silently; do not repeat this block in the visible answer unless asked):\n'+pins.map(p=>'- '+p.text).join('\n')):'';
-  this.app.agent.pinCtx=pinCtx;this.app.agent.userProfileCtx=this.profileCtx(!(conv.messages||[]).some(m=>m.role==='user'));
+  const pinCtx=this.applyPinCtx?this.applyPinCtx('chat'):'';this.app.agent.userProfileCtx=this.profileCtx(!(conv.messages||[]).some(m=>m.role==='user'));
   const merr=this.readMonacoErrors?this.readMonacoErrors():[];
   if(merr.length)sendText+='\n\nEditor diagnostics:\n'+merr.join('\n');
   const savedAtt=this.pendingAttachments.slice().map(a=>{
@@ -7078,6 +7127,7 @@ this.app.agent.temperature=inten.temperature;
 this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: use tools heavily, verify, and do not stop early.':'');
 try{
   {const inten=this.app.storage.get('intensity','medium')||'medium';const ultra=(inten==='ultra'||inten==='xultra');this.app.agent.teamSize=ultra?3:1;}
+  if(this.applyPinCtx)this.applyPinCtx('agent');
    await this.app.agent.run(sendText,history,userMsg.attachments,ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!(this.isDeepThink&&this.isDeepThink())||!!inten.team||this.app.agent.teamSize>1});
   if(aiMsg.content&&(conv.needsAiTitle||conv.messages.filter(m=>m.role==='user').length<=1))this.generateChatTitle(conv.id,text,aiMsg.content);
 }catch(e){toast(e.message,'error');const body=aiEl.querySelector('.message-body');if(body&&!body.querySelector('.final-content')?.textContent.trim())body.innerHTML+=`<p style="color:var(--error)">Error: ${escapeHtml(e.message)}</p>`}
@@ -7171,10 +7221,11 @@ else if(ev.type==='activity-update'){
   }
   this.scrollToBottom();
 }
-else if(ev.type==='final'){aiMsg.content=ev.content;
+else if(ev.type==='final'){
+  ev.content=this.sanitizeFinalAnswer?this.sanitizeFinalAnswer(ev.content,aiEl):ev.content;
+  aiMsg.content=ev.content;
   try{
     if(this.mode==='code'||this.app.mode==='code'){
-      try{this.saveCodeTranscript(true)}catch(e){}
       try{this.refreshCodePreview&&this.refreshCodePreview()}catch(e){}
       try{this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}
     }
@@ -7233,7 +7284,8 @@ let contentEl=body.querySelector('.final-content');
 if(!contentEl){contentEl=document.createElement('div');contentEl.className='final-content';body.appendChild(contentEl)}let md=ev.content||'';md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>this.fileChipHtml({folder:p,name:(p.split('/').pop()||p)+'.zip'}));
 md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return `<button type="button" class="preview-chip" data-preview="${rp}" aria-label="Preview ${rp.split('/').pop()||p}">${SVG.eye} Preview ${rp.split('/').pop()||p}</button>`});
 md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return this.fileChipHtml({path:rp,name:(rp.split('/').pop()||p)})});
-if(tp)tp.classList.remove('open');const gif=tp&&tp.querySelector('.tp-gif');if(gif){try{gif.style.animationPlayState='paused'}catch(e){}}this.revealAnswer(contentEl,this.renderMarkdown(md));this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
+if(tp)tp.classList.remove('open');const gif=tp&&tp.querySelector('.tp-gif');if(gif){try{gif.style.animationPlayState='paused'}catch(e){}}this.revealAnswer(contentEl,this.renderMarkdown(md||''));this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
+  if(this.mode==='code'||this.app.mode==='code'){try{this.saveCodeTranscript(true)}catch(e){}}
 contentEl.querySelectorAll('.file-chip-dl').forEach(a=>{
   const go=e=>{e.preventDefault();e.stopPropagation();
     if(a.dataset.folder){this.downloadFolderZip(a.dataset.folder);return}
@@ -7389,14 +7441,49 @@ msgElText(el){
   const body=el.querySelector('.final-content')||el.querySelector('.agent-msg-body')||el.querySelector('.message-body');
   return String((body&&(body.innerText||body.textContent))||el.innerText||'').trim();
 }
+pinSector(mode){
+  const m=mode||this.mode||'chat';
+  if(m==='code')return 'code';
+  if(m==='swarm'||m==='agent')return 'agent';
+  return 'chat';
+}
+sectorPins(mode){
+  const sec=this.pinSector(mode);
+  return (this.app.storage.get('pins',[])||[]).filter(p=>this.pinSector(p.from||'chat')===sec);
+}
+applyPinCtx(mode){
+  const pins=this.sectorPins(mode).slice(0,8);
+  const pinCtx=pins.length?('\n\nPINNED CONTEXT for this mode only (use silently; do not repeat unless asked):\n'+pins.map(p=>'- '+p.text).join('\n')):'';
+  if(this.app.agent)this.app.agent.pinCtx=pinCtx;
+  return pinCtx;
+}
+sanitizeFinalAnswer(text,aiEl){
+  let s=String(text||'').trim();
+  s=s.replace(/^(Worked for[\s\S]{0,40}\n)+/i,'').trim();
+  if(s && !/^(Working…|Working\.\.\.|Thinking|Planned|Planning|Deep thought|Deep thinking)\b/i.test(s) && s.length>8){
+    // strip a leading thought dump if the model echoed it
+    s=s.replace(/^(Planning|Planned|Deep thinking|Deep thought|Thinking)[:\s][\s\S]{0,400}?(\n\n|$)/i,'').trim();
+    return s;
+  }
+  // Empty or thought-only: never use the thinking panel as the answer
+  try{
+    const files=(this.app.vfs&&this.app.vfs.filesInFolder)?(this.app.vfs.filesInFolder(this.codeRoot?this.codeRoot():'code')||[]):[];
+    const html=files.filter(p=>/\.html$/i.test(p));
+    if(html.length) return 'Done. Open preview to view '+html.map(p=>p.replace(/^code\//,'')).join(', ')+'.';
+    if(files.length) return 'Done. Files are in the Code pane.';
+  }catch(e){}
+  return 'Done.';
+}
 pinText(text){
   const t=String(text||'').replace(/\s+/g,' ').trim();
   if(!t){toast('Nothing to pin','info');return}
+  const from=this.pinSector(this.mode);
   const pins=this.app.storage.get('pins',[])||[];
-  pins.unshift({id:uid(),text:t.slice(0,800),from:this.mode||'chat'});
-  this.app.storage.set('pins',pins.slice(0,8));
+  pins.unshift({id:uid(),text:t.slice(0,800),from:from});
+  const cap=24;
+  this.app.storage.set('pins',pins.slice(0,cap));
   this.renderPins&&this.renderPins();
-  toast('Pinned','success');
+  toast('Pinned in '+(from==='chat'?'Chat':from==='code'?'Code':'Agent'),'success');
 }
 referText(text){
   const t=String(text||'').trim();
@@ -8400,11 +8487,16 @@ unpinText(id){
   try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
 }
 renderPins(){
-  const pins=this.app.storage.get('pins',[])||[];
-  const bar=$('#pin-bar');if(bar){bar.style.display='none';bar.innerHTML='';}
-  const host=$('#attachments');if(!host)return;
-  host.querySelectorAll('.pin-file').forEach(n=>n.remove());
-  pins.forEach(p=>{
+  const sec=this.pinSector?this.pinSector(this.mode):'chat';
+  const pins=this.sectorPins?this.sectorPins(this.mode):(this.app.storage.get('pins',[])||[]);
+  ['#attachments','#code-attachments','#agent-attachments','#pin-bar'].forEach(sel=>{
+    const el=$(sel);if(!el)return;
+    el.querySelectorAll('.pin-file').forEach(n=>n.remove());
+  });
+  const bar=$('#pin-bar');if(bar)bar.style.display='none';
+  const hostSel=sec==='code'?'#code-attachments':sec==='agent'?'#agent-attachments':'#attachments';
+  const host=$(hostSel);if(!host)return;
+  pins.slice(0,8).forEach(p=>{
     const div=document.createElement('div');
     div.className='attachment pin-file';
     div.innerHTML=`<div class="file-chip">${SVG.pin} ${escapeHtml(String(p.text).slice(0,48))}${String(p.text).length>48?'…':''}</div><button class="remove unpin" data-id="${p.id}" type="button">×</button>`;
