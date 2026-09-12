@@ -217,6 +217,12 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 
 /* Grok-style compact thought process */
 .thought-process{margin:6px 0 10px;font-size:.8rem;color:var(--text-tertiary)}
+.code-msg .thought-process{color:var(--text-secondary);font-size:.85rem}
+.code-msg .thought-process .tp-label{color:var(--text-primary);font-weight:600}
+.code-msg .thought-process .tp-panel{max-height:360px}
+.code-msg .thought-process .tp-step{color:var(--text-secondary)}
+.code-msg .thought-process .tp-step .tp-step-body{max-height:220px;font-size:.78rem;color:var(--text-primary)}
+
 .thought-process .tp-toggle{display:inline-flex;align-items:center;gap:6px;cursor:pointer;padding:4px 8px;border-radius:8px;border:1px solid transparent;color:var(--text-tertiary);user-select:none;font-size:.78rem}
 .thought-process .tp-toggle:hover{background:transparent;color:var(--text-secondary);border-color:transparent}
 .thought-process .tp-toggle .tp-chevron{font-size:.65rem;opacity:.7}
@@ -1247,8 +1253,13 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 #code-empty.hidden{display:none !important}
 @media(max-width:768px){
   #code-view .code-shell{flex-direction:column}
-  #code-view .code-left{width:100% !important;max-width:none !important;min-width:0;height:50% !important;border-right:none;border-bottom:1px solid var(--border)}
-  #code-view .code-right{height:50% !important;display:flex !important}
+  #code-view .code-left{width:100% !important;max-width:none !important;min-width:0;height:100% !important;flex:1 1 auto !important;border-right:none;border-bottom:none}
+  #code-view .code-right{display:none !important;height:0 !important;min-height:0 !important;overflow:hidden !important}
+  #code-view .code-phone-preview-btn{
+    display:flex !important;width:calc(100% - 24px);margin:8px 12px 4px;padding:12px 14px;
+    justify-content:center;font-weight:600;border-radius:12px;border:1px solid var(--accent);
+    background:var(--accent-soft);color:var(--text-primary)
+  }
 }
 
 
@@ -1268,7 +1279,11 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 
 #code-view .code-left-head,#code-session-select,#code-new-session{display:none !important}
 #code-view .code-phone-preview-btn{display:none}
-@media(max-width:768px){#code-view .code-phone-preview-btn{display:flex !important}}
+@media(max-width:768px){
+  #code-view .code-phone-preview-btn{display:flex !important}
+  #code-view .code-right{display:none !important}
+  #code-view .code-left{height:100% !important}
+}
 </style>
 </head>
 <body>
@@ -1366,7 +1381,7 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
         <div class="td-select" id="code-session-select"><button type="button" class="td-select-btn" id="code-session-btn">Code chat</button><div class="td-select-menu" id="code-session-menu"></div></div>
         <button type="button" class="icon-soft" id="code-new-session" aria-label="New code chat" title="New code chat">+</button>
       </div>
-      <button type="button" class="btn-secondary code-phone-preview-btn" id="code-phone-preview-btn">Open preview</button>
+      <button type="button" class="btn-secondary code-phone-preview-btn" id="code-phone-preview-btn">Open full-screen preview</button>
       <div class="code-messages" id="code-messages">
         <div id="code-empty" class="code-empty">
           <h2>Code workspace</h2>
@@ -3777,13 +3792,19 @@ case'read_file':{
 case'write_file':{let path=String((args&&args.path)||'');
   try{
     const mode=(window.__app&&window.__app.mode)||(window.__app&&window.__app.storage&&window.__app.storage.get('appMode',''))||'';
-    if(mode==='code'){
-      const root=(window.__app.ui&&window.__app.ui.codeRoot&&window.__app.ui.codeRoot())||'code';
-      const raw=path.replace(/^\/+/, '');
-      if(raw && !/^(code|memory|uploads|plugins|archive|external)\b/.test(raw))
-        path=root.replace(/\/$/,'')+'/'+raw;
-      else if(/^code\/[^/]+\.(html?|css|js)$/i.test(raw) || raw==='code/index.html' || raw==='code/style.css' || raw==='code/app.js')
-        path=root.replace(/\/$/,'')+'/'+raw.replace(/^code\//,'');
+    const uiMode=(window.__app&&window.__app.ui&&window.__app.ui.mode)||'';
+    if(mode==='code'||uiMode==='code'){
+      const root=((window.__app.ui&&window.__app.ui.codeRoot&&window.__app.ui.codeRoot())||'code').replace(/\/$/,'');
+      let raw=String(path||'').replace(/^\/+/, '').trim();
+      if(!raw) raw='index.html';
+      // Always persist code-mode writes under the session code root unless targeting system folders
+      if(!/^(memory|uploads|plugins|archive|external)\b/.test(raw)){
+        if(raw===root||raw.startsWith(root+'/')) path=raw;
+        else if(raw==='code'||raw.startsWith('code/')) path=root+'/'+raw.replace(/^code\/?/,'');
+        else path=root+'/'+raw;
+      } else {
+        path=raw;
+      }
     }
   }catch(e){}
   const content=args&&args.content;if(String(content||'').length>MAX_FILE_BYTES)return{ok:false,error:'FILE_TOO_LARGE: '+String(content||'').length+' bytes. Keep each file under '+MAX_FILE_BYTES+' bytes (1,048,575). Split into smaller files.'};if(/\.(html?|js|css)$/i.test(path)||/<(?:script|html)/i.test(String(content||''))){const web=CrashGuard.inspectWeb(String(content||''));if(!web.ok){try{CrashGuard.note(web.error+' @ '+path)}catch(e){}return{ok:false,error:web.error,blocked:true,path}}}if(/\.(py)$/i.test(path)){const py=CrashGuard.inspectPython(String(content||''));if(!py.ok){try{CrashGuard.note(py.error+' @ '+path)}catch(e){}return{ok:false,error:py.error,blocked:true,path}}}return this.vfs.write(path,content);}
@@ -4974,7 +4995,7 @@ const doChat=async(withTools)=>{
   for(let attempt=0;attempt<4;attempt++){
     try{
       const codeHot=(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'));
-      const forceTools=!!(withTools&&codeHot&&iteration<=3&&toolCalls===0);
+      const forceTools=!!(withTools&&codeHot&&iteration<=6&&toolCalls<2);
       const storedChoice=this.storage.get('toolChoice','auto')||'auto';
       const useTools=!!(withTools&&storedChoice!=='none');
       return await this.provider.chat(messages,{
@@ -6865,7 +6886,7 @@ async sendCode(){this.ensureAgent();
   this.paintMsgActions(userDiv,{kind:'code',id:userDiv.dataset.mid,role:'user',text:text});
   const aiDiv=document.createElement('div');aiDiv.className='code-msg agent';
   aiDiv.dataset.mid=uid();
-  aiDiv.innerHTML=`<div class="msg-who"><span class="avatar">TD</span><span>Think Deeper</span></div><div class="message-body"><div class="thinking-indicator"><span class="code-status-pill">Working…</span></div></div>`;
+  aiDiv.innerHTML=`<div class="msg-who"><span class="avatar">TD</span><span>Think Deeper</span></div><div class="message-body"><div class="thinking-indicator"><span class="code-status-pill">Working for 0s</span></div></div>`;
   box.appendChild(aiDiv);
   box.scrollTop=box.scrollHeight;
   try{
@@ -6915,14 +6936,32 @@ ${text}${attNote||''}`;
   this.app.agent.maxTokens=inten.maxTokens||4000;
   this.app.agent.projectCtx=this.projectContext();this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: maximum verification and tools.':'');
   this.app.mode='code';
+  this.mode='code';
   this.app.storage.set('appMode','code');
+  try{window.__app=this.app;window.__app.mode='code';window.__app.ui=this}catch(e){}
+
+  // Live timer on initial status pill until thought-process takes over
+  const pillStart=Date.now();
+  const pillTimer=setInterval(()=>{
+    const pill=aiDiv.querySelector('.code-status-pill');
+    if(!pill||!aiDiv.isConnected){clearInterval(pillTimer);return}
+    if(aiDiv.querySelector('.thought-process')){clearInterval(pillTimer);return}
+    pill.textContent='Working for '+formatDuration(Date.now()-pillStart);
+  },1000);
 
   try{
     // Fake a conversation message path via agent run with synthetic history
     const aiMsg={id:uid(),role:'assistant',content:''};
     await this.app.agent.run(codePrompt,[],codeAtt||[],(ev)=>this.handleCodeAgentEvent(ev,aiDiv,aiMsg),{deepThink:true});
   }catch(e){this.explainApiError(e)}
-  finally{this.app.agent.settings=prev;this.app.mode='code';this.renderCodeFiles();this.refreshCodePreview();this.saveCodeTranscript();try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}const stopBtn=$('#code-stop-btn');const sendBtn=$('#code-send-btn');if(stopBtn)stopBtn.classList.remove('visible');if(sendBtn)sendBtn.style.display='';}
+  finally{
+    try{clearInterval(pillTimer)}catch(e){}
+    this.app.agent.settings=prev;this.app.mode='code';this.mode='code';
+    this.renderCodeFiles();this.refreshCodePreview();this.saveCodeTranscript();
+    try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+    const stopBtn=$('#code-stop-btn');const sendBtn=$('#code-send-btn');
+    if(stopBtn)stopBtn.classList.remove('visible');if(sendBtn)sendBtn.style.display='';
+  }
 }
 handleCodeAgentEvent(ev,aiEl,aiMsg){
   // Reuse chat handler against code message element
@@ -7353,11 +7392,21 @@ else if(ev.type==='activity'){
     const gif=this.app.storage.get('thinkingGif','')||'';
     const media=gif?`<img class="tp-gif" src="${escapeHtml(gif)}" alt="">`:SVG.spin;
     root.dataset.thinkStart=String(Date.now());
-    root.innerHTML=`<div class="tp-toggle">${media}<span class="tp-chevron">▸</span> <span class="tp-label">Thinking</span><span class="tp-meta" style="opacity:.7;margin-left:6px"></span></div><div class="tp-panel"></div>`;
+    root.innerHTML=`<div class="tp-toggle">${media}<span class="tp-chevron">▾</span> <span class="tp-label">Working for 0s</span><span class="tp-meta" style="opacity:.7;margin-left:6px"></span></div><div class="tp-panel"></div>`;
+    root.classList.add('open');
     root.querySelector('.tp-toggle').onclick=()=>{
       root.classList.toggle('open');
       root.querySelector('.tp-chevron').textContent=root.classList.contains('open')?'▾':'▸';
     };
+    // Live "Working for" timer
+    if(root._workTimer)clearInterval(root._workTimer);
+    root._workTimer=setInterval(()=>{
+      if(!root.isConnected){clearInterval(root._workTimer);return}
+      const lab=root.querySelector('.tp-label');
+      if(!lab||/^Worked for/i.test(lab.textContent||'')){clearInterval(root._workTimer);return}
+      const start=Number(root.dataset.thinkStart||Date.now());
+      lab.textContent='Working for '+formatDuration(Date.now()-start);
+    },1000);
     let body=aiEl.querySelector('.message-body');
     if(!body){
       body=document.createElement('div');
@@ -7405,6 +7454,7 @@ else if(ev.type==='activity-update'){
   if(st)st.textContent=ev.status==='done'?'✓':ev.status==='error'?'!':ev.status==='running'?'…':'';
   if(ev.status==='done'){
     try{this.refreshCodePreview&&this.refreshCodePreview()}catch(e){}
+    try{if(this.mode==='code'||this.app.mode==='code')this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}
     const t=step.querySelector('.tp-step-title');
     if(t){t.innerHTML=t.innerHTML.replace(/Writing/g,'Wrote').replace(/Reading/g,'Read').replace(/Running/g,'Ran').replace(/Searching/g,'Searched').replace(/Checking/g,'Checked').replace(/Listing/g,'Listed').replace(/Creating/g,'Created').replace(/Committing/g,'Committed').replace(/Thinking/g,'Thought')}
   }
@@ -7465,6 +7515,7 @@ if(!body){body=document.createElement('div');body.className='message-body';aiEl.
 const thinking=body.querySelector('.thinking-indicator');if(thinking)thinking.remove();
 const tp=aiEl.querySelector('.thought-process');
 if(tp){
+  if(tp._workTimer){try{clearInterval(tp._workTimer)}catch(e){} tp._workTimer=null}
   const start=Number(tp.dataset.thinkStart||Date.now());
   const media=tp.querySelector('.tp-toggle');
   if(media){
@@ -9067,6 +9118,8 @@ openPhonePreview(){
   const src=$('#code-preview-frame')?.srcdoc||'';
   if(fr)fr.srcdoc=src||'<p style="font-family:sans-serif;padding:24px">Building your app...</p>';
   fs.classList.add('open');
+  fs.setAttribute('aria-hidden','false');
+  try{document.body.style.overflow='hidden'}catch(e){}
 }
 openChatCanvas(id){
   const conv=this.app.conversations.get(id);if(!conv)return;
@@ -9163,7 +9216,7 @@ bindAccountUi(){
   const ft=$('#font-theme');if(ft)ft.onchange=()=>this.applyFontTheme(ft.value);
   const lm=$('#local-model-file');if(lm)lm.onchange=()=>this.importLocalModel(lm);
   const ppb=$('#code-phone-preview-btn');if(ppb)ppb.onclick=()=>this.openPhonePreview();
-  const ppc=$('#code-preview-fs-close');if(ppc)ppc.onclick=()=>{$('#code-preview-fs').classList.remove('open');};
+  const ppc=$('#code-preview-fs-close');if(ppc)ppc.onclick=()=>{const fs=$('#code-preview-fs');if(fs){fs.classList.remove('open');fs.setAttribute('aria-hidden','true')}try{document.body.style.overflow=''}catch(e){}};
 
   const close=$('#close-account');if(close)close.onclick=()=>$('#account-overlay').classList.remove('open');
   const ov=$('#account-overlay');if(ov)ov.onclick=e=>{if(e.target===ov)ov.classList.remove('open')};
