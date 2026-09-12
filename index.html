@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html data-theme="dark" lang="en">
 <head>
-<!-- td-build:2026-09-12T14:56:16Z -->
+<!-- td-build:2026-09-12T22:33:08Z -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Think Deeper — Agentic AI</title>
@@ -1251,6 +1251,20 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
   #code-view .code-right{height:50% !important;display:flex !important}
 }
 
+
+.pin-dock{display:none;flex-wrap:wrap;gap:6px;width:100%;padding:0 2px 8px}
+.pin-dock .pin-file{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid var(--border);background:var(--bg-elevated);font-size:.78rem;color:var(--text-primary);max-width:100%}
+.pin-dock .pin-file .file-chip{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pin-dock .unpin{border:0;background:transparent;color:var(--text-tertiary);cursor:pointer;font-size:1rem;line-height:1}
+.pin-dock .unpin:hover{color:var(--error,#ef4444)}
+#app-dialog .app-dialog-panel{width:min(420px,92vw);padding:0}
+#app-dialog .app-dialog-panel h3{margin:0;padding:16px 18px 0;font-size:1.02rem}
+#app-dialog .app-dialog-panel p{margin:8px 18px 0;color:var(--text-secondary);font-size:.9rem;line-height:1.45;white-space:pre-wrap}
+#app-dialog-input{margin:14px 18px 0;width:calc(100% - 36px);box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);font:inherit}
+#app-dialog .app-dialog-actions{display:flex;justify-content:flex-end;gap:8px;padding:16px 18px}
+#app-dialog .app-dialog-actions button{padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);cursor:pointer}
+#app-dialog .app-dialog-actions button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+
 </style>
 </head>
 <body>
@@ -1356,6 +1370,7 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
         </div>
       </div>
       <div class="code-input-area">
+        <div class="pin-dock" id="code-pins"></div>
         <div class="attachments" id="code-attachments"></div>
         <div class="input-box">
           <textarea id="code-user-input" rows="1" placeholder="Describe a coding task…"></textarea>
@@ -1424,6 +1439,7 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
       <div class="agent-input-actions">
         <button type="button" class="agent-quick-btn" id="agent-quick-btn" title="Ask a short question without a full team">Quick ask</button>
       </div>
+      <div class="pin-dock" id="agent-pins"></div>
       <div class="attachments agent-attachments" id="agent-attachments"></div>
       <div class="agent-input-box">
         <button type="button" class="attach-btn" id="agent-attach-btn" aria-label="Attach file" title="Attach file"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
@@ -1528,6 +1544,7 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <button type="button" class="intensity-chip" data-intensity="ultra">Ultra</button>
 </div>
 <div class="input-area"><div class="input-inner">
+<div class="pin-dock" id="chat-pins"></div>
 <div class="attachments" id="attachments"></div>
 <div class="input-box"><div class="input-row">
 <button class="attach-btn" id="attach-btn" aria-label="Attach file"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
@@ -3197,7 +3214,7 @@ getSystemInjection(){const parts=[];let budget=12000;for(const p of this.enabled
 persist(){this.storage.set('plugins',this.plugins);try{if(window.__app&&window.__app.cloud)window.__app.cloud.schedulePush(window.__app)}catch(e){}}}
 
 class ConversationManager{constructor(s){this.storage=s;this.conversations=s.get('conversations',[]);this.currentId=s.get('currentConvId',null)}
-list(){return this.conversations.slice().sort((a,b)=>b.updated-a.updated)}
+list(){return this.conversations.slice()}
 get(id){return this.conversations.find(c=>c.id===id)}
 create(t='New conversation'){const c={id:uid(),title:t,messages:[],created:now(),updated:now()};this.conversations.unshift(c);this.currentId=c.id;this.persist();return c}
 update(id,patch){const c=this.get(id);if(!c)return;Object.assign(c,patch,{updated:now()});this.persist()}
@@ -3247,8 +3264,21 @@ messagesToGemini(messages){
       const name=msg.name||'tool';
       const raw=typeof msg.content==='string'?msg.content:JSON.stringify(msg.content||'');
       let parsed=raw;
-      try{parsed=JSON.parse(raw)}catch(e){parsed={result:String(raw).slice(0,8000)}}
-      contents.push({role:'user',parts:[{functionResponse:{name,response:parsed&&typeof parsed==='object'?parsed:{result:String(parsed).slice(0,8000)}}}]});
+      try{parsed=JSON.parse(raw)}catch(e){parsed=null}
+      const asStruct=(val)=>{
+        if(val==null)return {result:String(raw).slice(0,12000)};
+        if(typeof val!=='object')return {result:String(val).slice(0,12000)};
+        if(Array.isArray(val))return {result:JSON.stringify(val).slice(0,12000)};
+        const out={};
+        Object.keys(val).slice(0,40).forEach(k=>{
+          const v=val[k];
+          if(v==null)return;
+          if(typeof v==='string'||typeof v==='number'||typeof v==='boolean')out[String(k)]=v;
+          else out[String(k)]=JSON.stringify(v).slice(0,8000);
+        });
+        return Object.keys(out).length?out:{result:JSON.stringify(val).slice(0,12000)};
+      };
+      contents.push({role:'user',parts:[{functionResponse:{name,response:asStruct(parsed)}}]});
       continue;
     }
     const role=msg.role==='assistant'?'model':'user';
@@ -3701,7 +3731,19 @@ case'read_file':{
   const slice=length?text.slice(start,start+length):text.slice(start,start+8000);
   return {path:p,bytes:text.length,start,length:slice.length,content:slice,note:text.length>slice.length?('Use start/length to read more. Total '+text.length+' chars.'):undefined};
 }
-case'write_file':{const path=String((args&&args.path)||'');const content=args&&args.content;if(String(content||'').length>MAX_FILE_BYTES)return{ok:false,error:'FILE_TOO_LARGE: '+String(content||'').length+' bytes. Keep each file under '+MAX_FILE_BYTES+' bytes (1,048,575). Split into smaller files.'};if(/\.(html?|js|css)$/i.test(path)||/<(?:script|html)/i.test(String(content||''))){const web=CrashGuard.inspectWeb(String(content||''));if(!web.ok){try{CrashGuard.note(web.error+' @ '+path)}catch(e){}return{ok:false,error:web.error,blocked:true,path}}}if(/\.(py)$/i.test(path)){const py=CrashGuard.inspectPython(String(content||''));if(!py.ok){try{CrashGuard.note(py.error+' @ '+path)}catch(e){}return{ok:false,error:py.error,blocked:true,path}}}return this.vfs.write(path,content);}
+case'write_file':{let path=String((args&&args.path)||'');
+  try{
+    const mode=(window.__app&&window.__app.mode)||(window.__app&&window.__app.storage&&window.__app.storage.get('appMode',''))||'';
+    if(mode==='code'){
+      const root=(window.__app.ui&&window.__app.ui.codeRoot&&window.__app.ui.codeRoot())||'code';
+      const raw=path.replace(/^\/+/, '');
+      if(raw && !/^(code|memory|uploads|plugins|archive|external)\b/.test(raw))
+        path=root.replace(/\/$/,'')+'/'+raw;
+      else if(/^code\/[^/]+\.(html?|css|js)$/i.test(raw) || raw==='code/index.html' || raw==='code/style.css' || raw==='code/app.js')
+        path=root.replace(/\/$/,'')+'/'+raw.replace(/^code\//,'');
+    }
+  }catch(e){}
+  const content=args&&args.content;if(String(content||'').length>MAX_FILE_BYTES)return{ok:false,error:'FILE_TOO_LARGE: '+String(content||'').length+' bytes. Keep each file under '+MAX_FILE_BYTES+' bytes (1,048,575). Split into smaller files.'};if(/\.(html?|js|css)$/i.test(path)||/<(?:script|html)/i.test(String(content||''))){const web=CrashGuard.inspectWeb(String(content||''));if(!web.ok){try{CrashGuard.note(web.error+' @ '+path)}catch(e){}return{ok:false,error:web.error,blocked:true,path}}}if(/\.(py)$/i.test(path)){const py=CrashGuard.inspectPython(String(content||''));if(!py.ok){try{CrashGuard.note(py.error+' @ '+path)}catch(e){}return{ok:false,error:py.error,blocked:true,path}}}return this.vfs.write(path,content);}
 case'delete_file':return this.vfs.delete(args.path);
 case'run_python':return await this.python.run(args.code);
 case'self_check':return{recorded:true,observation:args.observation,passed:!!args.passed};
@@ -5354,6 +5396,7 @@ initCodeMode(){
   this.renderCodeSkills();
   this.renderCodeFiles();
   try{this.restoreCodeTranscript()}catch(e){console.warn('code restore',e)}
+  try{this.renderPins()}catch(e){}
   const ns=$('#code-new-session');if(ns)ns.onclick=()=>this.newCodeSession();
   const tp=$('#code-tab-preview'),tc=$('#code-tab-code');
   if(tp)tp.onclick=()=>this.setCodePane('preview');
@@ -5585,7 +5628,8 @@ renderProjects(){
 }
 deleteProject(id){
   if(!id)return;
-  if(!confirm('Delete this project? Chats are kept; they are only removed from the project.'))return;
+  this.appConfirm('Delete this project? Chats are kept; they are only removed from the project.','Delete project').then(ok=>{
+  if(!ok)return;
   const projects=(this.app.storage.get('projects',[])||[]).filter(p=>p.id!==id);
   this.app.storage.set('projects',projects);
   if(this.app.storage.get('currentProjectId',null)===id)this.app.storage.set('currentProjectId',null);
@@ -5596,6 +5640,7 @@ deleteProject(id){
   this.renderProjects();this.renderConversations();
   toast('Project deleted','success');
   try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+  });
 }
 createProject(){this.openProjectSetup()}
 selectProject(id){
@@ -5688,8 +5733,7 @@ saveAgentSession(partial){
   Object.assign(s,partial,{updated:Date.now()});
   if(!s.projectId&&this.activeProjectId)s.projectId=this.activeProjectId();
   if(s.title)s.title=String(s.title).slice(0,48);
-  const next=list.filter(x=>x.id===s.id).concat(list.filter(x=>x.id!==s.id)).slice(0,40);
-  this.app.storage.set('agentSessions',next);
+  this.app.storage.set('agentSessions',list.slice(0,40));
   try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
   this.renderAgentHist();
   return s;
@@ -5700,13 +5744,13 @@ _histMenuClick(e,el,kind){
   if(act==='menu'){e.stopPropagation();e.preventDefault();
     const id=el.dataset.id;
     openFloatMenu(e.currentTarget&&e.target.closest('.ah-more')||e.target,[
-      {label:'Rename',fn:()=>{const cur=el.querySelector('.ah-title');const t=prompt('Rename',cur?cur.textContent:'');if(t)this._renameSession(kind,id,t)}},
+      {label:'Rename',fn:()=>{const cur=el.querySelector('.ah-title');this.appPrompt('Rename chat',cur?cur.textContent:'').then(v=>{if(v)this._renameSession(kind,id,v)})}},
       {label:'Pin',fn:()=>{const title=(el.querySelector('.ah-title')||{}).textContent||kind;const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:title,from:kind});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();toast('Pinned','success')}},
       {label:'Refer',fn:()=>this.setReferQuote((el.querySelector('.ah-title')||{}).textContent||kind+' chat')},
       {label:'Delete',fn:()=>this._deleteSession(kind,id)}
     ]);
     return}
-  if(act==='rename'){e.stopPropagation();const cur=el.querySelector('.ah-title');const t=prompt('Rename',cur?cur.textContent:'');if(!t)return;this._renameSession(kind,id,t);return}
+  if(act==='rename'){e.stopPropagation();const cur=el.querySelector('.ah-title');this.appPrompt('Rename chat',cur?cur.textContent:'').then(v=>{if(v)this._renameSession(kind,id,v)});return}
   if(act==='pin'){e.stopPropagation();const title=(el.querySelector('.ah-title')||{}).textContent||kind;const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:title,from:kind==='swarm'?'agent':kind});this.app.storage.set('pins',pins.slice(0,24));this.renderPins&&this.renderPins();el.classList.remove('open');toast('Pinned','success');return}
   if(act==='refer'){e.stopPropagation();this.setReferQuote((el.querySelector('.ah-title')||{}).textContent||kind+' chat');el.classList.remove('open');return}
   if(act==='delete'){e.stopPropagation();this._deleteSession(kind,id);return}
@@ -5720,7 +5764,8 @@ _renameSession(kind,id,title){
   try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
 }
 _deleteSession(kind,id){
-  if(!confirm('Delete this chat?'))return;
+  this.appConfirm('Delete this chat?','Delete chat').then(ok=>{
+  if(!ok)return;
   if(kind==='agent'){
     this.app.storage.set('agentSessions',this.agentSessions().filter(x=>x.id!==id));
     if(this._currentAgentSessionId===id)this.resetAgentChatView();
@@ -5731,6 +5776,7 @@ _deleteSession(kind,id){
     this.renderCodeHist();
   }
   try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+  });
 }
 renderAgentHist(){
   const sec=$('#agent-hist-section'),listEl=$('#agent-hist-list');
@@ -6218,17 +6264,18 @@ saveProjectSetup(){
   try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
 }
 createProject(){
-  const name=prompt('Project name');
-  if(!name||!name.trim())return;
-  const projects=this.app.storage.get('projects',[])||[];
-  const p={id:uid(),name:name.trim(),chatIds:[],memory:'',created:now()};
-  projects.unshift(p);
-  this.app.storage.set('projects',projects);
-  this.app.storage.set('currentProjectId',p.id);
-  try{this.syncProjectBundles()}catch(e){}
-  this.renderProjects();
-  toast('Project created','success');
-  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+  this.appPrompt('Project name','').then(name=>{
+    if(!name||!name.trim())return;
+    const projects=this.app.storage.get('projects',[])||[];
+    const p={id:uid(),name:name.trim(),chatIds:[],memory:'',created:now()};
+    projects.unshift(p);
+    this.app.storage.set('projects',projects);
+    this.app.storage.set('currentProjectId',p.id);
+    try{this.syncProjectBundles()}catch(e){}
+    this.renderProjects();
+    toast('Project created','success');
+    try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+  });
 }
 attachChatToProject(chatId){
   const pid=this.app.storage.get('currentProjectId',null);if(!pid||!chatId)return;
@@ -6966,7 +7013,7 @@ downloadSingleFile(path){
 }
 previewFile(path){try{const content=this.app.vfs.read(path);const meta=this.app.vfs.files[path];$('#file-meta').textContent=`${path} · v${meta.version} · ${meta.lines} lines · ${new Date(meta.updated).toLocaleString()}`;$('#file-preview').textContent=content;$('#file-preview-wrap').style.display='block'}catch(e){this.explainApiError(e)}}
 openPlugins(){this.hideSelToolbar();this.renderPluginList();$('#plugin-editor').style.display='none';$('#plugins-overlay').classList.add('open')}
-renderPluginList(){const list=$('#plugin-list');list.innerHTML='';const plugins=this.app.plugins.list();if(!plugins.length){list.innerHTML='<p style="color:var(--text-tertiary)">No plugins yet.</p>';return}plugins.forEach(p=>{const card=document.createElement('div');card.className='plugin-card';const iconHtml=p.icon?.startsWith('http')?`<img src="${escapeHtml(p.icon)}" alt="">`:`<span style="font-size:1.4rem">${escapeHtml(p.icon||'P')}</span>`;card.innerHTML=`<div class="icon">${iconHtml}</div><div class="info"><div class="name">${escapeHtml(p.name)} ${p.enabled?'<span style="color:var(--success);font-size:.75rem">● on</span>':'<span style="color:var(--text-tertiary);font-size:.75rem">off</span>'}</div><div class="desc">${escapeHtml(p.description||'')}${p.folder?'<div style="font-size:.7rem;color:var(--text-tertiary);margin-top:4px">'+SVG.folder+' '+escapeHtml(p.folder)+'</div>':''}</div></div><div class="actions"><button class="icon-btn" data-act="toggle" title="Toggle on/off">${p.enabled?'⏻':'⭘'}</button><button class="icon-btn" data-act="edit">✎</button><button class="icon-btn" data-act="del">×</button></div>`;card.querySelector('[data-act=toggle]').onclick=()=>{p.enabled=!p.enabled;this.app.plugins.save(p);this.renderPluginList();toast(p.enabled?'Plugin enabled':'Plugin disabled','success')};card.querySelector('[data-act=edit]').onclick=()=>this.editPlugin(p.id);card.querySelector('[data-act=del]').onclick=()=>{if(confirm('Delete?')){this.app.plugins.delete(p.id);this.renderPluginList()}};list.appendChild(card)})}
+renderPluginList(){const list=$('#plugin-list');list.innerHTML='';const plugins=this.app.plugins.list();if(!plugins.length){list.innerHTML='<p style="color:var(--text-tertiary)">No plugins yet.</p>';return}plugins.forEach(p=>{const card=document.createElement('div');card.className='plugin-card';const iconHtml=p.icon?.startsWith('http')?`<img src="${escapeHtml(p.icon)}" alt="">`:`<span style="font-size:1.4rem">${escapeHtml(p.icon||'P')}</span>`;card.innerHTML=`<div class="icon">${iconHtml}</div><div class="info"><div class="name">${escapeHtml(p.name)} ${p.enabled?'<span style="color:var(--success);font-size:.75rem">● on</span>':'<span style="color:var(--text-tertiary);font-size:.75rem">off</span>'}</div><div class="desc">${escapeHtml(p.description||'')}${p.folder?'<div style="font-size:.7rem;color:var(--text-tertiary);margin-top:4px">'+SVG.folder+' '+escapeHtml(p.folder)+'</div>':''}</div></div><div class="actions"><button class="icon-btn" data-act="toggle" title="Toggle on/off">${p.enabled?'⏻':'⭘'}</button><button class="icon-btn" data-act="edit">✎</button><button class="icon-btn" data-act="del">×</button></div>`;card.querySelector('[data-act=toggle]').onclick=()=>{p.enabled=!p.enabled;this.app.plugins.save(p);this.renderPluginList();toast(p.enabled?'Plugin enabled':'Plugin disabled','success')};card.querySelector('[data-act=edit]').onclick=()=>this.editPlugin(p.id);card.querySelector('[data-act=del]').onclick=()=>{this.appConfirm('Delete this plugin?','Delete plugin').then(ok=>{if(ok){this.app.plugins.delete(p.id);this.renderPluginList()}})};list.appendChild(card)})}
 editPlugin(id){const p=id?this.app.plugins.get(id):{id:uid(),name:'',description:'',instructions:'',knowledge:'',icon:'',enabled:true};$('#plugin-name').value=p.name;$('#plugin-desc').value=p.description||'';$('#plugin-instructions').value=p.instructions||'';$('#plugin-knowledge').value=p.knowledge||'';$('#plugin-icon').value=p.icon||'';$('#plugin-enabled').checked=!!p.enabled;if($('#plugin-training'))$('#plugin-training').checked=!!p.training;$('#plugin-editor').style.display='block';this._editingPlugin=p}
 savePlugin(){const p=this._editingPlugin||{id:uid()};p.name=$('#plugin-name').value.trim()||'Untitled';p.description=$('#plugin-desc').value.trim();p.instructions=$('#plugin-instructions').value;p.knowledge=$('#plugin-knowledge').value;p.icon=$('#plugin-icon').value.trim()||'🧩';p.enabled=$('#plugin-enabled').checked;p.training=!!$('#plugin-training')?.checked;this.app.plugins.save(p);$('#plugin-editor').style.display='none';this.renderPluginList();toast('Plugin saved','success')}
 async importPlugin(file){if(!file)return;try{const text=await file.text();let data;try{data=JSON.parse(text)}catch{data=null}const p=data?{id:uid(),name:data.name||file.name.replace(/\.\w+$/,''),description:data.description||'',instructions:data.instructions||data.prompt||'',knowledge:data.knowledge||'',icon:data.icon||'plugin',enabled:true,training:!!data.training,folder:data.folder||'',files:data.files||null}:{id:uid(),name:file.name.replace(/\.\w+$/,''),description:'Imported text',instructions:text,knowledge:'',icon:'file',enabled:true};this.app.plugins.save(p);this.renderPluginList();toast('Imported','success')}catch(e){toast('Import failed: '+e.message,'error')}$('#import-plugin-file').value=''}
@@ -6992,12 +7039,12 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
     if((c.title||'').toLowerCase().includes(q))return true;
     return (c.messages||[]).some(m=>String(m.content||'').toLowerCase().includes(q));
   })}
-  chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div>`;div.onclick=e=>{if(e.target.dataset.act==='delete'){e.stopPropagation();this.app.conversations.delete(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}else if(e.target.dataset.act==='rename'){e.stopPropagation();const t=prompt('Rename',c.title);if(t){this.app.conversations.rename(c.id,t);this.renderConversations()}}else if(e.target.dataset.act==='canvas'){e.stopPropagation();toast('Canvas chat was removed','info')}
+  chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div>`;div.onclick=e=>{if(e.target.dataset.act==='delete'){e.stopPropagation();this.app.conversations.delete(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}else if(e.target.dataset.act==='rename'){e.stopPropagation();this.appPrompt('Rename chat',c.title).then(v=>{if(v){this.app.conversations.rename(c.id,v);this.renderConversations()}})}else if(e.target.dataset.act==='canvas'){e.stopPropagation();toast('Canvas chat was removed','info')}
     else if(e.target.dataset.act==='pin'){e.stopPropagation();const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:c.title||'Chat',from:'chat'});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();div.classList.remove('open-menu')}
     else if(e.target.dataset.act==='refer'){e.stopPropagation();this.setReferQuote(c.title||'this chat');div.classList.remove('open-menu')}
     else if(e.target.dataset.act==='menu'){e.stopPropagation();
       openFloatMenu(e.target,[
-        {label:'Rename',fn:()=>{const t=prompt('Rename',c.title);if(t){this.app.conversations.rename(c.id,t);this.renderConversations()}}},
+        {label:'Rename',fn:()=>{this.appPrompt('Rename chat',c.title).then(v=>{if(v){this.app.conversations.rename(c.id,v);this.renderConversations()}})}},
         {label:'Pin',fn:()=>{const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:c.title||'Chat',from:'chat'});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();toast('Pinned','success')}},
         {label:'Refer',fn:()=>this.setReferQuote(c.title||'this chat')},
         {label:'Delete',fn:()=>{this.app.conversations.delete(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}}
@@ -7064,7 +7111,17 @@ handleFiles(files){[...files].forEach(file=>{
 attachTargets(){return [$('#attachments'),$('#code-attachments'),$('#agent-attachments')].filter(Boolean)}
 renderAttachments(){
   const hosts=this.attachTargets();
-  hosts.forEach(el=>{el.innerHTML='';this.pendingAttachments.forEach((a,i)=>{const div=document.createElement('div');div.className='attachment';if(a.dataUrl)div.innerHTML=`<img src="${a.dataUrl}" alt=""><button class="remove">×</button>`;else div.innerHTML=`<div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div><button class="remove">×</button>`;div.querySelector('.remove').onclick=()=>{this.pendingAttachments.splice(i,1);this.renderAttachments()};el.appendChild(div)})});
+  hosts.forEach(el=>{
+    el.querySelectorAll('.attachment:not(.pin-file)').forEach(n=>n.remove());
+    this.pendingAttachments.forEach((a,i)=>{
+      const div=document.createElement('div');div.className='attachment file-att';
+      if(a.dataUrl)div.innerHTML=`<img src="${a.dataUrl}" alt=""><button class="remove">×</button>`;
+      else div.innerHTML=`<div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div><button class="remove">×</button>`;
+      div.querySelector('.remove').onclick=()=>{this.pendingAttachments.splice(i,1);this.renderAttachments()};
+      el.appendChild(div);
+    });
+  });
+  try{this.renderPins()}catch(e){}
   const sb=$('#send-btn');if(sb)sb.disabled=!$('#user-input')?.value.trim()&&!this.pendingAttachments.length;
 }
 consumePendingAttachments(){
@@ -7441,6 +7498,55 @@ msgElText(el){
   const body=el.querySelector('.final-content')||el.querySelector('.agent-msg-body')||el.querySelector('.message-body');
   return String((body&&(body.innerText||body.textContent))||el.innerText||'').trim();
 }
+appPrompt(title,value){
+  return this._appDialog({mode:'prompt',title:title||'Enter a value',value:value==null?'':String(value)});
+}
+appConfirm(message,title){
+  return this._appDialog({mode:'confirm',title:title||'Please confirm',message:message||''});
+}
+appAlert(message,title){
+  return this._appDialog({mode:'alert',title:title||'Notice',message:message||''});
+}
+_appDialog(opts){
+  opts=opts||{};
+  const mode=opts.mode||'alert';
+  return new Promise(resolve=>{
+    const ov=document.getElementById('app-dialog');
+    if(!ov){
+      if(mode==='confirm')return resolve(window.confirm(opts.message||opts.title||''));
+      if(mode==='prompt')return resolve(window.prompt(opts.title||'',opts.value||''));
+      window.alert(opts.message||opts.title||'');return resolve(true);
+    }
+    const h=document.getElementById('app-dialog-title');
+    const b=document.getElementById('app-dialog-body');
+    const inp=document.getElementById('app-dialog-input');
+    const ok=document.getElementById('app-dialog-ok');
+    const cancel=document.getElementById('app-dialog-cancel');
+    if(h)h.textContent=opts.title||'';
+    if(b){b.textContent=opts.message||'';b.style.display=opts.message?'block':'none'}
+    if(inp){
+      inp.style.display=mode==='prompt'?'block':'none';
+      inp.value=mode==='prompt'?(opts.value||''):'';
+    }
+    if(cancel)cancel.style.display=mode==='alert'?'none':'inline-flex';
+    if(ok)ok.textContent='OK';
+    const finish=(val)=>{
+      ov.classList.remove('open');ov.setAttribute('aria-hidden','true');
+      document.removeEventListener('keydown',onKey);
+      resolve(val);
+    };
+    const onKey=(e)=>{
+      if(e.key==='Escape'){e.preventDefault();finish(mode==='prompt'?null:false)}
+      if(e.key==='Enter'&&mode!=='confirm'){e.preventDefault();finish(mode==='prompt'?(inp&&inp.value):true)}
+    };
+    if(ok)ok.onclick=()=>finish(mode==='prompt'?(inp?inp.value:''):true);
+    if(cancel)cancel.onclick=()=>finish(mode==='prompt'?null:false);
+    ov.onclick=(e)=>{if(e.target===ov)finish(mode==='prompt'?null:false)};
+    document.addEventListener('keydown',onKey);
+    ov.classList.add('open');ov.setAttribute('aria-hidden','false');
+    setTimeout(()=>{if(mode==='prompt'&&inp){inp.focus();inp.select()}else if(ok)ok.focus()},20);
+  });
+}
 pinSector(mode){
   const m=mode||this.mode||'chat';
   if(m==='code')return 'code';
@@ -7494,7 +7600,7 @@ referText(text){
 editThreadMessage(kind,id,el){
   if(kind==='chat')return this.editMessage(id,el);
   const cur=this.msgElText(el);
-  const next=prompt('Edit message',cur);
+  this.appPrompt('Edit message',cur).then(next=>{
   if(next===null)return;
   const body=el.querySelector('.final-content')||el.querySelector('.agent-msg-body')||el.querySelector('.message-body');
   if(body){
@@ -7520,10 +7626,11 @@ editThreadMessage(kind,id,el){
     }
   }
   toast('Updated','success');
+  });
 }
 editAndResendUser(kind,id,el){
   const cur=this.msgElText(el);
-  const next=prompt('Edit message',cur);
+  this.appPrompt('Edit message',cur).then(next=>{
   if(next===null)return;
   const text=String(next).trim();
   if(!text){toast('Message cannot be empty','error');return}
@@ -7564,9 +7671,11 @@ editAndResendUser(kind,id,el){
   const t=$('#swarm-goal');if(t)t.value=text;
   this._agentFollowupReady=true;this._wantNewAgentChat=false;
   return this.confirmAgentSetup(true);
+  });
 }
 deleteUserAndReply(kind,id,el){
-  if(!confirm('Delete this message and the reply after it?'))return;
+  this.appConfirm('Delete this message and the reply after it?').then(ok=>{
+  if(!ok)return;
   if(kind==='chat'){
     const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
     const idx=(conv.messages||[]).findIndex(m=>m.id===id);
@@ -7610,10 +7719,12 @@ deleteUserAndReply(kind,id,el){
     if(n&&!n.classList.contains('user'))n.remove();
   }
   toast('Deleted','success');
+  });
 }
 deleteThreadMessage(kind,id,el){
   if(kind==='chat')return this.deleteUserAndReply(kind,id,el);
-  if(!confirm('Delete this message?'))return;
+  this.appConfirm('Delete this message?').then(ok=>{
+  if(!ok)return;
   if(kind==='code'){
     if(el&&el.remove)el.remove();
     this.saveCodeTranscript();
@@ -7630,6 +7741,7 @@ deleteThreadMessage(kind,id,el){
   }
   if(el&&el.remove)el.remove();
   toast('Deleted','success');
+  });
 }
 branchThread(kind,id,el){
   if(kind==='chat')return this.branchFromMessage(id);
@@ -7717,12 +7829,14 @@ editUserMessage(msgId){
   const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
   const msgs=conv.messages;const idx=msgs.findIndex(m=>m.id===msgId);if(idx<0)return;
   if(msgs.slice(idx+1).some(x=>x.role==='user')){toast('You can only edit the most recent message','error');return}
-  const next=prompt('Edit message',this.visibleUserText(msgs[idx]));if(next===null)return;
-  conv.messages=msgs.slice(0,idx);
-  this.app.conversations.persist();
-  this.loadConversation(conv.id);
-  const box=$('#user-input');if(box){box.value=next;box.dispatchEvent(new Event('input'))}
-  this.send();
+  this.appPrompt('Edit message',this.visibleUserText(msgs[idx])).then(next=>{
+    if(next===null)return;
+    conv.messages=msgs.slice(0,idx);
+    this.app.conversations.persist();
+    this.loadConversation(conv.id);
+    const box=$('#user-input');if(box){box.value=next;box.dispatchEvent(new Event('input'))}
+    this.send();
+  });
 }
 deleteUserTurn(msgId){
   const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
@@ -8118,7 +8232,8 @@ fixCodeSideError(){
 }
 revertCodeSidePanel(){
   if(this._cspOrig==null)return;
-  if(!confirm('Revert to the original code from the message?'))return;
+  this.appConfirm('Revert to the original code from the message?','Revert').then(ok=>{
+  if(!ok)return;
   const ed=$('#csp-editor');
   if(ed)ed.value=this._cspOrig;
   this._cspCode=this._cspOrig;
@@ -8126,10 +8241,11 @@ revertCodeSidePanel(){
   const rev=$('#csp-revert');if(rev)rev.style.display='none';
   const out=$('#csp-out');if(out){out.style.display='none';out.classList.remove('error');out.textContent='';}
   toast('Reverted','success');
+  });
 }
 
 copyMessage(text){navigator.clipboard.writeText(text||'');toast('Copied','success')}
-editMessage(msgId,el){const body=el.querySelector('.final-content')||el.querySelector('.message-body');if(!body)return;const cur=body.innerText;const next=prompt('Edit response',cur);if(next===null)return;body.innerHTML=this.renderMarkdown(next);this.enhanceCodeBlocks(body);this._renderMath(body);const conv=this.app.conversations.get(this.app.conversations.currentId);if(conv){const m=conv.messages.find(x=>x.id===msgId);if(m){m.content=next;this.app.conversations.persist()}}toast('Updated','success')}
+editMessage(msgId,el){const body=el.querySelector('.final-content')||el.querySelector('.message-body');if(!body)return;const cur=body.innerText;this.appPrompt('Edit response',cur).then(next=>{if(next===null)return;body.innerHTML=this.renderMarkdown(next);this.enhanceCodeBlocks(body);this._renderMath(body);const conv=this.app.conversations.get(this.app.conversations.currentId);if(conv){const m=conv.messages.find(x=>x.id===msgId);if(m){m.content=next;this.app.conversations.persist()}}toast('Updated','success')})}
 
 
 
@@ -8406,9 +8522,11 @@ branchFromMessage(msgId){
 }
 deleteMessage(msgId){
   const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
-  if(!confirm('Delete this message?'))return;
+  this.appConfirm('Delete this message?').then(ok=>{
+  if(!ok)return;
   conv.messages=conv.messages.filter(m=>m.id!==msgId);
   this.app.conversations.persist();this.loadConversation(conv.id);toast('Deleted','success');
+  });
 }
 setupMessageSelection(aiEl){
   if(!aiEl||aiEl._selBound)return;aiEl._selBound=true;
@@ -8474,7 +8592,7 @@ pinText(text){
   const t=String(text||'').trim();if(!t)return;
   const pins=this.app.storage.get('pins',[])||[];
   if(pins.some(p=>p&&p.text===t)){toast('Already pinned','info');this.renderPins();return}
-  pins.unshift({id:uid(),text:t,ts:now(),convId:this.app.conversations.currentId});
+  pins.unshift({id:uid(),text:t,ts:now(),convId:this.app.conversations.currentId,from:this.pinSector?this.pinSector(this.mode):'chat'});
   this.app.storage.set('pins',pins.slice(0,40));
   toast('Pinned','success');
   this.renderPins();
@@ -8489,18 +8607,21 @@ unpinText(id){
 renderPins(){
   const sec=this.pinSector?this.pinSector(this.mode):'chat';
   const pins=this.sectorPins?this.sectorPins(this.mode):(this.app.storage.get('pins',[])||[]);
-  ['#attachments','#code-attachments','#agent-attachments','#pin-bar'].forEach(sel=>{
+  ['#attachments','#code-attachments','#agent-attachments','#pin-bar','#chat-pins','#code-pins','#agent-pins'].forEach(sel=>{
     const el=$(sel);if(!el)return;
     el.querySelectorAll('.pin-file').forEach(n=>n.remove());
   });
   const bar=$('#pin-bar');if(bar)bar.style.display='none';
-  const hostSel=sec==='code'?'#code-attachments':sec==='agent'?'#agent-attachments':'#attachments';
-  const host=$(hostSel);if(!host)return;
+  const host=$(sec==='code'?'#code-pins':sec==='agent'?'#agent-pins':'#chat-pins')
+    || $(sec==='code'?'#code-attachments':sec==='agent'?'#agent-attachments':'#attachments');
+  if(!host)return;
+  if(!pins.length){if(host.classList.contains('pin-dock'))host.style.display='none';return}
+  if(host.classList.contains('pin-dock'))host.style.display='flex';
   pins.slice(0,8).forEach(p=>{
     const div=document.createElement('div');
     div.className='attachment pin-file';
-    div.innerHTML=`<div class="file-chip">${SVG.pin} ${escapeHtml(String(p.text).slice(0,48))}${String(p.text).length>48?'…':''}</div><button class="remove unpin" data-id="${p.id}" type="button">×</button>`;
-    div.querySelector('.unpin').onclick=()=>this.unpinText(p.id);
+    div.innerHTML='<div class="file-chip">'+(SVG.pin||'')+' '+escapeHtml(String(p.text).slice(0,56))+(String(p.text).length>56?'…':'')+'</div><button class="remove unpin" data-id="'+p.id+'" type="button">×</button>';
+    const un=div.querySelector('.unpin');if(un)un.onclick=()=>this.unpinText(p.id);
     host.appendChild(div);
   });
 }
@@ -9139,7 +9260,7 @@ _renderDevKeyStatus(data){
   if(del)del.style.display=has?'inline-block':'none';
 }
 async deleteSystemApiKey(){
-  if(!confirm('Delete the site-wide API key for all users on this device (and cloud if allowed)?'))return;
+  if(!(await this.appConfirm('Delete the site-wide API key for all users on this device (and cloud if allowed)?','Delete API key')))return;
   const user=this.app.storage.getActiveUser()||{};
   let data={};
   try{data=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'{}')||{}}catch(e){}
@@ -10052,5 +10173,18 @@ const app=new App();app.start();
 </div>
 
 <input type="checkbox" id="deep-think-toggle" hidden aria-hidden="true">
+
+<div class="overlay" id="app-dialog" aria-hidden="true">
+  <div class="panel app-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="app-dialog-title">
+    <h3 id="app-dialog-title">Notice</h3>
+    <p id="app-dialog-body"></p>
+    <input id="app-dialog-input" type="text" autocomplete="off">
+    <div class="app-dialog-actions">
+      <button type="button" id="app-dialog-cancel">Cancel</button>
+      <button type="button" class="primary" id="app-dialog-ok">OK</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
