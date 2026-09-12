@@ -1320,7 +1320,12 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 </div>
 <button class="stop-btn" id="stop-btn" aria-label="Stop"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
 <button class="send-btn" id="send-btn" aria-label="Send message" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-</div></div></div>
+</div></div>
+<div class="input-meta">
+<span id="agent-status"></span>
+<span id="iteration-info"></span>
+</div>
+</div>
 
 
 
@@ -5727,10 +5732,15 @@ try{
 }catch(e){toast(e.message,'error');const body=aiEl.querySelector('.message-body');if(body&&!body.querySelector('.final-content')?.textContent.trim())body.innerHTML+=`<p style="color:var(--error)">Error: ${escapeHtml(e.message)}</p>`}
 finally{
   this.app.agent.settings=prevSettings;this.app.agent.intensityExtra='';
-  $('#stop-btn').classList.remove('visible');$('#send-btn').style.display='flex';$('#send-btn').disabled=false;$('#agent-status').textContent='Ready';$('#iteration-info').textContent='';const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();this.app.conversations.persist()
+  const stopBtn=$('#stop-btn');if(stopBtn)stopBtn.classList.remove('visible');
+  const sendBtn=$('#send-btn');if(sendBtn){sendBtn.style.display='flex';sendBtn.disabled=false;}
+  const statusEl=$('#agent-status');if(statusEl){statusEl.textContent='Ready';statusEl.classList.remove('busy');}
+  const iterEl=$('#iteration-info');if(iterEl)iterEl.textContent='';
+  const statusLine=$('#agent-status-line');if(statusLine)statusLine.textContent='';
+  const thinking=aiEl&&aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();this.app.conversations.persist()
 }}
-handleAgentEvent(ev,aiEl,aiMsg){if(!aiEl||typeof aiEl.querySelector!=='function'){console.error('handleAgentEvent: aiEl is not a DOM node',aiEl);return}if(ev.type==='status'){const s=$('#agent-status');if(s){s.textContent=ev.text||'';s.classList.toggle('busy',!!ev.text);}}
-else if(ev.type==='iteration')$('#iteration-info').textContent=`Cycle ${ev.current}`;
+handleAgentEvent(ev,aiEl,aiMsg){if(!aiEl||typeof aiEl.querySelector!=='function'){console.error('handleAgentEvent: aiEl is not a DOM node',aiEl);return}if(ev.type==='status'){const s=$('#agent-status');if(s){s.textContent=ev.text||'';s.classList.toggle('busy',!!ev.text);}const sl=$('#agent-status-line');if(sl&&ev.text)sl.textContent=ev.text;}
+else if(ev.type==='iteration'){const it=$('#iteration-info');if(it)it.textContent=`Cycle ${ev.current}`;}
 else if(ev.type==='activity'){
   const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();
   let root=aiEl.querySelector('.thought-process');
@@ -5897,7 +5907,7 @@ const br=actions.querySelector('[data-act=branch]');if(br)br.onclick=()=>this.br
 const del=actions.querySelector('[data-act=delete]');if(del)del.onclick=()=>this.deleteMessage(aiMsg.id);
 this.setupMessageSelection(aiEl);
 this.scrollToBottom()}
-else if(ev.type==='done'){$('#agent-status').textContent='';$('#iteration-info').textContent='';const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();try{this.app.conversations.persist()}catch{}}
+else if(ev.type==='done'){const s=$('#agent-status');if(s){s.textContent='';s.classList.remove('busy');}const it=$('#iteration-info');if(it)it.textContent='';const sl=$('#agent-status-line');if(sl)sl.textContent='';const thinking=aiEl&&aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();try{this.app.conversations.persist()}catch{}}
 else if(ev.type==='error')toast(ev.message,'error')}
 snapshotThoughts(aiMsg,aiEl){
   try{
