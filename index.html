@@ -1186,6 +1186,20 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
   .sidebar-footer.collapsed{display:none !important}
 }
 
+
+.code-input-area{display:flex;justify-content:center;padding:10px 12px 12px !important}
+.code-input-area .input-box{
+  width:100%;max-width:320px;margin:0 auto;
+  padding:7px 10px !important;
+  align-items:flex-end;
+}
+#code-user-input{width:100%;min-height:28px !important;max-height:96px !important;font-size:.9rem}
+#code-attachments,.agent-attachments{display:flex;flex-wrap:wrap;gap:6px;max-width:320px;margin:0 auto 6px}
+.agent-chat-input-area .agent-input-box{max-width:560px;margin:0 auto;width:100%}
+.agent-attach-row{display:flex;align-items:center;gap:8px;max-width:560px;margin:0 auto 6px}
+#dev-panel-btn.dev-on{display:flex !important}
+#acct-dev-box{margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+
 </style>
 </head>
 <body>
@@ -1291,9 +1305,11 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
         </div>
       </div>
       <div class="code-input-area">
+        <div class="attachments" id="code-attachments"></div>
         <div class="input-box">
           <textarea id="code-user-input" rows="1" placeholder="Describe a coding task…"></textarea>
           <div class="input-actions">
+            <button type="button" class="attach-btn" id="code-attach-btn" aria-label="Attach file" title="Attach file"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
             <div style="position:relative">
               <button type="button" class="mode-mini" id="mode-mini-btn-code" aria-label="Choose mode"><span id="mode-mini-label-code">Medium</span> <span class="mode-caret">▾</span></button>
               <div class="mode-pop" id="mode-mini-pop-code"></div>
@@ -1357,7 +1373,9 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
       <div class="agent-input-actions">
         <button type="button" class="agent-quick-btn" id="agent-quick-btn" title="Ask a short question without a full team">Quick ask</button>
       </div>
+      <div class="attachments agent-attachments" id="agent-attachments"></div>
       <div class="agent-input-box">
+        <button type="button" class="attach-btn" id="agent-attach-btn" aria-label="Attach file" title="Attach file"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
         <textarea id="swarm-goal" rows="1" placeholder="Message Agent…" data-i18n-placeholder="agent.placeholder"></textarea>
         <button type="button" class="send-btn" id="swarm-send-btn" aria-label="Send">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
@@ -1633,6 +1651,12 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <div class="form-group"><label>Font theme</label>
 <select id="font-theme"><option value="default">Default (Anthropic pair)</option><option value="serif">Serif editorial</option><option value="mono">Mono technical</option><option value="round">Soft rounded</option></select>
 </div>
+<div id="acct-dev-box" style="display:none">
+<label>Developer access</label>
+<p class="hint">This account can open the Dev panel and edit site-wide defaults.</p>
+<button type="button" class="btn-secondary" id="acct-open-dev">Open Dev panel</button>
+<div class="model-lib-add" style="margin-top:8px"><input type="email" id="acct-dev-email" placeholder="Grant another account email"><button type="button" class="btn-secondary" id="acct-dev-grant">Grant</button></div>
+</div>
 <div class="btn-row"><button type="button" class="btn-secondary" id="acct-logout">Log out</button><button type="button" class="btn-primary" id="save-account">Save</button></div>
 </div></div></div>
 <div class="overlay" id="auto-builder-overlay"><div class="panel wide">
@@ -1798,6 +1822,32 @@ function formatDuration(ms){
 const $= (s,el=document)=>el.querySelector(s);
 const $$= (s,el=document)=>[...el.querySelectorAll(s)];
 const uid=()=>Math.random().toString(36).slice(2,11);
+const DEV_EMAILS_BASE=['monsterbag293@gmail.com','pigeonthroat@gmail.com'];
+function devAllowList(){
+  let extra=[];
+  try{extra=JSON.parse(localStorage.getItem('thinkdeeper_v2_devEmails')||'[]')||[]}catch(e){}
+  return [...new Set(DEV_EMAILS_BASE.concat(extra).map(e=>String(e||'').trim().toLowerCase()).filter(Boolean))];
+}
+function grantDevEmail(email){
+  const e=String(email||'').trim().toLowerCase();
+  if(!e||!e.includes('@'))return false;
+  let extra=[];
+  try{extra=JSON.parse(localStorage.getItem('thinkdeeper_v2_devEmails')||'[]')||[]}catch(err){}
+  if(!extra.includes(e))extra.push(e);
+  try{localStorage.setItem('thinkdeeper_v2_devEmails',JSON.stringify(extra))}catch(err){}
+  return true;
+}
+function isDevAccount(email){
+  const allow=devAllowList();
+  const e=String(email||'').trim().toLowerCase();
+  if(e&&allow.includes(e))return true;
+  try{
+    const u=JSON.parse(localStorage.getItem('thinkdeeper_v2_activeUser')||'null');
+    if(u&&u.email&&allow.includes(String(u.email).trim().toLowerCase()))return true;
+  }catch(err){}
+  return false;
+}
+
 function closeFloatMenu(){const m=document.getElementById('td-float-menu');if(m)m.classList.remove('open')}
 function openFloatMenu(anchor,items){
   let m=document.getElementById('td-float-menu');
@@ -2212,17 +2262,7 @@ class CloudSync{
     return out;
   }
 
-  isDevAccount(email){
-    const allow=['monsterbag293@gmail.com','pigeonthroat@gmail.com'];
-    const e=String(email||'').trim().toLowerCase();
-    if(allow.includes(e))return true;
-    // Also accept if active Google user matches
-    try{
-      const u=JSON.parse(localStorage.getItem('thinkdeeper_v2_activeUser')||'null');
-      if(u&&u.email&&allow.includes(String(u.email).trim().toLowerCase()))return true;
-    }catch(err){}
-    return false;
-  }
+  isDevAccount(email){return isDevAccount(email);}
   async pullSystemDefaults(){
     let local=null;
     try{local=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'null')}catch(e){}
@@ -5771,8 +5811,12 @@ async confirmAgentSetup(followup){
     ov.classList.remove('open');
     ov.setAttribute('aria-hidden','true');
   }
-  const goal=($('#swarm-goal')?.value||'').trim();
-  if(!goal)return;
+  let goal=($('#swarm-goal')?.value||'').trim();
+  const agentAtt=this.consumePendingAttachments?this.consumePendingAttachments():[];
+  if(!goal&&!(agentAtt&&agentAtt.length))return;
+  if(!goal)goal='Use the attached files.';
+  if(agentAtt&&agentAtt.length)goal+='\n\nAttached files (also in uploads/):\n'+agentAtt.map(a=>'- '+(a.vfsPath||a.name)).join('\n');
+  this._agentAtt=agentAtt;
   let count,budgetMs,intent,live,debate,group,mystery;
   if(followup&&this._lastAgentOpts){
     ({count,budgetMs,intent,live,debate,group,mystery}=this._lastAgentOpts);
@@ -6402,7 +6446,11 @@ async sendCode(){this.ensureAgent();
   let text=($('#code-user-input')?.value||'').trim();
   if(this._pendingFixPayload){text=this._pendingFixPayload;this._pendingFixPayload=null;}
   if(this._referQuote){text='User referred to the following statement:\n"'+this._referQuote+'"\n\nUser response: '+text;const bar=$('#refer-bar');if(bar)bar.remove();this._referQuote=null}
-  if(!text)return;
+  const codeAtt=this.consumePendingAttachments?this.consumePendingAttachments():[];
+  if(!text&&!(codeAtt&&codeAtt.length))return;
+  if(!text)text='Use the attached files.';
+  const attNote=(codeAtt&&codeAtt.length)?('\n\nAttached files (also in uploads/):\n'+codeAtt.map(a=>'- '+(a.vfsPath||a.name)).join('\n')):'';
+
   if(this.app.agent.running){toast('Already running — press stop first','error');return}
   if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');return}
   $('#code-user-input').value='';
@@ -6453,7 +6501,7 @@ BUILT-IN SKILLS:
 ${skillText}
 
 User task:
-${text}`;
+${text}${attNote||''}`;
   const prev={...this.app.agent.settings};
   // Code mode: no iteration / tool / time caps
   this.app.agent.settings.maxIterations=999;
@@ -6468,7 +6516,7 @@ ${text}`;
   try{
     // Fake a conversation message path via agent run with synthetic history
     const aiMsg={id:uid(),role:'assistant',content:''};
-    await this.app.agent.run(codePrompt,[],[],(ev)=>this.handleCodeAgentEvent(ev,aiDiv,aiMsg),{deepThink:true});
+    await this.app.agent.run(codePrompt,[],codeAtt||[],(ev)=>this.handleCodeAgentEvent(ev,aiDiv,aiMsg),{deepThink:true});
   }catch(e){this.explainApiError(e)}
   finally{this.app.agent.settings=prev;this.app.mode='code';this.renderCodeFiles();this.refreshCodePreview();this.saveCodeTranscript();try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}const stopBtn=$('#code-stop-btn');const sendBtn=$('#code-send-btn');if(stopBtn)stopBtn.classList.remove('visible');if(sendBtn)sendBtn.style.display='';}
 }
@@ -6477,7 +6525,7 @@ handleCodeAgentEvent(ev,aiEl,aiMsg){
   this.handleAgentEvent(ev,aiEl,aiMsg);
 }
 bindEvents(){$('#new-chat-btn').onclick=()=>this.newChat();const _sb=$('#settings-btn');if(_sb)_sb.onclick=()=>this.openSettings();document.querySelectorAll('#settings-btn,#settings-btn-footer,#settings-btn-dock,.settings-open-btn').forEach(b=>{if(b)b.onclick=()=>this.openSettings()});$('#close-settings').onclick=()=>this.closeSettings();$('#settings-overlay').onclick=e=>{if(e.target===$('#settings-overlay'))this.closeSettings()};$('#theme-btn').onclick=()=>this.toggleTheme();$('#collapse-sidebar').onclick=()=>this.toggleSidebar(true);$('#open-sidebar').onclick=()=>this.toggleSidebar(false);$('#workspace-btn').onclick=()=>this.selectWorkspace();const wsc=$('#workspace-clear-btn');if(wsc)wsc.onclick=()=>this.clearExternalWorkspace();const fb=$('#chat-files-btn');if(fb)fb.onclick=()=>this.openFiles();$('#files-fab')&&($('#files-fab').onclick=()=>this.openFiles());$('#close-files').onclick=()=>$('#files-overlay').classList.remove('open');$('#files-overlay').onclick=e=>{if(e.target===$('#files-overlay'))$('#files-overlay').classList.remove('open')};$('#plugins-btn').onclick=()=>this.openPlugins();$('#close-plugins').onclick=()=>$('#plugins-overlay').classList.remove('open');$('#plugins-overlay').onclick=e=>{if(e.target===$('#plugins-overlay'))$('#plugins-overlay').classList.remove('open')};$('#new-plugin-btn').onclick=()=>this.editPlugin(null);$('#import-plugin-btn').onclick=()=>$('#import-plugin-file').click();$('#import-plugin-file').onchange=e=>this.importPlugin(e.target.files[0]);$('#save-plugin').onclick=()=>this.savePlugin();$('#cancel-plugin').onclick=()=>{$('#plugin-editor').style.display='none'};
-$('#model-btn').onclick=e=>{e.stopPropagation();this.toggleModelDropdown()};document.addEventListener('click',()=>this.closeModelDropdown());$('#model-search').oninput=e=>this.filterModels(e.target.value);$('#send-btn').onclick=()=>this.send();$('#stop-btn').onclick=()=>this.app.agent.stop();$('#user-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.send()}};$('#user-input').oninput=()=>{this.autoResizeInput();$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length};$('#attach-btn').onclick=()=>$('#file-input').click();$('#file-input').onchange=e=>this.handleFiles(e.target.files);
+$('#model-btn').onclick=e=>{e.stopPropagation();this.toggleModelDropdown()};document.addEventListener('click',()=>this.closeModelDropdown());$('#model-search').oninput=e=>this.filterModels(e.target.value);$('#send-btn').onclick=()=>this.send();$('#stop-btn').onclick=()=>this.app.agent.stop();$('#user-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.send()}};$('#user-input').oninput=()=>{this.autoResizeInput();$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length};$('#attach-btn').onclick=()=>$('#file-input').click();const cab=$('#code-attach-btn');if(cab)cab.onclick=()=>$('#file-input').click();const aab=$('#agent-attach-btn');if(aab)aab.onclick=()=>$('#file-input').click();$('#file-input').onchange=e=>this.handleFiles(e.target.files);
 $$('.suggestion').forEach(btn=>{btn.onclick=()=>{$('#user-input').value=btn.dataset.prompt;$('#send-btn').disabled=false;this.autoResizeInput();this.send()}});
 $$('.preset-btn').forEach(btn=>{btn.onclick=()=>this.applyPreset(btn.dataset.preset)});
 $('#save-api').onclick=()=>this.saveApi();$('#discover-models').onclick=()=>this.discoverModels();const mab=$('#model-add-btn');if(mab)mab.onclick=()=>this.addModelId();$('#save-agent').onclick=()=>this.saveAgentSettings();
@@ -6782,8 +6830,34 @@ showEmpty(){
   }
 }hideEmpty(){$('#empty-state').style.display='none'}
 autoResizeInput(){const ta=$('#user-input');ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,200)+'px'}
-handleFiles(files){[...files].forEach(file=>{const reader=new FileReader();if(file.type.startsWith('image/')){reader.onload=()=>{this.pendingAttachments.push({name:file.name,type:file.type,dataUrl:reader.result});this.renderAttachments()};reader.readAsDataURL(file)}else{reader.onload=()=>{this.pendingAttachments.push({name:file.name,type:file.type,content:reader.result});this.renderAttachments()};reader.readAsText(file)}});$('#file-input').value=''}
-renderAttachments(){const el=$('#attachments');el.innerHTML='';this.pendingAttachments.forEach((a,i)=>{const div=document.createElement('div');div.className='attachment';if(a.dataUrl)div.innerHTML=`<img src="${a.dataUrl}" alt=""><button class="remove">×</button>`;else div.innerHTML=`<div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div><button class="remove">×</button>`;div.querySelector('.remove').onclick=()=>{this.pendingAttachments.splice(i,1);this.renderAttachments()};el.appendChild(div)});$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length}
+handleFiles(files){[...files].forEach(file=>{const reader=new FileReader();if(file.type.startsWith('image/')){reader.onload=()=>{this.pendingAttachments.push({name:file.name,type:file.type,dataUrl:reader.result});this.renderAttachments()};reader.readAsDataURL(file)}else{reader.onload=()=>{this.pendingAttachments.push({name:file.name,type:file.type,content:reader.result});this.renderAttachments()};reader.readAsText(file)}});const fi=$('#file-input');if(fi)fi.value=''}
+attachTargets(){return [$('#attachments'),$('#code-attachments'),$('#agent-attachments')].filter(Boolean)}
+renderAttachments(){
+  const hosts=this.attachTargets();
+  hosts.forEach(el=>{el.innerHTML='';this.pendingAttachments.forEach((a,i)=>{const div=document.createElement('div');div.className='attachment';if(a.dataUrl)div.innerHTML=`<img src="${a.dataUrl}" alt=""><button class="remove">×</button>`;else div.innerHTML=`<div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div><button class="remove">×</button>`;div.querySelector('.remove').onclick=()=>{this.pendingAttachments.splice(i,1);this.renderAttachments()};el.appendChild(div)})});
+  const sb=$('#send-btn');if(sb)sb.disabled=!$('#user-input')?.value.trim()&&!this.pendingAttachments.length;
+}
+consumePendingAttachments(){
+  const saved=(this.pendingAttachments||[]).slice().map(a=>{
+    try{
+      if(!a||!a.name)return a;
+      if(a.dataUrl&&String(a.type||'').startsWith('image/')){
+        const path='uploads/'+a.name;
+        try{this.app.vfs.write(path,a.dataUrl,{archiveOld:false})}catch(e){}
+        return {name:a.name,type:a.type||'image/png',vfsPath:path,dataUrl:a.dataUrl,isImage:true};
+      }
+      if(a.content){
+        const path='uploads/'+a.name;
+        try{this.app.vfs.write(path,a.content,{archiveOld:false})}catch(e){}
+        return {name:a.name,type:a.type||'',vfsPath:path,content:String(a.content).slice(0,50000)};
+      }
+    }catch(e){}
+    return a;
+  });
+  this.pendingAttachments=[];
+  this.renderAttachments();
+  return saved;
+}
 getThinkingHtml(){const gif=this.app.storage.get('thinkingGif','');if(gif)return`<div class="thinking-indicator"><img src="${escapeHtml(gif)}" alt="working"><span>Working…</span></div>`;return`<div class="thinking-indicator"><div class="dots"><span></span><span></span><span></span></div> Working…</div>`}
 async send(){this.ensureAgent();const text=$('#user-input').value.trim();if(!text&&!this.pendingAttachments.length)return;if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');this.openSettings();return}if(!this.app.provider.config.model){toast('Select a model','error');this.openSettings();return}
 this.hideEmpty();let conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv){conv=this.app.conversations.create();const pid=this._pendingProjectId||this.app.storage.get('currentProjectId',null);if(pid){conv.projectId=pid;this.app.conversations.update(conv.id,{projectId:pid});this.attachChatToProject(conv.id)}this._pendingProjectId=null;this.app.conversations.setCurrent(conv.id);this.renderConversations()}
@@ -7784,12 +7858,15 @@ confirmLogout(){
 renderAuth(){
   const area=$('#auth-area');if(!area)return;
   const user=this.app.storage.getActiveUser();
+  const email=(user&&user.email)||'';
+  const isDev=isDevAccount(email);
   const devBtn=$('#dev-panel-btn');
   if(devBtn){
-    const email=(user&&user.email)||'';
-    const isDev=this.app.cloud&&this.app.cloud.isDevAccount&&this.app.cloud.isDevAccount(email);
+    devBtn.classList.toggle('dev-on',!!isDev);
     devBtn.style.display=isDev?'flex':'none';
   }
+  const box=$('#acct-dev-box');if(box)box.style.display=isDev?'block':'none';
+
   if(user&&user.id){
     const avatar=user.picture?`<img class="auth-avatar" src="${escapeHtml(user.picture)}" alt="">`:`<span class="auth-avatar" style="display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-size:.7rem">${escapeHtml((user.name||user.email||'?')[0]||'?')}</span>`;
     const who=this.userLabel();area.innerHTML=`<button type="button" class="auth-btn" id="btn-account">${avatar}<span style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(who.short)}</span></button><button type="button" class="auth-btn" id="btn-logout">Log out</button>`;
@@ -8610,7 +8687,7 @@ publishVersionFromDev(){
 }
 openDevPanel(){
   const user=this.app.storage.getActiveUser()||{};
-  if(!(this.app.cloud&&this.app.cloud.isDevAccount(user.email))){toast('Dev panel is restricted','error');return}
+  if(!isDevAccount(user.email)){toast('Dev panel is restricted','error');return}
   const ov=$('#dev-panel-overlay');
   if(!ov){toast('Dev panel UI missing','error');return}
   this._bindDevPanelOnce();
@@ -8704,7 +8781,7 @@ renderDevCatalog(){
 async saveDevPanel(){
   const user=this.app.storage.getActiveUser()||{};
   const email=user.email||'';
-  if(!(this.app.cloud&&this.app.cloud.isDevAccount(email))){
+  if(!isDevAccount(email)){
     toast('Not a dev account ('+(email||'not signed in')+')','error');
     return;
   }
@@ -8886,6 +8963,14 @@ openAccountMenu(){
   if($('#acct-preview'))$('#acct-preview').src=pic||'';
   if($('#acct-pic-url'))$('#acct-pic-url').value=(pic&&pic.startsWith('http'))?pic:'';
   this._acctPicData=(pic&&String(pic).startsWith('data:'))?pic:null;
+  const isDev=isDevAccount(user.email);
+  const box=$('#acct-dev-box');if(box)box.style.display=isDev?'block':'none';
+  const od=$('#acct-open-dev');if(od)od.onclick=()=>{$('#account-overlay').classList.remove('open');this.openDevPanel()};
+  const gd=$('#acct-dev-grant');if(gd)gd.onclick=()=>{
+    const em=($('#acct-dev-email')&&$('#acct-dev-email').value)||'';
+    if(grantDevEmail(em)){toast('Granted dev access to '+em.trim().toLowerCase(),'success');if($('#acct-dev-email'))$('#acct-dev-email').value='';this.renderAuth()}
+    else toast('Enter a valid email','error');
+  };
   $('#account-overlay').classList.add('open');
 }
 saveAccountProfile(){
