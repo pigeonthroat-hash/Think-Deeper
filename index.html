@@ -251,7 +251,7 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 .code-toolbar button:hover{border-color:var(--accent);background:var(--bg-hover)}
 .code-toolbar input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .code-messages{flex:1;overflow:auto;padding:20px 22px;scrollbar-width:thin}
-.code-input-area{padding:10px 12px 12px;border-top:1px solid var(--border);background:var(--bg-secondary);display:flex;flex-direction:column;align-items:center}
+.code-input-area{padding:10px 12px 14px;border-top:1px solid var(--border);background:var(--bg-secondary);display:flex;flex-direction:column;align-items:stretch}
 .code-input-area .input-box{background:var(--bg-elevated)!important;border:1px solid var(--border)!important;border-radius:14px!important;box-shadow:0 4px 24px rgba(0,0,0,.25)}
 .code-input-area textarea{color:var(--text-primary)!important}
 .code-file-tree{flex:1;overflow:auto;font-size:.78rem;padding:4px 10px 12px}
@@ -278,7 +278,7 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 #code-user-input::placeholder{color:#6b7280}
 .code-input-area .input-box{
   display:flex;align-items:flex-end;gap:8px;padding:6px 8px;
-  width:min(280px,92%);max-width:280px;margin:0 auto;
+  width:100%;max-width:100%;margin:0;
   background:var(--bg-elevated)!important;border:1px solid var(--border)!important;border-radius:16px!important;
 }
 .code-input-area .input-box:focus-within{border-color:var(--accent)!important;box-shadow:0 0 0 3px rgba(59,130,246,.18)!important}
@@ -480,7 +480,7 @@ button,.icon-btn,.conv-item,.project-item,.send-btn,.mode-tab,.intensity-chip,.a
 }
 #code-view .code-main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg-primary)}
 #code-view .code-messages{flex:1;overflow:auto;padding:20px 22px}
-#code-view .code-input-area{padding:10px 12px 12px;border-top:1px solid var(--border);background:var(--bg-secondary);display:flex;flex-direction:column;align-items:center}
+#code-view .code-input-area{padding:10px 12px 14px;border-top:1px solid var(--border);background:var(--bg-secondary);display:flex;flex-direction:column;align-items:stretch}
 #code-view .code-input-area .input-box{
   background:var(--bg-elevated)!important;border:1px solid var(--border)!important;border-radius:16px!important
 }
@@ -1190,19 +1190,45 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 
 .code-input-area{display:flex;justify-content:center;padding:10px 12px 12px !important}
 .code-input-area .input-box{
-  width:min(280px,92%);max-width:280px !important;margin:0 auto;
-  padding:6px 8px !important;
+  width:100%;max-width:100% !important;margin:0;
+  padding:10px 12px !important;
   align-items:flex-end;
 }
 #code-user-input{width:100%;min-height:28px !important;max-height:96px !important;font-size:.9rem}
-#code-attachments,.agent-attachments{display:flex;flex-wrap:wrap;gap:6px;max-width:320px;margin:0 auto 6px}
-.agent-chat-input-area .agent-input-box{max-width:560px;margin:0 auto;width:100%}
+#code-attachments,.agent-attachments{display:flex;flex-wrap:wrap;gap:6px;width:100%;margin:0 0 6px}
+.agent-chat-input-area .agent-input-box{max-width:none;margin:0;width:100%}
 .agent-attach-row{display:flex;align-items:center;gap:8px;max-width:560px;margin:0 auto 6px}
 #dev-panel-btn{display:none}#dev-panel-btn.dev-on{display:flex !important}
 #acct-dev-box{margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
 
 .code-input-area .attach-btn,.agent-input-box .attach-btn{width:32px;height:32px;flex-shrink:0;border-radius:8px;color:var(--text-secondary)}
 .code-input-area .attach-btn:hover,.agent-input-box .attach-btn:hover{background:var(--bg-hover);color:var(--accent)}
+
+
+/* code-hist-active-fix */
+.agent-hist-item.active,.code-session-item.active,#code-session-menu button.active{
+  background:var(--bg-active,var(--accent-soft))!important;color:var(--text-primary)!important;border-color:var(--accent)!important;font-weight:600
+}
+#code-hist-list .agent-hist-item.active,#agent-hist-list .agent-hist-item.active{
+  box-shadow:inset 3px 0 0 var(--accent)
+}
+.code-input-area{
+  display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-end!important;
+  width:100%!important;max-width:none!important;padding:10px 12px 14px!important;box-sizing:border-box
+}
+.code-input-area .input-box,
+#code-view .code-input-area .input-box{
+  width:100%!important;max-width:none!important;margin:0!important;box-sizing:border-box;
+  display:flex!important;align-items:flex-end;gap:8px
+}
+#code-user-input{width:100%!important;flex:1 1 auto!important}
+.agent-chat-input-area{width:100%!important;max-width:none!important;box-sizing:border-box;padding:12px 16px 18px}
+.agent-chat-input-area .agent-input-box{
+  width:100%!important;max-width:none!important;margin:0!important;box-sizing:border-box
+}
+.agent-attach-row{max-width:none!important;margin:0 0 6px!important;width:100%}
+#swarm-goal{width:100%!important;flex:1 1 auto!important}
+
 
 </style>
 </head>
@@ -1795,7 +1821,7 @@ const SVG={
   doc:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>',
   file:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>',
   dl:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>',
-  pin:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5M8 3h8l-1 7a5 5 0 11-6 0L8 3z"/></svg>',
+  pin:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M15 2H9a1 1 0 00-1 1v1h8V3a1 1 0 00-1-1z"/><path d="M8 4h8v2.7c0 1.5.7 2.4 1.8 3.5l.7.7H5.5l.7-.7C7.3 9.1 8 8.2 8 6.7V4z"/><path d="M12 10.5V17"/></svg>',
   eye:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
 
   bulb:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12c.5.5 1 1.5 1 2h6c0-.5.5-1.5 1-2a7 7 0 00-4-12z"/></svg>',
@@ -1812,7 +1838,7 @@ const SVG={
   dl:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>',
   copy:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>',
   edit:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
-  pin:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17v5M9 2l1 7H6l6 8 6-8h-4l1-7H9z"/></svg>',
+  pin:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M15 2H9a1 1 0 00-1 1v1h8V3a1 1 0 00-1-1z"/><path d="M8 4h8v2.7c0 1.5.7 2.4 1.8 3.5l.7.7H5.5l.7-.7C7.3 9.1 8 8.2 8 6.7V4z"/><path d="M12 10.5V17"/></svg>',
   trash:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
   warn:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L12.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
   google:'<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.5-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 12 24 12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.3 35.9 26.8 37 24 37c-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1.3 3.7-4.6 6.4-8.3 7.5l.1.1 6.3 5.3C35.8 42.2 44 36 44 24c0-1.3-.1-2.5-.4-3.5z"/></svg>'
@@ -2879,7 +2905,25 @@ class CloudSync{
     }
     if(data.autoStore&&typeof data.autoStore==='object')s.set('autoStore',Object.assign({},s.get('autoStore',{})||{},data.autoStore));
     if(data.autoFiredMap&&typeof data.autoFiredMap==='object')s.set('autoFiredMap',Object.assign({},s.get('autoFiredMap',{})||{},data.autoFiredMap));
-    ['apiConfig','agentSettings','plugins','vfs','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','codeSessions','currentCodeId','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','uiLanguage','uiTextSize','appVersion','versionLog'].forEach(k=>{
+    if(Array.isArray(data.codeSessions)){
+      const local=s.get('codeSessions',[])||[];
+      const map=new Map();
+      local.forEach(c=>{if(c&&c.id)map.set(String(c.id),c)});
+      data.codeSessions.forEach(r=>{
+        if(!r||!r.id)return;
+        const id=String(r.id);
+        const L=map.get(id);
+        if(!L){map.set(id,r);return}
+        const lu=Number(L.updated||0),ru=Number(r.updated||0);
+        const lm=(L.messages&&L.messages.length)||0,rm=(r.messages&&r.messages.length)||0;
+        const merged=ru>lu||(ru===lu&&rm>lm)?Object.assign({},L,r):Object.assign({},r,L);
+        if(L.titleLocked||(L.title&&L.title!=='Code chat'&&(!r.title||r.title==='Code chat'))){merged.title=L.title;merged.titleLocked=!!L.titleLocked}
+        else if(r.titleLocked||(r.title&&r.title!=='Code chat')){merged.title=r.title;merged.titleLocked=!!r.titleLocked}
+        map.set(id,merged);
+      });
+      s.set('codeSessions',[...map.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0)).slice(0,40));
+    }
+    ['apiConfig','agentSettings','plugins','vfs','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','uiLanguage','uiTextSize','appVersion','versionLog'].forEach(k=>{
       if(data[k]===undefined||data[k]===null)return;
       if(k==='vfs'&&data.vfs&&typeof data.vfs==='object'){
         s.set('vfs',Object.assign({},s.get('vfs',{})||{},data.vfs));
@@ -2887,6 +2931,12 @@ class CloudSync{
       }
       s.set(k,data[k]);
     });
+    if(data.currentCodeId){
+      const ids=new Set((s.get('codeSessions',[])||[]).map(x=>x&&String(x.id)));
+      const localId=s.get('currentCodeId',null);
+      if(localId&&ids.has(String(localId))){/* keep local selection */}
+      else if(ids.has(String(data.currentCodeId)))s.set('currentCodeId',data.currentCodeId);
+    }
     ['agentRunState','chatRunState'].forEach(k=>{
       if(data[k]===undefined||data[k]===null)return;
       const local=s.get(k,null);
@@ -5257,6 +5307,7 @@ init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;
 }
 initCodeMode(){
   this.mode='chat';this.thoughtRoots=new WeakMap();
+  this._currentCodeId=this.app.storage.get('currentCodeId',null);
   const chatTab=$('#mode-chat'),codeTab=$('#mode-code');
   if(chatTab)chatTab.onclick=()=>this.setMode('chat');
   if(codeTab)codeTab.onclick=()=>this.setMode('code');
@@ -5638,12 +5689,13 @@ _histMenuClick(e,el,kind){
   if(act==='pin'){e.stopPropagation();const title=(el.querySelector('.ah-title')||{}).textContent||kind;const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:title,from:kind});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();el.classList.remove('open');toast('Pinned','success');return}
   if(act==='refer'){e.stopPropagation();this.setReferQuote((el.querySelector('.ah-title')||{}).textContent||kind+' chat');el.classList.remove('open');return}
   if(act==='delete'){e.stopPropagation();this._deleteSession(kind,id);return}
-  if(kind==='agent')this.loadAgentSession(id);else this.loadCodeSession(id);
+  if(kind==='agent'){this._currentAgentSessionId=id;this.loadAgentSession(id);this.renderAgentHist&&this.renderAgentHist()}
+  else {this.markCodeActive&&this.markCodeActive(id);this.loadCodeSession(id)}
 }
 _renameSession(kind,id,title){
   title=String(title||'').trim().slice(0,48);if(!title)return;
   if(kind==='agent'){const list=this.agentSessions();const s=list.find(x=>x.id===id);if(s){s.title=title;this.app.storage.set('agentSessions',list);this.renderAgentHist()}}
-  else {const list=this.codeSessions();const s=list.find(x=>x.id===id);if(s){s.title=title;this.app.storage.set('codeSessions',list);this.renderCodeHist()}}
+  else {const list=this.codeSessions();const s=list.find(x=>x.id===id);if(s){s.title=title;s.titleLocked=true;this.app.storage.set('codeSessions',list);this.renderCodeHist();this.renderCodeSessions&&this.renderCodeSessions()}}
   try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
 }
 _deleteSession(kind,id){
@@ -5673,45 +5725,59 @@ renderAgentHist(){
 }
 renderCodeHist(){
   const sec=$('#code-hist-section'),listEl=$('#code-hist-list');
-  const inCode=this.mode==='code';
+  const inCode=this.mode==='code'||this.app.mode==='code'||this.app.storage.get('appMode')==='code';
   if(sec)sec.style.display=inCode?'':'none';
   if(listEl)listEl.style.display=inCode?'':'none';
-  if(!listEl||!inCode)return;
+  if(!listEl)return;
+  if(!inCode)return;
   const pid=this.activeProjectId?this.activeProjectId():null;
-  const list=this.codeSessions().filter(s=>!pid||s.projectId===pid||!s.projectId);
-  const cur=this.app.storage.get('currentCodeId',null);
-  listEl.innerHTML=list.slice(0,30).map(s=>'<div class="agent-hist-item hist-item-wrap'+(s.id===cur?' active':'')+'" data-id="'+s.id+'"><span class="ah-title">'+escapeHtml(s.title||'Code chat')+'</span><button type="button" class="ah-more" data-act="menu" aria-label="Menu">⁝</button><div class="hist-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div></div>').join('')||'<div class="hint" style="padding:8px">No code chats yet</div>';
+  const list=(this.codeSessions()||[]).filter(s=>s&&(!pid||s.projectId===pid||!s.projectId))
+    .slice().sort((a,b)=>(Number(b.updated||0))-(Number(a.updated||0)));
+  const cur=this._currentCodeId||this.app.storage.get('currentCodeId',null);
+  listEl.innerHTML=list.slice(0,30).map(s=>'<div class="agent-hist-item hist-item-wrap'+(String(s.id)===String(cur)?' active':'')+'" data-id="'+s.id+'"><span class="ah-title">'+escapeHtml(s.title||'Code chat')+'</span><button type="button" class="ah-more" data-act="menu" aria-label="Menu">⁝</button></div>').join('')||'<div class="hint" style="padding:8px">No code chats yet</div>';
   listEl.querySelectorAll('.agent-hist-item').forEach(el=>el.onclick=e=>this._histMenuClick(e,el,'code'));
   const nb=$('#code-new-btn');if(nb)nb.onclick=()=>this.newCodeSession();
 }
-loadCodeSession(id){
-  const list=this.codeSessions();
-  const s=list.find(x=>x.id===id);if(!s)return;
-  this.app.storage.set('currentCodeId',id);
-  this.setMode('code');
-  const box=$('#code-messages');if(!box)return;
-  box.innerHTML='';
-  (s.messages||[]).forEach(m=>{
-    // lightweight restore
-    const div=document.createElement('div');
-    div.className='code-msg message '+(m.role==='user'?'user':'assistant');
-    const who=this.userLabel();
-    const head=m.role==='user'?('<div class="msg-who"><span class="avatar">'+(who.img||who.initial)+'</span><span>'+escapeHtml(who.label)+'</span></div>'):'<div class="msg-who"><span class="avatar">TD</span><span>Think Deeper</span></div>';
-    div.dataset.mid=m.id||uid();
-    div.innerHTML=head+'<div class="message-body">'+(m.role==='user'?escapeHtml(m.content||''):(this.renderMarkdown?this.renderMarkdown(m.content||''):escapeHtml(m.content||'')))+'</div>';
-    box.appendChild(div);
-    this.paintMsgActions(div,{kind:'code',id:div.dataset.mid,role:m.role,text:m.content||''});
+markCodeActive(id){
+  const sid=String(id||'');
+  this._currentCodeId=sid||null;
+  document.querySelectorAll('#code-hist-list .agent-hist-item, #code-session-list .code-session-item, #code-session-menu button[data-id]').forEach(n=>{
+    n.classList.toggle('active', String(n.dataset.id||n.getAttribute('data-id')||'')===sid);
   });
+}
+persistCodeSessions(list){
+  const next=Array.isArray(list)?list.slice(0,40):this.codeSessions();
+  this.app.storage.set('codeSessions',next);
+  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+}
+loadCodeSession(id){
+  if(!id)return;
+  try{this.saveCodeTranscript()}catch(e){}
+  const list=this.codeSessions();
+  const s=list.find(x=>String(x.id)===String(id));
+  if(!s){toast('Code chat not found','error');return}
+  this._currentCodeId=s.id;
+  this.app.storage.set('currentCodeId',s.id);
+  this.markCodeActive(s.id);
+  if(this.mode!=='code')this.setMode('code');
+  try{this.restoreCodeTranscript(s)}catch(e){console.warn('restore code',e)}
   this.renderCodeHist();
+  this.renderCodeSessions&&this.renderCodeSessions();
 }
 newCodeSession(){
-  const s={id:uid(),title:'Code chat',messages:[],updated:Date.now(),projectId:this.activeProjectId?this.activeProjectId():null};
+  try{this.saveCodeTranscript()}catch(e){}
+  const s={id:uid(),title:'Code chat',messages:[],updated:Date.now(),projectId:this.activeProjectId?this.activeProjectId():null,titleLocked:false};
   const list=this.codeSessions();
   list.unshift(s);
-  this.app.storage.set('codeSessions',list.slice(0,40));try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+  this.persistCodeSessions(list);
+  this._currentCodeId=s.id;
   this.app.storage.set('currentCodeId',s.id);
-  const box=$('#code-messages');if(box)box.innerHTML='';
+  this.app.storage.set('codeMessages',[]);
+  const box=$('#code-messages');
+  if(box){box.querySelectorAll('.code-msg').forEach(n=>n.remove());}
+  this.markCodeActive(s.id);
   this.renderCodeHist();
+  this.renderCodeSessions&&this.renderCodeSessions();
   toast('New code chat','success');
 }
 loadAgentSession(id){
@@ -6261,7 +6327,7 @@ async generateSessionTitle(kind,id,userText){
       const sess=list.find(x=>x.id===id);if(sess){sess.title=title;this.app.storage.set('agentSessions',list);this.renderAgentHist&&this.renderAgentHist();try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}}
     }else if(kind==='code'){
       const list=this.codeSessions();
-      const sess=list.find(x=>x.id===id);if(sess){sess.title=title;this.app.storage.set('codeSessions',list);this.renderCodeHist&&this.renderCodeHist();try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}}
+      const sess=list.find(x=>String(x.id)===String(id));if(sess){sess.title=title;sess.titleLocked=true;sess.updated=Date.now();this.app.storage.set('codeSessions',list);this.renderCodeHist&&this.renderCodeHist();this.renderCodeSessions&&this.renderCodeSessions();try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}}
     }
   }catch(e){console.warn('session title',e)}
 }
@@ -6297,7 +6363,11 @@ setMode(mode){
   if(chat)chat.style.display=mode==='chat'?'':'none';
   if(inputArea)inputArea.style.display=mode==='chat'?'':'none';
   if(intensityChat)intensityChat.style.display='none';
-  if(mode==='code')this.renderCodeFiles();
+  if(mode==='code'){
+    this._currentCodeId=this._currentCodeId||this.app.storage.get('currentCodeId',null);
+    this.renderCodeFiles();
+    try{this.restoreCodeTranscript()}catch(e){}
+  }
   if(mode==='auto')this.renderAutoHub();
   if(mode==='canvas')this.openAutoBuilder();
   const swarm=$('#swarm-view');
@@ -6325,12 +6395,16 @@ renderCodeSkills(){
 codeSessions(){return this.app.storage.get('codeSessions',[])||[]}
 currentCodeSession(){
   let list=this.codeSessions();
-  let id=this.app.storage.get('currentCodeId',null);
+  let id=this._currentCodeId||this.app.storage.get('currentCodeId',null);
   if(!list.length){
-    const s={id:uid(),title:'Code chat',messages:[],updated:Date.now()};
-    list=[s];this.app.storage.set('codeSessions',list);this.app.storage.set('currentCodeId',s.id);return s;
+    const s={id:uid(),title:'Code chat',messages:[],updated:Date.now(),titleLocked:false};
+    list=[s];this.app.storage.set('codeSessions',list);this.app.storage.set('currentCodeId',s.id);this._currentCodeId=s.id;return s;
   }
-  return list.find(s=>s.id===id)||list[0];
+  const found=list.find(s=>String(s.id)===String(id));
+  if(found){this._currentCodeId=found.id;return found}
+  this._currentCodeId=list[0].id;
+  this.app.storage.set('currentCodeId',list[0].id);
+  return list[0];
 }
 saveCodeTranscript(){
   try{
@@ -6357,19 +6431,24 @@ saveCodeTranscript(){
     const cur=this.currentCodeSession();
     cur.messages=msgs.slice(-50);
     cur.updated=Date.now();
-    if(msgs[0]&&msgs[0].role==='user')cur.title=String(msgs[0].content).replace(/\s+/g,' ').slice(0,36)||cur.title;
-    const i=list.findIndex(s=>s.id===cur.id);
+    if(!cur.titleLocked&&(!cur.title||cur.title==='Code chat')&&msgs[0]&&msgs[0].role==='user'){
+      cur.title=String(msgs[0].content).replace(/\s+/g,' ').slice(0,36)||cur.title;
+    }
+    cur.title=String(cur.title||'Code chat').slice(0,48);
+    const i=list.findIndex(s=>String(s.id)===String(cur.id));
     if(i>=0)list[i]=cur;else list.unshift(cur);
+    this._currentCodeId=cur.id;
     this.app.storage.set('codeSessions',list);
     this.app.storage.set('codeMessages',msgs.slice(-40));
     this.app.storage.set('currentCodeId',cur.id);
+    try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
     this.renderCodeSessions();
   }catch(e){}
 }
-restoreCodeTranscript(){
+restoreCodeTranscript(session){
   const box=$('#code-messages');if(!box)return;
-  const cur=this.currentCodeSession();
-  const msgs=(cur&&cur.messages)||this.app.storage.get('codeMessages',[])||[];
+  const cur=session||this.currentCodeSession();
+  const msgs=(cur&&Array.isArray(cur.messages)&&cur.messages.length)?cur.messages:((cur&&cur.messages)||[]);
   box.querySelectorAll('.code-msg').forEach(n=>n.remove());
   msgs.forEach(m=>{
     const div=document.createElement('div');
@@ -6387,7 +6466,7 @@ restoreCodeTranscript(){
 }
 renderCodeSessions(){
   const list=this.codeSessions().slice().sort((a,b)=>(b.updated||0)-(a.updated||0));
-  const cur=this.app.storage.get('currentCodeId',null);
+  const cur=this._currentCodeId||this.app.storage.get('currentCodeId',null);
   const wrap=$('#code-session-select');
   const btn=$('#code-session-btn');
   const menu=$('#code-session-menu');
@@ -6416,18 +6495,33 @@ renderCodeSessions(){
   }
 }
 newCodeSession(){
-  this.saveCodeTranscript();
-  const s={id:uid(),title:'Code chat',messages:[],updated:Date.now(),projectId:this.activeProjectId?this.activeProjectId():null};
+  try{this.saveCodeTranscript()}catch(e){}
+  const s={id:uid(),title:'Code chat',messages:[],updated:Date.now(),projectId:this.activeProjectId?this.activeProjectId():null,titleLocked:false};
   const list=this.codeSessions();list.unshift(s);
-  this.app.storage.set('codeSessions',list);this.app.storage.set('currentCodeId',s.id);
+  this.persistCodeSessions?this.persistCodeSessions(list):this.app.storage.set('codeSessions',list);
+  this._currentCodeId=s.id;
+  this.app.storage.set('currentCodeId',s.id);
+  this.app.storage.set('codeMessages',[]);
   const box=$('#code-messages');
   if(box)box.querySelectorAll('.code-msg').forEach(n=>n.remove());
-  this.renderCodeSessions();
+  this.markCodeActive&&this.markCodeActive(s.id);
+  this.renderCodeHist&&this.renderCodeHist();
+  this.renderCodeSessions&&this.renderCodeSessions();
+  toast('New code chat','success');
 }
 loadCodeSession(id){
-  this.saveCodeTranscript();
-  this.app.storage.set('currentCodeId',id);
-  this.restoreCodeTranscript();
+  if(!id)return;
+  try{this.saveCodeTranscript()}catch(e){}
+  const list=this.codeSessions();
+  const s=list.find(x=>String(x.id)===String(id));
+  if(!s){toast('Code chat not found','error');return}
+  this._currentCodeId=s.id;
+  this.app.storage.set('currentCodeId',s.id);
+  this.markCodeActive&&this.markCodeActive(s.id);
+  if(this.mode!=='code')this.setMode('code');
+  try{this.restoreCodeTranscript(s)}catch(e){console.warn('restore code',e)}
+  this.renderCodeHist&&this.renderCodeHist();
+  this.renderCodeSessions&&this.renderCodeSessions();
 }
 setCodePane(pane){
   document.querySelectorAll('.crt').forEach(b=>b.classList.toggle('active',b.dataset.pane===pane));
@@ -7178,13 +7272,37 @@ msgActionsHtml(tokEst){
   const tok=tokEst?('<span class="token-badge">~'+tokEst+' tokens</span>'):'';
   return tok+
     '<button type="button" data-act="copy" title="Copy">'+(SVG.copy||'')+'</button>'+
-    '<button type="button" data-act="edit" title="Edit">'+(SVG.edit||'')+'</button>'+
     '<button type="button" data-act="pin" title="Pin">'+(SVG.pin||'')+'</button>'+
     '<button type="button" data-act="refer" title="Refer">'+(SVG.refer||'')+'</button>'+
     '<button type="button" data-act="branch" title="Branch">'+(SVG.branch||'')+'</button>'+
     '<button type="button" data-act="regen" title="Retry">↻</button>'+
-    '<button type="button" data-act="continue" title="Continue">→</button>'+
-    '<button type="button" data-act="delete" title="Delete">'+(SVG.trash||'')+'</button>';
+    '<button type="button" data-act="continue" title="Continue">→</button>';
+}
+userMsgActionsHtml(canEdit){
+  return (canEdit?('<button type="button" data-act="edit" title="Edit and resend">'+(SVG.edit||'')+'</button>'):'')+
+    '<button type="button" data-act="delete" title="Delete with reply">'+(SVG.trash||'')+'</button>';
+}
+latestUserId(kind){
+  try{
+    if(kind==='chat'){
+      const conv=this.app.conversations.get(this.app.conversations.currentId);
+      const msgs=(conv&&conv.messages)||[];
+      for(let i=msgs.length-1;i>=0;i--) if(msgs[i].role==='user') return msgs[i].id;
+    }else if(kind==='code'){
+      const cur=this.currentCodeSession&&this.currentCodeSession();
+      const msgs=(cur&&cur.messages)||[];
+      for(let i=msgs.length-1;i>=0;i--) if(msgs[i].role==='user') return msgs[i].id;
+      const box=$('#code-messages');
+      if(box){const els=[...box.querySelectorAll('.code-msg.user')];if(els.length)return els[els.length-1].dataset.mid}
+    }else{
+      const s=(this.agentSessions()||[]).find(x=>x.id===this._currentAgentSessionId);
+      const msgs=(s&&s.messages)||[];
+      for(let i=msgs.length-1;i>=0;i--) if(msgs[i].role==='user') return msgs[i].id;
+      const box=$('#swarm-think');
+      if(box){const els=[...box.querySelectorAll('.agent-msg.user')];if(els.length)return els[els.length-1].dataset.mid}
+    }
+  }catch(e){}
+  return null;
 }
 paintMsgActions(el,ctx){
   if(!el)return;
@@ -7198,18 +7316,26 @@ paintMsgActions(el,ctx){
   }
   const text=ctx.text!=null?ctx.text:this.msgElText(el);
   const tokEst=ctx.tokEst!=null?ctx.tokEst:Math.max(1,Math.round(String(text||'').length/4));
-  actions.innerHTML=this.msgActionsHtml(ctx.role==='user'?0:tokEst);
   const kind=ctx.kind||this.mode||'chat';
   const id=ctx.id||el.dataset.mid||null;
+  const isUser=ctx.role==='user'||el.classList.contains('user');
+  if(isUser){
+    const canEdit=!!id&&id===this.latestUserId(kind);
+    actions.innerHTML=this.userMsgActionsHtml(canEdit);
+    const go=(act,fn)=>{const b=actions.querySelector('[data-act="'+act+'"]');if(b)b.onclick=e=>{e.preventDefault();e.stopPropagation();fn()}};
+    go('edit',()=>this.editAndResendUser(kind,id,el));
+    go('delete',()=>this.deleteUserAndReply(kind,id,el));
+    this.setupMessageSelection(el);
+    return;
+  }
+  actions.innerHTML=this.msgActionsHtml(tokEst);
   const go=(act,fn)=>{const b=actions.querySelector('[data-act="'+act+'"]');if(b)b.onclick=e=>{e.preventDefault();e.stopPropagation();fn()}};
   go('copy',()=>this.copyMessage(text));
-  go('edit',()=>this.editThreadMessage(kind,id,el));
   go('pin',()=>this.pinText(text));
   go('refer',()=>this.referText(text));
   go('branch',()=>this.branchThread(kind,id,el));
   go('regen',()=>this.retryThread(kind));
   go('continue',()=>this.continueThread(kind));
-  go('delete',()=>this.deleteThreadMessage(kind,id,el));
   this.setupMessageSelection(el);
 }
 msgElText(el){
@@ -7262,8 +7388,98 @@ editThreadMessage(kind,id,el){
   }
   toast('Updated','success');
 }
+editAndResendUser(kind,id,el){
+  const cur=this.msgElText(el);
+  const next=prompt('Edit message',cur);
+  if(next===null)return;
+  const text=String(next).trim();
+  if(!text){toast('Message cannot be empty','error');return}
+  if(kind==='chat'){
+    const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
+    const idx=(conv.messages||[]).findIndex(m=>m.id===id);
+    if(idx<0)return;
+    conv.messages[idx].content=text;
+    conv.messages=conv.messages.slice(0,idx+1);
+    this.app.conversations.persist();
+    this.loadConversation(conv.id);
+    return this.regenerateLast();
+  }
+  if(kind==='code'){
+    const curS=this.currentCodeSession&&this.currentCodeSession();if(!curS)return;
+    const msgs=curS.messages||[];
+    let idx=msgs.findIndex(m=>m.id===id);
+    if(idx<0)idx=msgs.map(m=>m.role).lastIndexOf?msgs.length-1:-1;
+    if(idx<0){for(let i=msgs.length-1;i>=0;i--) if(msgs[i].role==='user'){idx=i;break}}
+    if(idx<0)return;
+    msgs[idx].content=text;
+    curS.messages=msgs.slice(0,idx+1);
+    this.app.storage.set('codeSessions',this.codeSessions());
+    this.restoreCodeTranscript();
+    const box=$('#code-user-input');if(box)box.value=text;
+    return this.sendCode();
+  }
+  const sid=this._currentAgentSessionId;
+  const list=this.agentSessions();
+  const s=list.find(x=>x.id===sid);if(!s)return;
+  const msgs=s.messages||[];
+  let idx=-1;for(let i=msgs.length-1;i>=0;i--) if(msgs[i].role==='user'&&(!id||msgs[i].id===id)){idx=i;break}
+  if(idx<0)return;
+  msgs[idx].content=text;
+  s.messages=msgs.slice(0,idx+1);
+  this.saveAgentSession(s);
+  this.loadAgentSession(s.id);
+  const t=$('#swarm-goal');if(t)t.value=text;
+  this._agentFollowupReady=true;this._wantNewAgentChat=false;
+  return this.confirmAgentSetup(true);
+}
+deleteUserAndReply(kind,id,el){
+  if(!confirm('Delete this message and the reply after it?'))return;
+  if(kind==='chat'){
+    const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
+    const idx=(conv.messages||[]).findIndex(m=>m.id===id);
+    if(idx<0){this.deleteMessage&&this.deleteMessage(id);return}
+    let end=idx+1;while(end<conv.messages.length&&conv.messages[end].role!=='user')end++;
+    conv.messages=conv.messages.slice(0,idx).concat(conv.messages.slice(end));
+    this.app.conversations.persist();this.loadConversation(conv.id);toast('Deleted','success');return;
+  }
+  if(kind==='code'){
+    const cur=this.currentCodeSession&&this.currentCodeSession();
+    if(cur&&Array.isArray(cur.messages)){
+      const idx=cur.messages.findIndex(m=>String(m.id)===String(id));
+      if(idx>=0){
+        let end=idx+1;while(end<cur.messages.length&&cur.messages[end].role!=='user')end++;
+        cur.messages=cur.messages.slice(0,idx).concat(cur.messages.slice(end));
+        this.app.storage.set('codeSessions',this.codeSessions());
+      }
+    }
+    const box=$('#code-messages');
+    if(el&&(el.classList.contains('user')||(el.classList&&el.classList.contains('code-msg')))){
+      let n=el.nextElementSibling;
+      el.remove();
+      if(n&&!n.classList.contains('user'))n.remove();
+    }
+    this.saveCodeTranscript();toast('Deleted','success');return;
+  }
+  const sid=this._currentAgentSessionId;
+  const list=this.agentSessions();
+  const s=list.find(x=>x.id===sid);
+  if(s&&s.messages){
+    const idx=s.messages.findIndex(m=>String(m.id)===String(id));
+    if(idx>=0){
+      let end=idx+1;while(end<s.messages.length&&s.messages[end].role!=='user')end++;
+      s.messages=s.messages.slice(0,idx).concat(s.messages.slice(end));
+      this.app.storage.set('agentSessions',list);
+    }
+  }
+  if(el){
+    let n=el.nextElementSibling;
+    el.remove();
+    if(n&&!n.classList.contains('user'))n.remove();
+  }
+  toast('Deleted','success');
+}
 deleteThreadMessage(kind,id,el){
-  if(kind==='chat')return this.deleteMessage(id);
+  if(kind==='chat')return this.deleteUserAndReply(kind,id,el);
   if(!confirm('Delete this message?'))return;
   if(kind==='code'){
     if(el&&el.remove)el.remove();
@@ -7362,16 +7578,7 @@ bindMessageHover(div,msg){
   if(!div||!msg)return;
   const bar=div.querySelector('.message-hover-actions');if(!bar)return;
   if(bar.dataset.bound)return;bar.dataset.bound='1';
-  const conv=this.app.conversations.get(this.app.conversations.currentId);
-  const msgs=(conv&&conv.messages)||[];
-  const idx=msgs.findIndex(m=>m.id===msg.id);
-  const isLast=idx===msgs.length-1;
-  const isLastUser=msg.role==='user'&&idx>=0&&!msgs.slice(idx+1).some(m=>m.role==='user');
-  const mk=(title,svg,fn)=>{const b=document.createElement('button');b.type='button';b.title=title;b.innerHTML=svg;b.onclick=e=>{e.stopPropagation();fn()};return b};
-  if(msg.role==='user'&&isLastUser){
-    bar.appendChild(mk('Edit',SVG.edit||'✎',()=>this.editUserMessage(msg.id)));
-    bar.appendChild(mk('Delete',SVG.trash||'🗑',()=>this.deleteUserTurn(msg.id)));
-  }
+  // User actions live on .message-actions (edit latest only + delete with reply).
 }
 editUserMessage(msgId){
   const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
@@ -7420,7 +7627,7 @@ deleteAiTurn(msgId){
 forgetAiTurn(msgId){this.deleteAiTurn(msgId)} /* alias */
 renderMessage(msg,isStreaming=false){const container=$('#messages');const div=document.createElement('div');div.className=`message ${msg.role}`;div.dataset.id=msg.id;const who=this.userLabel();const roleLabel=msg.role==='user'?who.label:'Think Deeper';const avatarText=msg.role==='user'?who.initial:'TD';let attachHtml='';if(msg.attachments?.length){attachHtml='<div class="attachments">';msg.attachments.forEach(a=>{if(a.dataUrl)attachHtml+=`<div class="attachment"><img src="${a.dataUrl}" alt=""></div>`;else attachHtml+=`<div class="attachment"><div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div></div>`});attachHtml+='</div>'}
 const bodyContent=msg.role==='user'?escapeHtml(this.visibleUserText(msg)).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
-div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.activities&&msg.activities.length){try{this.hydrateThoughts(div,msg)}catch(e){console.warn('hydrate',e)}}this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb)}if(msg.role==='assistant'&&msg.content&&!isStreaming)this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'assistant',text:msg.content});if(msg.role==='assistant')this.hydrateThoughts(div,msg);this.setupMessageSelection(div);this.scrollToBottom();return div}
+div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.activities&&msg.activities.length){try{this.hydrateThoughts(div,msg)}catch(e){console.warn('hydrate',e)}}this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb)}if(msg.role==='assistant'&&msg.content&&!isStreaming)this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'assistant',text:msg.content});if(msg.role==='user')this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'user',text:msg.content||''});if(msg.role==='assistant')this.hydrateThoughts(div,msg);this.setupMessageSelection(div);this.scrollToBottom();return div}
 renderMarkdown(text){
   if(!text)return '';
   let t=String(text);
