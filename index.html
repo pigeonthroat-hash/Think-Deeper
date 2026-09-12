@@ -1940,7 +1940,15 @@ class CloudSync{
     const merged=Object.assign({},prev||{},payload);
     if(!data.apiKey||!String(data.apiKey).trim()){if(prev&&prev.apiKey)merged.apiKey=prev.apiKey}
     if(!data.fallbackApiKey||!String(data.fallbackApiKey).trim()){if(prev&&prev.fallbackApiKey)merged.fallbackApiKey=prev.fallbackApiKey}
-    await this.db.collection('system').doc('defaults').set(merged,{merge:true});
+    try{
+      await this.db.collection('system').doc('defaults').set(merged,{merge:true});
+      // Mirror what cloud has into localStorage
+      try{localStorage.setItem('thinkdeeper_v2_systemDefaults',JSON.stringify(merged))}catch(e){}
+      console.log('[CloudSync] system defaults written to cloud');
+    }catch(e){
+      console.error('[CloudSync] system defaults cloud write failed',e);
+      throw new Error('Cloud save failed: '+(e.message||e)+'. Check Firestore rules for system/defaults (dev write + public read).');
+    }
     return merged;
   }
   applySystemDefaults(app,data,opts){
@@ -1991,26 +1999,44 @@ class CloudSync{
   }
   /** Load site-wide defaults from device cache + optional cloud; safe after login/logout */
   async rehydrateSystemDefaults(app){
-    let data=null;
-    try{data=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'null')}catch(e){}
+    // Cloud is the source of truth so guests who clear cache still get the site key
+    if(!this.ready)this.init();
+    let local=null;
+    try{local=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'null')}catch(e){}
+    let remote=null;
     try{
       if(this.ready&&this.db){
-        const remote=await this.pullSystemDefaults();
-        if(remote){
-          if(!data)data=remote;
-          else if((remote.updatedAt||0)>=(data.updatedAt||0))data=Object.assign({},data,remote);
-        }
+        const doc=await this.db.collection('system').doc('defaults').get();
+        if(doc.exists)remote=doc.data()||null;
       }
-    }catch(e){}
+    }catch(e){
+      console.warn('[CloudSync] system defaults pull (need public read on system/defaults)',e&&e.message||e);
+    }
+    // Prefer remote when present (survives cache clear); else local cache
+    let data=null;
+    if(remote&&(remote.apiKey||remote.baseUrl||remote.model)){
+      data=Object.assign({},local||{},remote);
+      // Always mirror cloud → local so offline restarts work until next clear
+      try{localStorage.setItem('thinkdeeper_v2_systemDefaults',JSON.stringify(Object.assign({},data,{updatedAt:data.updatedAt||Date.now()})))}catch(e){}
+    }else if(local){
+      data=local;
+    }
     if(data){
-      // Prefer site-wide key for every account/guest unless user set a personal key
+      // Force-apply system key for everyone who does not have a personal key
       this.applySystemDefaults(app,data,{force:false});
-      // Ensure live config has the key even if storage namespaces differ
       if(data.apiKey&&app.provider&&app.provider.config){
         if(!app.provider.config.apiKey||app.provider.config._fromSystem){
           app.provider.config.apiKey=String(data.apiKey).trim();
           app.provider.config._fromSystem=true;
+          app.provider.config.rememberKey=true;
+          try{app.provider.save(app.provider.config)}catch(e){}
         }
+      }
+      if(data.baseUrl&&app.provider&&app.provider.config&&(!app.provider.config.baseUrl||app.provider.config._fromSystem)){
+        app.provider.config.baseUrl=String(data.baseUrl).trim();
+      }
+      if(data.model&&app.provider&&app.provider.config&&(!app.provider.config.model||app.provider.config._fromSystem)){
+        app.provider.config.model=String(data.model).trim();
       }
     }
     return data;
@@ -7197,38 +7223,32 @@ async saveDevPanel(){
     fallbackApiKey:($('#dev-fb-key')&&$('#dev-fb-key').value||'').trim(),
     modelCatalog:this._devCatalog||[]
   };
-  // Always write device-wide local defaults first
+  // Merge with previous so empty key fields keep the existing site key
+  let local={};
   try{
     const prev=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'{}')||{};
-    const local=Object.assign({},prev,payload,{updatedAt:Date.now(),updatedBy:String(email).toLowerCase()});
+    local=Object.assign({},prev,payload,{updatedAt:Date.now(),updatedBy:String(email).toLowerCase()});
     if(!payload.apiKey)local.apiKey=prev.apiKey||'';
     if(!payload.fallbackApiKey)local.fallbackApiKey=prev.fallbackApiKey||'';
     localStorage.setItem('thinkdeeper_v2_systemDefaults',JSON.stringify(local));
     if(this.app.cloud&&this.app.cloud.applySystemDefaults)this.app.cloud.applySystemDefaults(this.app,local,{force:true});
-    else{
-      // direct apply
-      const c=this.app.provider.config||{};
-      if(local.apiKey)c.apiKey=local.apiKey;
-      if(local.baseUrl)c.baseUrl=local.baseUrl;
-      if(local.model)c.model=local.model;
-      if(local.fallbackApiKey)c.fallbackApiKey=local.fallbackApiKey;
-      if(local.fallbackBaseUrl)c.fallbackBaseUrl=local.fallbackBaseUrl;
-      if(local.fallbackModel)c.fallbackModel=local.fallbackModel;
-      this.app.provider.save(c);
-    }
   }catch(e){console.warn(e)}
   let cloudOk=false;
   try{
     if(!this.app.cloud.ready)this.app.cloud.init();
-    await this.app.cloud.pushSystemDefaults(payload,email);
+    // Push merged object (includes keys) so cloud is the permanent store
+    await this.app.cloud.pushSystemDefaults(local,email);
     cloudOk=true;
   }catch(e){
     console.warn('[dev save cloud]',e);
+    toast(String(e.message||e),'error');
   }
   if($('#dev-api-key'))$('#dev-api-key').value='';
   if($('#dev-fb-key'))$('#dev-fb-key').value='';
-  this.closeDevPanel();
-  toast(cloudOk?'System defaults saved (device + cloud)':'System defaults saved on this device (cloud rules blocked write — publish Firestore rules for system/defaults)','success');
+  try{this._renderDevKeyStatus&&this._renderDevKeyStatus()}catch(e){}
+  this.closeDevPanel&&this.closeDevPanel();
+  if(cloudOk)toast('Site API key saved to cloud — works for all guests and accounts','success');
+  else if(!cloudOk){/* error already toasted */}
 }
 
 
@@ -7968,10 +7988,21 @@ start(){
   this.cloud._app=this;
   this.ui.init();
   (async()=>{
-    try{
-      if(!this.cloud.ready)this.cloud.init();
-      await this.cloud.rehydrateSystemDefaults(this);
-    }catch(e){console.warn('[system defaults]',e)}
+    // Pull site-wide API key from cloud (works for guests after cache clear if Firestore allows public read)
+    for(let attempt=0;attempt<5;attempt++){
+      try{
+        if(!this.cloud.ready)this.cloud.init();
+        if(!this.cloud.ready){await new Promise(r=>setTimeout(r,400*(attempt+1)));continue}
+        const data=await this.cloud.rehydrateSystemDefaults(this);
+        if(data&&data.apiKey){
+          console.log('[CloudSync] site API key loaded from cloud/cache');
+          try{this.ui&&this.ui.renderModelLabel&&this.ui.renderModelLabel()}catch(e){}
+          break;
+        }
+        // no key yet — wait and retry (rules / race)
+        await new Promise(r=>setTimeout(r,500*(attempt+1)));
+      }catch(e){console.warn('[system defaults]',e);await new Promise(r=>setTimeout(r,400))}
+    }
   })();
   this.ui.scheduleAutomations&&this.ui.scheduleAutomations();
   this.cloud.bindCrossTab&&this.cloud.bindCrossTab(this);
