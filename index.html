@@ -251,7 +251,7 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 .code-toolbar button:hover{border-color:var(--accent);background:var(--bg-hover)}
 .code-toolbar input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .code-messages{flex:1;overflow:auto;padding:20px 22px;scrollbar-width:thin}
-.code-input-area{padding:14px 16px 18px;border-top:1px solid var(--border);background:var(--bg-secondary)}
+.code-input-area{padding:10px 12px 12px;border-top:1px solid var(--border);background:var(--bg-secondary);display:flex;flex-direction:column;align-items:center}
 .code-input-area .input-box{background:var(--bg-elevated)!important;border:1px solid var(--border)!important;border-radius:14px!important;box-shadow:0 4px 24px rgba(0,0,0,.25)}
 .code-input-area textarea{color:var(--text-primary)!important}
 .code-file-tree{flex:1;overflow:auto;font-size:.78rem;padding:4px 10px 12px}
@@ -271,13 +271,14 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 
 
 #code-user-input{
-  width:100%;min-height:52px;max-height:200px;resize:none;border:none;outline:none;
-  background:transparent;color:#e5e7eb;font-size:.95rem;line-height:1.5;
-  font-family:var(--font-body);padding:4px 2px;
+  width:100%;min-height:28px;max-height:88px;resize:none;border:none;outline:none;
+  background:transparent;color:#e5e7eb;font-size:.88rem;line-height:1.4;
+  font-family:var(--font-body);padding:2px 2px;
 }
 #code-user-input::placeholder{color:#6b7280}
 .code-input-area .input-box{
-  display:flex;align-items:flex-end;gap:10px;padding:12px 14px;
+  display:flex;align-items:flex-end;gap:8px;padding:6px 8px;
+  width:min(280px,92%);max-width:280px;margin:0 auto;
   background:var(--bg-elevated)!important;border:1px solid var(--border)!important;border-radius:16px!important;
 }
 .code-input-area .input-box:focus-within{border-color:var(--accent)!important;box-shadow:0 0 0 3px rgba(59,130,246,.18)!important}
@@ -479,7 +480,7 @@ button,.icon-btn,.conv-item,.project-item,.send-btn,.mode-tab,.intensity-chip,.a
 }
 #code-view .code-main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg-primary)}
 #code-view .code-messages{flex:1;overflow:auto;padding:20px 22px}
-#code-view .code-input-area{padding:14px 16px 18px;border-top:1px solid var(--border);background:var(--bg-secondary)}
+#code-view .code-input-area{padding:10px 12px 12px;border-top:1px solid var(--border);background:var(--bg-secondary);display:flex;flex-direction:column;align-items:center}
 #code-view .code-input-area .input-box{
   background:var(--bg-elevated)!important;border:1px solid var(--border)!important;border-radius:16px!important
 }
@@ -1189,16 +1190,19 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 
 .code-input-area{display:flex;justify-content:center;padding:10px 12px 12px !important}
 .code-input-area .input-box{
-  width:100%;max-width:320px;margin:0 auto;
-  padding:7px 10px !important;
+  width:min(280px,92%);max-width:280px !important;margin:0 auto;
+  padding:6px 8px !important;
   align-items:flex-end;
 }
 #code-user-input{width:100%;min-height:28px !important;max-height:96px !important;font-size:.9rem}
 #code-attachments,.agent-attachments{display:flex;flex-wrap:wrap;gap:6px;max-width:320px;margin:0 auto 6px}
 .agent-chat-input-area .agent-input-box{max-width:560px;margin:0 auto;width:100%}
 .agent-attach-row{display:flex;align-items:center;gap:8px;max-width:560px;margin:0 auto 6px}
-#dev-panel-btn.dev-on{display:flex !important}
+#dev-panel-btn{display:none}#dev-panel-btn.dev-on{display:flex !important}
 #acct-dev-box{margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+
+.code-input-area .attach-btn,.agent-input-box .attach-btn{width:32px;height:32px;flex-shrink:0;border-radius:8px;color:var(--text-secondary)}
+.code-input-area .attach-btn:hover,.agent-input-box .attach-btn:hover{background:var(--bg-hover);color:var(--accent)}
 
 </style>
 </head>
@@ -1241,7 +1245,7 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <button id="workspace-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> External Workspace</button>
 <button type="button" id="workspace-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg> Remove workspace</button>
 <button id="automations-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M17.5 14v7M14 17.5h7"/></svg> Build Automations</button>
-<button id="dev-panel-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Dev panel</button>
+<button id="dev-panel-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Dev panel</button>
 <button id="settings-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Settings</button>
 <button class="icon-btn" id="theme-btn" aria-label="Toggle theme" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg> Theme</button>
 </div>
@@ -1651,9 +1655,10 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <div class="form-group"><label>Font theme</label>
 <select id="font-theme"><option value="default">Default (Anthropic pair)</option><option value="serif">Serif editorial</option><option value="mono">Mono technical</option><option value="round">Soft rounded</option></select>
 </div>
-<div id="acct-dev-box" style="display:none">
+<div id="acct-dev-box">
 <label>Developer access</label>
-<p class="hint">This account can open the Dev panel and edit site-wide defaults.</p>
+<p class="hint">Turn this on for the signed-in account to show Dev panel in the sidebar and edit local site defaults. Cloud-wide key publish still needs a listed owner account.</p>
+<label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" id="acct-dev-toggle"> Enable Dev panel for this account</label>
 <button type="button" class="btn-secondary" id="acct-open-dev">Open Dev panel</button>
 <div class="model-lib-add" style="margin-top:8px"><input type="email" id="acct-dev-email" placeholder="Grant another account email"><button type="button" class="btn-secondary" id="acct-dev-grant">Grant</button></div>
 </div>
@@ -1837,13 +1842,39 @@ function grantDevEmail(email){
   try{localStorage.setItem('thinkdeeper_v2_devEmails',JSON.stringify(extra))}catch(err){}
   return true;
 }
+function currentAccountEmail(){
+  try{
+    if(window.__app&&window.__app.storage&&window.__app.storage.getActiveUser){
+      const u=window.__app.storage.getActiveUser();
+      if(u&&u.email)return String(u.email).trim().toLowerCase();
+    }
+  }catch(e){}
+  try{
+    const u=JSON.parse(localStorage.getItem('thinkdeeper_v2_activeUser')||'null');
+    if(u&&u.email)return String(u.email).trim().toLowerCase();
+  }catch(e){}
+  return '';
+}
 function isDevAccount(email){
   const allow=devAllowList();
-  const e=String(email||'').trim().toLowerCase();
+  const e=String(email||currentAccountEmail()||'').trim().toLowerCase();
   if(e&&allow.includes(e))return true;
   try{
     const u=JSON.parse(localStorage.getItem('thinkdeeper_v2_activeUser')||'null');
     if(u&&u.email&&allow.includes(String(u.email).trim().toLowerCase()))return true;
+  }catch(err){}
+  try{
+    if(localStorage.getItem('thinkdeeper_v2_devMode')==='1')return true;
+  }catch(err){}
+  try{
+    const p=JSON.parse(localStorage.getItem('thinkdeeper_v2_profile')||'null')||{};
+    if(p&&p.devMode)return true;
+  }catch(err){}
+  try{
+    if(window.__app&&window.__app.storage){
+      const p=window.__app.storage.get('profile',{})||{};
+      if(p&&p.devMode)return true;
+    }
   }catch(err){}
   return false;
 }
@@ -5242,7 +5273,7 @@ initCodeMode(){
   this.app.tools.githubToken=this.app.storage.get('githubToken','')||'';
   window.__app=this.app;if(window.__app)window.__app.ui=this;
   const ref=$('#code-refresh-files');if(ref)ref.onclick=()=>{this.renderCodeFiles();this.refreshCodePreview&&this.refreshCodePreview();this.renderCodeSessions&&this.renderCodeSessions();toast('Refreshed','success')};
-  const send=$('#code-send-btn');if(send)send.onclick=()=>this.sendCode();
+  const send=$('#code-send-btn');if(send)send.onclick=()=>this.sendCode();const cab=$('#code-attach-btn');if(cab)cab.onclick=()=>$('#file-input')&&$('#file-input').click();const aab=$('#agent-attach-btn');if(aab)aab.onclick=()=>$('#file-input')&&$('#file-input').click();
   const stopCode=$('#code-stop-btn');if(stopCode)stopCode.onclick=()=>{this.app.agent.stop();toast('Stopping…','info')};
   this.bindIntensityBars();
 
@@ -5738,7 +5769,7 @@ resetAgentChatView(){
 
 openAgentSetup(){
   const goal=($('#swarm-goal')?.value||'').trim();
-  if(!goal){toast('Type a message first','error');return}
+  if(!goal&&!(this.pendingAttachments&&this.pendingAttachments.length)){toast('Type a message or attach a file first','error');return}
   if(this.app.swarm&&this.app.swarm.alive){
     try{this.app.swarm.stop()}catch(e){}
     this._agentDeadline=0;
@@ -5761,6 +5792,8 @@ openAgentSetup(){
 async runAgentQuickAsk(goal){
   if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');return}
   if(!this.app.provider.config.model){toast('Select a model in Settings','error');return}
+  const qAtt=this.consumePendingAttachments?this.consumePendingAttachments():[];
+  if(qAtt&&qAtt.length)goal=String(goal||'Use the attached files.')+'\n\nAttached files (also in uploads/):\n'+qAtt.map(a=>'- '+(a.vfsPath||a.name)).join('\n');
   const t=$('#swarm-goal');if(t){t.value='';t.style.height='auto'}
   const empty=$('#agent-empty');if(empty)empty.style.display='none';
   const box=$('#swarm-think');
@@ -6830,7 +6863,18 @@ showEmpty(){
   }
 }hideEmpty(){$('#empty-state').style.display='none'}
 autoResizeInput(){const ta=$('#user-input');ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,200)+'px'}
-handleFiles(files){[...files].forEach(file=>{const reader=new FileReader();if(file.type.startsWith('image/')){reader.onload=()=>{this.pendingAttachments.push({name:file.name,type:file.type,dataUrl:reader.result});this.renderAttachments()};reader.readAsDataURL(file)}else{reader.onload=()=>{this.pendingAttachments.push({name:file.name,type:file.type,content:reader.result});this.renderAttachments()};reader.readAsText(file)}});const fi=$('#file-input');if(fi)fi.value=''}
+handleFiles(files){[...files].forEach(file=>{
+  const reader=new FileReader();
+  const isImg=String(file.type||'').startsWith('image/');
+  const isText=/text\/|json|javascript|xml|csv|markdown|svg/i.test(file.type||'')||/\.(txt|md|py|js|ts|json|csv|html|css|svg)$/i.test(file.name||'');
+  reader.onload=()=>{
+    if(isImg)this.pendingAttachments.push({name:file.name,type:file.type,dataUrl:reader.result,isImage:true});
+    else if(isText)this.pendingAttachments.push({name:file.name,type:file.type||'text/plain',content:reader.result});
+    else this.pendingAttachments.push({name:file.name,type:file.type||'application/octet-stream',dataUrl:reader.result});
+    this.renderAttachments();
+  };
+  if(isImg||!isText)reader.readAsDataURL(file);else reader.readAsText(file);
+});const fi=$('#file-input');if(fi)fi.value=''}
 attachTargets(){return [$('#attachments'),$('#code-attachments'),$('#agent-attachments')].filter(Boolean)}
 renderAttachments(){
   const hosts=this.attachTargets();
@@ -6841,10 +6885,10 @@ consumePendingAttachments(){
   const saved=(this.pendingAttachments||[]).slice().map(a=>{
     try{
       if(!a||!a.name)return a;
-      if(a.dataUrl&&String(a.type||'').startsWith('image/')){
+      if(a.dataUrl){
         const path='uploads/'+a.name;
         try{this.app.vfs.write(path,a.dataUrl,{archiveOld:false})}catch(e){}
-        return {name:a.name,type:a.type||'image/png',vfsPath:path,dataUrl:a.dataUrl,isImage:true};
+        return {name:a.name,type:a.type||'application/octet-stream',vfsPath:path,dataUrl:a.dataUrl,isImage:String(a.type||'').startsWith('image/')};
       }
       if(a.content){
         const path='uploads/'+a.name;
@@ -7860,12 +7904,15 @@ renderAuth(){
   const user=this.app.storage.getActiveUser();
   const email=(user&&user.email)||'';
   const isDev=isDevAccount(email);
+  const signed=!!(user&&user.id);
   const devBtn=$('#dev-panel-btn');
   if(devBtn){
     devBtn.classList.toggle('dev-on',!!isDev);
-    devBtn.style.display=isDev?'flex':'none';
+    if(isDev){devBtn.style.display='flex';devBtn.removeAttribute('hidden')}
+    else {devBtn.style.display='none'}
   }
-  const box=$('#acct-dev-box');if(box)box.style.display=isDev?'block':'none';
+  const box=$('#acct-dev-box');if(box)box.style.display=signed?'block':'none';
+  const tg=$('#acct-dev-toggle');if(tg)tg.checked=!!isDev;
 
   if(user&&user.id){
     const avatar=user.picture?`<img class="auth-avatar" src="${escapeHtml(user.picture)}" alt="">`:`<span class="auth-avatar" style="display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-size:.7rem">${escapeHtml((user.name||user.email||'?')[0]||'?')}</span>`;
@@ -8687,7 +8734,7 @@ publishVersionFromDev(){
 }
 openDevPanel(){
   const user=this.app.storage.getActiveUser()||{};
-  if(!isDevAccount(user.email)){toast('Dev panel is restricted','error');return}
+  if(!isDevAccount(user.email)){toast('Enable Dev panel in Account first','error');return}
   const ov=$('#dev-panel-overlay');
   if(!ov){toast('Dev panel UI missing','error');return}
   this._bindDevPanelOnce();
@@ -8963,8 +9010,22 @@ openAccountMenu(){
   if($('#acct-preview'))$('#acct-preview').src=pic||'';
   if($('#acct-pic-url'))$('#acct-pic-url').value=(pic&&pic.startsWith('http'))?pic:'';
   this._acctPicData=(pic&&String(pic).startsWith('data:'))?pic:null;
+  const signed=!!(user&&user.id);
   const isDev=isDevAccount(user.email);
-  const box=$('#acct-dev-box');if(box)box.style.display=isDev?'block':'none';
+  const box=$('#acct-dev-box');if(box)box.style.display=signed?'block':'none';
+  const tg=$('#acct-dev-toggle');
+  if(tg){
+    tg.checked=!!isDev;
+    tg.onchange=()=>{
+      const on=!!tg.checked;
+      try{localStorage.setItem('thinkdeeper_v2_devMode',on?'1':'0')}catch(e){}
+      const p=this.app.storage.get('profile',{})||{};
+      p.devMode=on;this.app.storage.set('profile',p);
+      if(on&&user.email)grantDevEmail(user.email);
+      this.renderAuth();
+      toast(on?'Dev panel enabled for this account':'Dev panel disabled','success');
+    };
+  }
   const od=$('#acct-open-dev');if(od)od.onclick=()=>{$('#account-overlay').classList.remove('open');this.openDevPanel()};
   const gd=$('#acct-dev-grant');if(gd)gd.onclick=()=>{
     const em=($('#acct-dev-email')&&$('#acct-dev-email').value)||'';
