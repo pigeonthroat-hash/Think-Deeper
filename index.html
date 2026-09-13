@@ -3301,7 +3301,13 @@ messagesToGemini(messages){
     }
     const role=msg.role==='assistant'?'model':'user';
     if(role==='model'&&msg._geminiParts&&msg._geminiParts.length){
-      contents.push({role:'model',parts:msg._geminiParts});
+      // Strip thoughtSignature — Gemini accepts it on responses only, not on request functionCall parts
+      const cleanParts=msg._geminiParts.map(p=>{
+        if(!p||!p.functionCall)return p;
+        const fc={name:p.functionCall.name||'',args:p.functionCall.args||p.functionCall.arguments||{}};
+        return {functionCall:fc};
+      });
+      contents.push({role:'model',parts:cleanParts});
       continue;
     }
     const parts=[];
@@ -3326,36 +3332,21 @@ messagesToGemini(messages){
         const fn=tc.function||{};
         let args={};
         try{args=typeof fn.arguments==='string'?JSON.parse(fn.arguments||'{}'):(fn.arguments||{});}catch(e){args={_raw:String(fn.arguments||'')}}
-        const sig=tc.thoughtSignature||tc.thought_signature||(tc.extra_content&&tc.extra_content.google&&(tc.extra_content.google.thoughtSignature||tc.extra_content.google.thought_signature))||null;
+        // Do not attach thoughtSignature — Gemini rejects it on request payloads
         const fcPart={functionCall:{name:fn.name||'',args:args&&typeof args==='object'&&!Array.isArray(args)?args:{}}};
-        if(sig){
-          fcPart.thoughtSignature=sig;
-          fcPart.thought_signature=sig;
-          fcPart.functionCall.thoughtSignature=sig;
-        }
         parts.push(fcPart);
       });
     }
     if(parts.length)contents.push({role,parts});
   }
   if(!contents.length)contents.push({role:'user',parts:[{text:'Hello'}]});
+  // Ensure no residual thoughtSignature fields leak into the request
   contents.forEach(c=>{
-    if(!c||c.role!=='model'||!c.parts)return;
-    const fcs=c.parts.filter(p=>p&&p.functionCall);
-    if(!fcs.length)return;
-    const hasSig=fcs.some(p=>p.thoughtSignature||p.thought_signature||(p.functionCall&&(p.functionCall.thoughtSignature||p.functionCall.thought_signature)));
-    if(hasSig){
-      const first=fcs[0];
-      if(!(first.thoughtSignature||first.thought_signature||first.functionCall.thoughtSignature)){
-        const donor=fcs.find(p=>p.thoughtSignature||p.thought_signature||(p.functionCall&&p.functionCall.thoughtSignature));
-        const sig=donor&&(donor.thoughtSignature||donor.thought_signature||donor.functionCall.thoughtSignature);
-        if(sig){first.thoughtSignature=sig;first.thought_signature=sig;}
-      }
-      return;
-    }
+    if(!c||!c.parts)return;
     c.parts=c.parts.map(p=>{
       if(!p||!p.functionCall)return p;
-      return {text:'Called '+p.functionCall.name+'(' + JSON.stringify(p.functionCall.args||{}) + ')'};
+      const fc={name:p.functionCall.name||'',args:p.functionCall.args||p.functionCall.arguments||{}};
+      return {functionCall:fc};
     });
   });
   return {system:systemParts.join('\n\n'),contents};
