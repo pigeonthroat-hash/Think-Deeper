@@ -421,6 +421,19 @@ button,.icon-btn,.conv-item,.project-item,.send-btn,.mode-tab,.intensity-chip,.a
 /* Writing step live */
 .tp-step.writing-live .tp-step-body{display:block;max-height:200px;overflow:auto;font-family:ui-monospace,monospace;font-size:.72rem}
 .tp-step .line-delta{color:#16a34a;font-weight:600;margin-left:6px}
+.tp-step-head{display:flex;align-items:center;gap:6px;width:100%}
+.tp-step-head .tp-step-title{flex:1;min-width:0}
+.tp-step-head .line-delta{
+  margin-left:auto;margin-right:6px;font-size:.75rem;font-weight:700;font-variant-numeric:tabular-nums;
+  white-space:nowrap;color:var(--text-secondary)
+}
+.tp-step-head .line-delta .add{color:#16a34a}
+.tp-step-head .line-delta .del{color:#dc2626}
+.tp-step.writing-live .tp-step-body{
+  display:block!important;max-height:220px;overflow:auto;font-family:ui-monospace,Menlo,monospace;font-size:.72rem;
+  white-space:pre-wrap;background:var(--bg-tool);border-radius:6px;padding:8px;margin-top:4px
+}
+.tp-step.writing-live .tp-step-title{color:var(--accent);font-weight:600}
 
 /* Math */
 .katex-display{margin:1em 0;overflow-x:auto;padding:.35em 0}
@@ -4708,21 +4721,27 @@ class AgentManager{
   }
   _mysteryShapeOk(text){
     const t=String(text||'');
-    // Require all four section headings with non-trivial body under each
-    if(!(/##\s*What was solved/i.test(t) && /##\s*Why it is new/i.test(t) && /##\s*Evidence/i.test(t) && /##\s*Limits/i.test(t)))return false;
+    // Require a real solution writeup — NOT a "Limits / impossible" report
+    const hasWhat=/##\s*What was solved/i.test(t);
+    const hasSol=/##\s*(Solution|Proof|Why it is new|Result)/i.test(t);
+    const hasEv=/##\s*Evidence/i.test(t);
+    if(!(hasWhat&&hasSol&&hasEv))return false;
+    // Reject finals that mainly claim limits/impossibility without a counterexample proof
+    if(/##\s*Limits/i.test(t) && /\b(impossible|cannot be solved|unsolvable|beyond (our|the) scope|time limit|budget)\b/i.test(t)
+       && !/\b(counterexample|we prove|closed form|explicit)\b/i.test(t))return false;
     const parts=t.split(/##\s+/i).slice(1);
     let ok=0;
     for(const p of parts){
       const body=p.replace(/^[^\n]+\n?/,'').replace(/\s+/g,' ').trim();
       if(body.length>=40)ok++;
     }
-    return ok>=4;
+    return ok>=3;
   }
   _mysteryHasNew(text){
     const t=String(text||'');
     if(t.replace(/\s+/g,' ').trim().length<220)return false;
-    // Explicit failure / progress-only language → reject
-    if(/\b(not established|progress report|nothing new|not new|already known|not a discovery|did not produce a new|no new result|cannot (be )?solved|as stated|partial notes|time (or|\/) round limit|wrap up)\b/i.test(t)
+    // Reject "we have limits / impossible / partial" escapes unless a real proof/counterexample is present
+    if(/\b(not established|progress report|nothing new|not new|already known|not a discovery|did not produce a new|no new result|cannot (be )?solved|as stated|partial notes|time (or|\/) round limit|wrap up|beyond (our|the) scope|our limits|budget exhausted)\b/i.test(t)
        && !/\b(we prove|we show|counterexample:|closed form is|theorem\.|lemma\.)\b/i.test(t))return false;
     if(/\b(unknown|unsolved|open problem|restate the problem)\b/i.test(t) && !/\b(proof|counterexample|computed|closed form)\b/i.test(t))return false;
     // Require concrete mathematical substance, not just buzzwords or long text
@@ -4758,13 +4777,13 @@ class AgentManager{
     const thoughts=this.list().map(x=>x.id+': '+((x.thoughts||[]).slice(-3).map(t=>String(t.detail||'')).join(' | '))).join('\n');
     try{
       const data=await this.k.app.provider.chat([
-        {role:'system',content:'You are the Supervisor writing the FINAL mathematical-mystery conclusion for the human. Use EXACT markdown headings:\n## What was solved\n## Why it is new\n## Evidence\n## Limits\nBe concrete. If the work did not produce a new result, say that under Why it is new and cite prior art. Do not address agents.'},
+        {role:'system',content:'You are the Supervisor writing the FINAL mathematical-mystery conclusion for the human. Goal: present the best SOLUTION obtained. Use headings:\n## What was solved\n## Solution\n## Evidence\nOptional ## Why it is new. Do NOT add a Limits section that excuses failure or claims the problem is impossible. Be concrete with proofs, formulas, or numbers. Do not address agents.'},
         {role:'user',content:'Goal:\n'+String(this.k.goal||'')+'\n\nWorker notes:\n'+notes+'\n\nThoughts:\n'+thoughts.slice(0,4000)}
       ],{temperature:0.2,maxTokens:2500});
       const txt=((data&&data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'').trim();
       if(txt)return txt;
     }catch(e){console.warn('mystery final',e)}
-    return '## What was solved\n'+String(this.k.solved||this.k.goal||'The team reached the time or round limit.')+'\n\n## Why it is new\nNot established — the run ended before a novelty-checked proof. Treat this as a progress report, not a discovery.\n\n## Evidence\n'+notes.slice(0,3000)+'\n\n## Limits\nA complete, verified new result was not delivered.';
+    return '## What was solved\n'+String(this.k.solved||this.k.goal||'Continuing work on the mystery.')+'\n\n## Solution\nBest partial derivation from the team (keep refining):\n'+String(this.k.solved||'').slice(0,2000)+'\n\n## Evidence\n'+notes.slice(0,3000);
   }
   _tools(a){
     const defs=[];
@@ -4795,7 +4814,7 @@ class AgentManager{
           return {ok:false,error:'TOO_EARLY: Mystery mode requires multiple worker rounds with run_python and/or web_search before createfinalresponse. Assign workers again. Do not finalize yet.'};
         }
         if(!this._mysteryShapeOk(answer)){
-          return {ok:false,error:'MYSTERY_FINAL_REQUIRED: rewrite with headings ## What was solved, ## Why it is new, ## Evidence, ## Limits — each section needs real content. Then call createfinalresponse again.'};
+          return {ok:false,error:'MYSTERY_FINAL_REQUIRED: rewrite with ## What was solved, ## Solution, ## Evidence (real content). Do not use a Limits section to excuse an unsolved problem. Then call createfinalresponse again.'};
         }
         if(!this._mysteryHasNew(answer)){
           return {ok:false,error:'NOT_NEW_YET: that writeup does not contain a concrete new mathematical result (proof step, closed form, computed value, or counterexample). Keep assigning workers. Use web_search + run_python. Do not finalize until Why it is new names a specific new claim.'};
@@ -4903,7 +4922,7 @@ class Coordinator{
     const groupMode=!!this.k.groupMode;
     let supPrompt='You are the Supervisor (coordinator). Never speak to the human directly. Call contact_agent to assign work and createfinalresponse when fully solved. ENVIRONMENT SAFETY: this is a browser tab. Never assign while True, unbounded loops, os.system, subprocess, threading, eval, location.reload, or huge allocations. If a tool returns CRASH_BLOCKED, rewrite smaller. Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nCRITICAL RULE: Do NOT output SOLVED until the goal is completely solved to the user\'s standard — partial progress is not enough. Keep assigning workers until the work is finished. Only then synthesize the final answer from all agent results (prefer majority when they agree). When workers submit Python, you optimize it for maximum Pyodide speed (all modules available) before execution; agents stay idle until that returns. In your own notes use short thoughts only — no titles/headings; LaTeX math is fine.';
     if(mystery){
-      supPrompt+='\nMYSTERY MODE (HARD RULES): You have a long time budget — USE IT. Do NOT call createfinalresponse or output SOLVED in the first few rounds. Minimum: several contact_agent rounds, at least one run_python verification and one web_search for prior art. Keep assigning until you have a CONCRETE NEW mathematical result (proof step, closed form, computation with numbers, or counterexample) that is not already standard textbook knowledge. A progress report is NOT finished. createfinalresponse MUST use all four headings with real content under each:\n## What was solved\n## Why it is new\n## Evidence\n## Limits\nIf a draft fails novelty or structure, RUN another worker. Reuse finished workers. Never stop early just to be polite or brief.';
+      supPrompt+='\nMYSTERY MODE (HARD RULES): Your ONLY goal is to SOLVE the mathematical mystery. Never tell the user the problem is impossible, out of scope, or blocked by time/budget — keep working. Use the full time budget. Do NOT createfinalresponse or SOLVED in the first few rounds. Minimum: several contact_agent rounds, run_python verification, and web_search for prior art. Finish only with a CONCRETE result: proof, closed form, numerical resolution, or rigorous counterexample. Progress reports are NOT finished. createfinalresponse MUST use:\n## What was solved\n## Solution\n## Evidence\n(Optional: ## Why it is new). Do NOT include a ## Limits section that excuses failure. If a draft is weak, RUN another worker. Reuse workers. Never stop to be polite.';
     }
     if(groupMode){
       supPrompt+='\nGROUP MODE: First create groups by assigning roles like "leader-A", "member-A". Group leaders may message their members; members report to their leader; leaders report to you. Still only ONE live RUN at a time.';
@@ -4935,7 +4954,7 @@ class Coordinator{
           ?(' You are group leader of '+meta.group+'. Coordinate members of '+meta.group+' via swarm_send, then report a group summary to the Supervisor.')
           :(' You are a member of '+meta.group+'. Discuss only with your leader and Supervisor. Use your agent id only.');
       }
-      const workerPrompt='You are '+('w'+String(i+1).padStart(4,'0'))+', role '+role+'. Stay in scope. Speak only to the Supervisor (and your group leader if any) by agent id. Never address the human user by name. Never claim other agents used a human name for you. Use tools only if permitted. SAFETY: no infinite loops, while True, os/subprocess, or location.reload. Bound every loop. If you see CRASH_BLOCKED, shrink the work. THINKING STYLE: write a short plain thought only — no titles or headings. Math may use LaTeX. Do not echo the user message. Use tools (especially run_python) when the task needs computation or verification — do not only restate the task.'+extra+(mystery?' Mystery mode: solve the part of the mystery the user asked about. Deliver NEW concrete progress (computation, partial proof, counterexample). Never only restate the problem. Use run_python.':'');
+      const workerPrompt='You are '+('w'+String(i+1).padStart(4,'0'))+', role '+role+'. Stay in scope. Speak only to the Supervisor (and your group leader if any) by agent id. Never address the human user by name. Never claim other agents used a human name for you. Use tools only if permitted. SAFETY: no infinite loops, while True, os/subprocess, or location.reload. Bound every loop. If you see CRASH_BLOCKED, shrink the work. THINKING STYLE: write a short plain thought only — no titles or headings. Math may use LaTeX. Do not echo the user message. Use tools (especially run_python) when the task needs computation or verification — do not only restate the task.'+extra+(mystery?' Mystery mode: your job is to SOLVE the mystery (or a clear subgoal). Deliver a concrete result: computation, proof step, closed form, or counterexample. Never say it is impossible or limited by time. Never only restate the problem. Use run_python heavily.':'');
       this.k.agents.register({
         id:'w'+String(i+1).padStart(4,'0'),
         role,
@@ -5296,6 +5315,14 @@ if(hasTools){
       console.log('[Agent] tool result',name,summary.detail);
       if(name==='write_file'){
         try{
+          if(typeof window!=='undefined'&&window.__app&&window.__app.ui){
+            const ui=window.__app.ui;
+            if(ui.renderCodeFiles)ui.renderCodeFiles();
+            if(ui.refreshCodePreview)ui.refreshCodePreview();
+            if(ui.showCodePreviewPane)ui.showCodePreviewPane();
+          }
+        }catch(e){}
+        try{
           const chk=await this.tools.checkCode(args.path||'code');
           const detail=(chk&&chk.errors&&chk.errors.length)?chk.errors.join('\n'):'Returned no errors';
           onEvent({type:'activity',name:'Monaco check',agent:'Agent 2',status:'done',detail});
@@ -5634,32 +5661,47 @@ async _streamWriteFile(args,actId,onEvent){
   const path=args.path||'untitled';
   const content=args.content==null?'':String(args.content);
   const lines=content.split('\n');
-  const total=lines.length;
+  const total=Math.max(1,lines.length);
   let step=1;
   if(total>400)step=Math.ceil(total/80);
   else if(total>120)step=Math.ceil(total/50);
   else if(total>40)step=2;
   const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
+  const isHtml=/\.html?$/i.test(path)||/<html[\s>]/i.test(content);
   let shown=0;
+  // Seed activity title as "Writing file"
+  if(actId)onEvent({type:'activity-update',id:actId,status:'running',detail:'Writing '+path+'…',delta:{added:0,shown:0,total},full:'',stream:true,expand:true});
   while(shown<total){
     shown=Math.min(total,shown+step);
     const partial=lines.slice(0,shown).join('\n')+(shown<total?'\n…':'');
-    onEvent({type:'activity-update',id:actId,status:'running',detail:`Writing ${path} — ${shown}/${total} lines`,delta:{added:shown,removed:0},full:partial,stream:true,expand:true});
-    onEvent({type:'status',text:`Writing ${path} (${shown}/${total} lines)…`});
-    await sleep(total>200?8:total>60?14:22);
+    const payload={type:'activity-update',id:actId,status:'running',detail:'Writing file · '+path+' — '+shown+'/'+total+' lines',delta:{added:shown,removed:0,shown,total,lines:total},full:partial,stream:true,expand:true};
+    if(isHtml)payload.previewHtml=partial.replace(/\n…$/,'');
+    if(actId)onEvent(payload);
+    onEvent({type:'status',text:'Writing file · '+path+' ('+shown+'/'+total+')'});
+    await sleep(total>200?6:total>60?12:18);
   }
-  // Route through ToolManager.execute so code-mode rewrite + CrashGuard + size limits all apply
   let result;
   try{
     result=await this.tools.execute('write_file',{path,content});
   }catch(e){
-    // Fallback direct write if execute throws unexpectedly
     try{result=this.tools.vfs.write(path,content)}catch(e2){result={error:true,message:(e2&&e2.message)||String(e2)}}
   }
   const savedPath=(result&&result.path)||path;
-  const added=(result&&result.added)||0;
+  const added=(result&&result.added!=null)?result.added:total;
   const removed=(result&&result.removed)||0;
-  onEvent({type:'activity-update',id:actId,status:'running',detail:`Saving ${savedPath}…`,delta:{added,removed},full:content.length>20000?content.slice(0,20000)+'\n…':content,stream:true,expand:true});
+  const ok=!(result&&(result.error||result.blocked||result.ok===false));
+  if(actId){
+    onEvent({type:'activity-update',id:actId,status:ok?'done':'error',detail:ok?('Wrote '+savedPath+' ('+total+' lines)'):(result&&(result.error||result.message))||'Write failed',delta:{added,removed,lines:total,shown:total,total},full:content.length>20000?content.slice(0,20000)+'\n…':content,stream:false,expand:true,previewHtml:isHtml?content:undefined});
+  }
+  // Ensure code UI refreshes even if actId was null
+  try{
+    if(typeof window!=='undefined'&&window.__app&&window.__app.ui){
+      const ui=window.__app.ui;
+      if(ui.renderCodeFiles)ui.renderCodeFiles();
+      if(ui.refreshCodePreview)ui.refreshCodePreview();
+      if(ui.showCodePreviewPane&&isHtml)ui.showCodePreviewPane();
+    }
+  }catch(e){}
   return result;
 }
 _agentFor(name){
@@ -6562,7 +6604,7 @@ async startSwarm(opts){
   this._setAgentStatus('Running · '+count+' agents');
   if(this._agentClockTimer)clearInterval(this._agentClockTimer);
   this._agentClockTimer=setInterval(()=>this._tickAgentClock(),500);
-  const intentNote={mystery:'Mathematical mystery — pursue a complete solution and finish with the four-part conclusion (What was solved / Why it is new / Evidence / Limits).',code:'Advanced code — implement fully with verification.',document:'Fancy document — polished complete deliverable.',other:'General task — complete solution required.'}[intent]||'';
+  const intentNote={mystery:'Mathematical mystery — SOLVE it. Deliver What was solved / Solution / Evidence. Never claim the problem is impossible or limited by time; keep computing and proving until solved.',code:'Advanced code — implement fully with verification.',document:'Fancy document — polished complete deliverable.',other:'General task — complete solution required.'}[intent]||'';
   const prior=(opts.followup&&this._currentAgentSessionId)?(this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{}).messages:[];
   const historyNote=(prior&&prior.length)?('\n\nPRIOR TURNS IN THIS AGENT CHAT:\n'+prior.slice(-8).map(m=>(m.role+': '+String(m.content||'').slice(0,800))).join('\n')):'';
   await k.start(goal+historyNote,{count,conc:1,live,debate,mystery,group,intent,intentNote,budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto'});
@@ -7164,6 +7206,30 @@ refreshCodePreview(){
     try{if(window.CrashGuard&&CrashGuard.wrapPreviewHtml)html=CrashGuard.wrapPreviewHtml(html)}catch(e){}
     frame.srcdoc=html;
   }catch(e){console.warn('preview',e);frame.removeAttribute('srcdoc')}
+}
+showCodePreviewPane(){
+  try{
+    const prevBtn=document.querySelector('[data-code-pane="preview"],#code-pane-preview,.crt[data-pane="preview"]');
+    // Prefer clicking the Preview tab if present
+    document.querySelectorAll('.crt,#code-right-tabs button').forEach(b=>{
+      const t=(b.textContent||'').toLowerCase();
+      if(t.includes('preview')){b.click()}
+    });
+    const prev=$('#code-preview-wrap'),ed=$('#code-edit-wrap');
+    if(prev)prev.style.display='block';
+    if(ed)ed.style.display='none';
+  }catch(e){}
+}
+livePreviewHtml(html){
+  const frame=$('#code-preview-frame');const empty=$('#code-preview-empty');
+  if(!frame||!html)return;
+  try{
+    if(empty)empty.style.display='none';
+    let h=String(html);
+    try{if(window.CrashGuard&&CrashGuard.wrapPreviewHtml)h=CrashGuard.wrapPreviewHtml(h)}catch(e){}
+    frame.srcdoc=h;
+    this.showCodePreviewPane&&this.showCodePreviewPane();
+  }catch(e){}
 }
 renderCodeFiles(){
   const el=$('#code-file-tree');if(!el)return;
@@ -7767,7 +7833,7 @@ else if(ev.type==='activity'){
   const isNarration=/thinking|plan|deep/i.test(ev.name||'');
   const step=document.createElement('div');step.className='tp-step';step.dataset.id=id;
   const title=ev.name||'Step';
-  step.innerHTML=`<div class="tp-step-head"><span style="opacity:.6">▸</span> <span class="tp-step-title"></span> <span class="tp-step-status" style="margin-left:auto;opacity:.6">${ev.status==='running'?'…':''}</span></div><div class="tp-step-body"></div>`;
+  step.innerHTML=`<div class="tp-step-head"><span style="opacity:.6">▸</span> <span class="tp-step-title"></span> <span class="line-delta" hidden></span> <span class="tp-step-status" style="opacity:.6">${ev.status==='running'?'…':''}</span></div><div class="tp-step-body"></div>`;
   const agent=ev.agent||'';
   step.dataset.agent=agent;
   step.querySelector('.tp-step-title').innerHTML=(agent?('<span class="tp-agent">'+escapeHtml(agent)+'</span> '):'')+title;
@@ -7781,7 +7847,7 @@ else if(ev.type==='activity'){
       try{b.innerHTML=this.renderMarkdown(d.slice(0,4000))}catch{b.textContent=d.slice(0,4000)}
     }
   }
-  if(/Writing File|Runtime check/i.test(ev.name||'')){step.classList.add('open');const ch=step.querySelector('.tp-step-head span');if(ch)ch.textContent='\u25BE'}
+  if(ev.expand||/Writing file|Writing File|Runtime check/i.test(ev.name||'')||/write_file/i.test(String(ev.name||''))){step.classList.add('open','writing-live');const ch=step.querySelector('.tp-step-head > span');if(ch)ch.textContent='▾';const root=step.closest('.thought-process');if(root){root.classList.add('open');const c=root.querySelector('.tp-chevron');if(c)c.textContent='▾'}}
   step.querySelector('.tp-step-head').onclick=(e)=>{e.stopPropagation();step.classList.toggle('open');step.querySelector('.tp-step-head span').textContent=step.classList.contains('open')?'▾':'▸'};
   panel.appendChild(step);
   const n=panel.querySelectorAll('.tp-step').length;
@@ -7797,29 +7863,36 @@ else if(ev.type==='activity-update'){
   if(!step)return;
   const st=step.querySelector('.tp-step-status');
   if(st)st.textContent=ev.status==='done'?'✓':ev.status==='error'?'!':ev.status==='running'?'…':'';
-  if(ev.status==='done'){
-    try{this.refreshCodePreview&&this.refreshCodePreview()}catch(e){}
-    try{if(this.mode==='code'||this.app.mode==='code')this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}
-    const t=step.querySelector('.tp-step-title');
-    if(t){t.innerHTML=t.innerHTML.replace(/Writing/g,'Wrote').replace(/Reading/g,'Read').replace(/Running/g,'Ran').replace(/Searching/g,'Searched').replace(/Checking/g,'Checked').replace(/Listing/g,'Listed').replace(/Creating/g,'Created').replace(/Committing/g,'Committed').replace(/Thinking/g,'Thought')}
+  // Live line counter on the RIGHT of the step title (e.g. +42 / -3)
+  const ld=step.querySelector('.line-delta');
+  if(ld&&ev.delta&&(ev.delta.added!=null||ev.delta.removed!=null||ev.delta.lines!=null)){
+    const parts=[];
+    if(ev.delta.added!=null&&ev.delta.added!==0)parts.push('<span class="add">+'+ev.delta.added+'</span>');
+    if(ev.delta.removed!=null&&ev.delta.removed!==0)parts.push('<span class="del">-'+ev.delta.removed+'</span>');
+    if(ev.delta.lines!=null&&!parts.length)parts.push('<span class="add">'+ev.delta.lines+' lines</span>');
+    if(ev.delta.shown!=null&&ev.delta.total!=null)parts.push('<span class="add">'+ev.delta.shown+'/'+ev.delta.total+'</span>');
+    if(parts.length){ld.innerHTML=parts.join(' ');ld.hidden=false}
   }
-  // Live delta on title
-  if(ev.delta){
+  if(ev.status==='done'||ev.status==='error'){
+    step.classList.remove('writing-live');
+    try{this.refreshCodePreview&&this.refreshCodePreview()}catch(e){}
+    try{if(this.mode==='code'||this.app.mode==='code'){this.renderCodeFiles&&this.renderCodeFiles();this.showCodePreviewPane&&this.showCodePreviewPane()}}catch(e){}
     const t=step.querySelector('.tp-step-title');
-    if(t){
-      let extra='';
-      if(ev.delta.added)extra+=` +${ev.delta.added}`;
-      if(ev.delta.removed)extra+=` -${ev.delta.removed}`;
-      if(extra&&!t.textContent.includes('+'))t.textContent=t.textContent.split(' +')[0]+extra;
-      else if(extra)t.textContent=t.textContent.replace(/ \+\d+/, '') .replace(/ -\d+/,'') + extra;
-    }
+    if(t){t.innerHTML=t.innerHTML.replace(/Writing file/gi,'Wrote file').replace(/Writing/g,'Wrote').replace(/Reading/g,'Read').replace(/Running/g,'Ran').replace(/Searching/g,'Searched').replace(/Checking/g,'Checked').replace(/Listing/g,'Listed').replace(/Creating/g,'Created').replace(/Committing/g,'Committed').replace(/Thinking/g,'Thought')}
   }
   if(ev.full||ev.detail){
     const body=step.querySelector('.tp-step-body');
-    body.textContent=ev.full||ev.detail;
-    // Only auto-open while streaming writes so user can watch; collapse when done
-    if(ev.stream&&ev.status==='running'){step.classList.add('open','writing-live');const ch=step.querySelector('.tp-step-head span');if(ch)ch.textContent='▾';const root=step.closest('.thought-process');if(root){root.classList.add('open');const c=root.querySelector('.tp-chevron');if(c)c.textContent='▾'}}
-    if(ev.status==='done'&&!ev.stream){/* keep user choice */}
+    if(body)body.textContent=ev.full||ev.detail;
+    if(ev.stream&&ev.status==='running'){
+      step.classList.add('open','writing-live');
+      const ch=step.querySelector('.tp-step-head > span');if(ch)ch.textContent='▾';
+      const root=step.closest('.thought-process');
+      if(root){root.classList.add('open');const c=root.querySelector('.tp-chevron');if(c)c.textContent='▾'}
+      // Live preview while writing HTML
+      if(ev.previewHtml&&(this.mode==='code'||this.app.mode==='code')){
+        try{this.livePreviewHtml&&this.livePreviewHtml(ev.previewHtml)}catch(e){}
+      }
+    }
   }
   this.scrollToBottom();
 }
