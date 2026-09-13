@@ -3853,7 +3853,7 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 {type:'function',function:{name:'read_file',description:'Read a file from the workspace. For large files, pass start and length to page through it instead of loading everything.',parameters:{type:'object',properties:{path:{type:'string'},start:{type:'number',description:'Character offset'},length:{type:'number',description:'Max characters to return'}},required:['path']}}},
 {type:'function',function:{name:'search_file',description:'Search a workspace file (or all uploads/) for a keyword or regex. Returns matching snippets with character offsets so you can read_file that section. Use this on large HTML/text instead of loading the whole file.',parameters:{type:'object',properties:{path:{type:'string',description:'File path or folder. Empty = search uploads/ and artifacts/'},query:{type:'string'},regex:{type:'boolean'},context:{type:'number',description:'Chars of context around each hit'},limit:{type:'number'}},required:['query']}}},
 {type:'function',function:{name:'run_onnx',description:'Run a workspace ONNX model in the browser with ONNX Runtime Web. path defaults to the last converted model. input is a number or JSON array of floats.',parameters:{type:'object',properties:{path:{type:'string'},input:{description:'Number or array of floats'}},required:[]}}},
-{type:'function',function:{name:'write_file',description:'Create or overwrite a file in the internal FS. Use for code, reports, and notes. Prefer artifacts/ for work products and memory/ for durable facts. Previous versions are archived automatically.',parameters:{type:'object',properties:{path:{type:'string',description:'Destination path'},content:{type:'string',description:'Full file contents to write'}},required:['path','content']}}},
+{type:'function',function:{name:'write_file',description:'Create or overwrite a file in the internal FS. In CODE MODE always write under the current session folder (code/<sessionId>/…), e.g. index.html or style.css — the runtime rewrites bare names into that folder. In chat mode prefer artifacts/ for work products and memory/ for durable facts. Previous versions are archived automatically.',parameters:{type:'object',properties:{path:{type:'string',description:'Destination path (code mode: relative to session code root, e.g. index.html)'},content:{type:'string',description:'Full file contents to write'}},required:['path','content']}}},
 {type:'function',function:{name:'delete_file',description:'Delete a file from the internal filesystem (a copy is archived). Use only when the user asks to remove something.',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}},
 {type:'function',function:{name:'run_python',description:'Run Python in a sandbox. Workspace files are under /workspace (uploads/, artifacts/, models/). Helpers: ws_read(path,start,length) and ws_search(path,keyword) to scan large files without loading everything.',parameters:{type:'object',properties:{code:{type:'string',description:'Python source code to execute'}},required:['code']}}},
 {type:'function',function:{name:'self_check',description:'Record a brief self-check of correctness before finalizing an important answer. Use after tool results when stakes are high.',parameters:{type:'object',properties:{observation:{type:'string',description:'What you verified'},passed:{type:'boolean',description:'Whether the check passed'}},required:['observation']}}},
@@ -4626,18 +4626,22 @@ class AgentManager{
             }
           }
         }
-        if(this.k.mystery && (!this._mysteryShapeOk(answer) || !this._mysteryHasNew(answer))){
+        if(this.k.mystery && (!this._mysteryMinWorkDone() || !this._mysteryShapeOk(answer) || !this._mysteryHasNew(answer))){
           a.thoughts=a.thoughts||[];
-          a.thoughts.push({name:'Thought',detail:'Conclusion was not a new result. Swarm will keep working.',status:'running'});
+          a.thoughts.push({name:'Thought',detail:'Conclusion rejected (too early or not a solid new result). Swarm continues for the full budget.',status:'running'});
           const workers=this.list().filter(x=>x.role!=='supervisor');
           let next=workers.find(x=>x.status==='idle')||workers.find(x=>x.status==='completed'||x.status==='failed')||workers[0];
           if(next){
-            next.task='NOT NEW YET. Previous draft:\n'+answer.slice(0,1200)+'\n\nFind a concrete NEW result for: '+(this.k.goal||'')+'\nUse run_python and web_search. Do not restate the problem.';
+            next.task='NOT NEW YET / TOO EARLY. Previous draft:\n'+answer.slice(0,1200)+'\n\nYou still have time budget. Produce a CONCRETE NEW mathematical result for: '+(this.k.goal||'')+'\nRequired: run_python and/or web_search. Deliver proof steps, closed form, numbers, or a counterexample — not a restatement.';
             next.status='idle';next.result=null;next.ended=null;next.thoughts=[];
             a.status='waiting';
             this.k.scheduler.enqueue(next.id,'keep-seeking');
             return a.result;
           }
+          // No worker available — nudge coordinator instead of accepting weak SOLVED
+          a.status='idle';
+          this.k.scheduler.enqueue('coordinator','mystery-nudge');
+          return a.result;
         }
         this.k.solved=answer;this.k.alive=false;return a.result;
       }
@@ -4704,15 +4708,50 @@ class AgentManager{
   }
   _mysteryShapeOk(text){
     const t=String(text||'');
-    return /##\s*What was solved/i.test(t) && /##\s*Why it is new/i.test(t) && /##\s*Evidence/i.test(t);
+    // Require all four section headings with non-trivial body under each
+    if(!(/##\s*What was solved/i.test(t) && /##\s*Why it is new/i.test(t) && /##\s*Evidence/i.test(t) && /##\s*Limits/i.test(t)))return false;
+    const parts=t.split(/##\s+/i).slice(1);
+    let ok=0;
+    for(const p of parts){
+      const body=p.replace(/^[^\n]+\n?/,'').replace(/\s+/g,' ').trim();
+      if(body.length>=40)ok++;
+    }
+    return ok>=4;
   }
   _mysteryHasNew(text){
     const t=String(text||'');
-    if(t.replace(/\s+/g,' ').trim().length<80)return false;
-    if(/\b(not established|progress report|nothing new|not new|already known|not a discovery|did not produce a new|no new result|cannot (be )?solved|as stated)\b/i.test(t)
-       && !/\b(theorem|lemma|counterexample|closed form|we prove|we show|computed that|explicit formula)\b/i.test(t))return false;
+    if(t.replace(/\s+/g,' ').trim().length<220)return false;
+    // Explicit failure / progress-only language → reject
+    if(/\b(not established|progress report|nothing new|not new|already known|not a discovery|did not produce a new|no new result|cannot (be )?solved|as stated|partial notes|time (or|\/) round limit|wrap up)\b/i.test(t)
+       && !/\b(we prove|we show|counterexample:|closed form is|theorem\.|lemma\.)\b/i.test(t))return false;
     if(/\b(unknown|unsolved|open problem|restate the problem)\b/i.test(t) && !/\b(proof|counterexample|computed|closed form)\b/i.test(t))return false;
-    return /\b(theorem|lemma|proof|counterexample|computed|closed form|explicit|bound|identity|we prove|we show|new result)\b/i.test(t) || t.length>400;
+    // Require concrete mathematical substance, not just buzzwords or long text
+    const substance=
+      /\b(counterexample|closed form|explicit formula|we prove that|we show that)\b/i.test(t)
+      || (/\b(theorem|lemma)\b/i.test(t) && /\b(proof|proved|shown)\b/i.test(t))
+      || (/\b(computed|numerical|simulation)\b/i.test(t) && /\d/.test(t) && t.length>350)
+      || (/\$[^$]+\$|\\\(|\\\[/.test(t) && /\b(equals|=|identity|bound)\b/i.test(t) && t.length>300);
+    if(!substance)return false;
+    // "Why it is new" section must claim something specific (not "already known")
+    const why=t.match(/##\s*Why it is new([\s\S]*?)(?=##\s*Evidence|$)/i);
+    if(why){
+      const w=why[1].replace(/\s+/g,' ').trim();
+      if(w.length<30)return false;
+      if(/\b(not new|already known|not established|nothing new|prior art only)\b/i.test(w) && !/\b(however|except|novel|new claim|first)\b/i.test(w))return false;
+    }
+    return true;
+  }
+  _mysteryMinWorkDone(){
+    // Require real multi-step work before any final is accepted
+    try{
+      const workers=this.list().filter(x=>x.role!=='supervisor');
+      const finished=workers.filter(x=>x.result||(x.thoughts&&x.thoughts.length));
+      const toolish=workers.reduce((n,x)=>n+((x.thoughts||[]).filter(t=>/python|search|write|check|tool/i.test(String(t.name||t.detail||''))).length),0);
+      const rounds=(this.get('coordinator')&&this.get('coordinator').rounds)||0;
+      if(rounds<3 && finished.length<2)return false;
+      if(toolish<1 && finished.length<2)return false;
+      return true;
+    }catch(e){return false}
   }
   async _composeMysteryFinal(){
     const notes=this.list().filter(x=>x.role!=='supervisor').map(x=>x.id+' ('+x.role+'): '+String(x.result||x.error||'').slice(0,1800)).join('\n\n');
@@ -4751,11 +4790,16 @@ class AgentManager{
     if(name==='createfinalresponse'||name==='create_final_response'){
       let answer=String((args&&(args.answer||args.content||args.text))||'').trim();
       if(!answer)return {ok:false,error:'answer is required'};
-      if(this.k.mystery&&!this._mysteryShapeOk(answer)){
-        return {ok:false,error:'MYSTERY_FINAL_REQUIRED: rewrite with headings ## What was solved, ## Why it is new, ## Evidence, ## Limits. Then call createfinalresponse again.'};
-      }
-      if(this.k.mystery&&!this._mysteryHasNew(answer)){
-        return {ok:false,error:'NOT_NEW_YET: that writeup does not contain a concrete new result. Keep assigning workers (including ones who already finished). Use web_search + run_python. Do not finalize until Why it is new names a specific new claim.'};
+      if(this.k.mystery){
+        if(!this._mysteryMinWorkDone()){
+          return {ok:false,error:'TOO_EARLY: Mystery mode requires multiple worker rounds with run_python and/or web_search before createfinalresponse. Assign workers again. Do not finalize yet.'};
+        }
+        if(!this._mysteryShapeOk(answer)){
+          return {ok:false,error:'MYSTERY_FINAL_REQUIRED: rewrite with headings ## What was solved, ## Why it is new, ## Evidence, ## Limits — each section needs real content. Then call createfinalresponse again.'};
+        }
+        if(!this._mysteryHasNew(answer)){
+          return {ok:false,error:'NOT_NEW_YET: that writeup does not contain a concrete new mathematical result (proof step, closed form, computed value, or counterexample). Keep assigning workers. Use web_search + run_python. Do not finalize until Why it is new names a specific new claim.'};
+        }
       }
       this.k.solved=answer;a.result=answer;a._finalized=true;
       this.k.events.emit('agent.final',{id:a.id,answer:answer.slice(0,400)});
@@ -4859,7 +4903,7 @@ class Coordinator{
     const groupMode=!!this.k.groupMode;
     let supPrompt='You are the Supervisor (coordinator). Never speak to the human directly. Call contact_agent to assign work and createfinalresponse when fully solved. ENVIRONMENT SAFETY: this is a browser tab. Never assign while True, unbounded loops, os.system, subprocess, threading, eval, location.reload, or huge allocations. If a tool returns CRASH_BLOCKED, rewrite smaller. Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nCRITICAL RULE: Do NOT output SOLVED until the goal is completely solved to the user\'s standard — partial progress is not enough. Keep assigning workers until the work is finished. Only then synthesize the final answer from all agent results (prefer majority when they agree). When workers submit Python, you optimize it for maximum Pyodide speed (all modules available) before execution; agents stay idle until that returns. In your own notes use short thoughts only — no titles/headings; LaTeX math is fine.';
     if(mystery){
-      supPrompt+='\nMYSTERY MODE: Do NOT wrap up early. Keep assigning workers until you have a CONCRETE NEW result (proof, closed form, computation, counterexample) that web_search does not already list as known. A progress report is not finished work. createfinalresponse must use:\n## What was solved\n## Why it is new\n## Evidence\n## Limits\nIf a draft is not new, ignore it and RUN another worker. Reuse workers who already concluded. Never stop only because time feels short.';
+      supPrompt+='\nMYSTERY MODE (HARD RULES): You have a long time budget — USE IT. Do NOT call createfinalresponse or output SOLVED in the first few rounds. Minimum: several contact_agent rounds, at least one run_python verification and one web_search for prior art. Keep assigning until you have a CONCRETE NEW mathematical result (proof step, closed form, computation with numbers, or counterexample) that is not already standard textbook knowledge. A progress report is NOT finished. createfinalresponse MUST use all four headings with real content under each:\n## What was solved\n## Why it is new\n## Evidence\n## Limits\nIf a draft fails novelty or structure, RUN another worker. Reuse finished workers. Never stop early just to be polite or brief.';
     }
     if(groupMode){
       supPrompt+='\nGROUP MODE: First create groups by assigning roles like "leader-A", "member-A". Group leaders may message their members; members report to their leader; leaders report to you. Still only ONE live RUN at a time.';
@@ -5200,15 +5244,28 @@ if(hasTools){
     }
     if((name==='write_file'||name==='read_file'||name==='delete_file'||name==='list_files'||name==='check_code')&&args){
       const ui=window.__app&&window.__app.ui;
-      if(ui&&ui.mode==='code'&&ui.codeRoot){
-        const root=ui.codeRoot();
+      const codeMode=ui&&(ui.mode==='code'||(window.__app&&window.__app.mode==='code')||(this.storage&&this.storage.get('appMode')==='code'));
+      if(codeMode&&ui&&ui.codeRoot){
+        const root=String(ui.codeRoot()||'code').replace(/\/$/,'');
         if(name==='list_files'||name==='check_code'){
-          if(!args.path||args.path==='code'||args.path==='code/')args.path=root;
-        }else if(args.path){
-          if(args.path==='code'||args.path.startsWith('code/')){
-            const rest=args.path.replace(/^code\/?/,'');
-            if(!rest.startsWith(root.replace(/^code\//,''))&&!args.path.startsWith(root+'/'))args.path=root+'/'+rest;
-          }else if(!args.path.startsWith(root))args.path=root+'/'+args.path.replace(/^\//,'');
+          if(!args.path||args.path==='/'||args.path==='code'||args.path==='code/'||args.path==='.')args.path=root;
+          else if(args.path==='code'||String(args.path).startsWith('code/')){
+            const rest=String(args.path).replace(/^code\/?/,'');
+            args.path=rest?root+'/'+rest:root;
+          }else if(!String(args.path).startsWith(root)){
+            args.path=root+'/'+String(args.path).replace(/^\/+/, '');
+          }
+        }else{
+          // write_file / read_file / delete_file — always land under session code root
+          let raw=String(args.path||'').replace(/^\/+/, '').trim();
+          if(!raw) raw=(name==='write_file'?'index.html':'');
+          if(raw&&!/^(memory|uploads|plugins|archive|external)\b/.test(raw)){
+            if(raw===root||raw.startsWith(root+'/')) args.path=raw;
+            else if(raw==='code'||raw.startsWith('code/')) args.path=root+'/'+raw.replace(/^code\/?/,'');
+            else args.path=root+'/'+raw;
+          }else if(raw){
+            args.path=raw;
+          }
         }
       }
     }
@@ -5266,19 +5323,41 @@ if(hasTools){
 
 // No tool calls → final answer, unless code mode still has not written files
 const codeHotEnd=(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'));
-if(codeHotEnd&&iteration<=4){
+const wroteFiles=messages.some(m=>{
+  if(String(m.name||'')==='write_file')return true;
+  if(m.role!=='tool')return false;
+  const c=String(m.content||'');
+  // successful write_file tool results include path/lines/isNew
+  return /"path"\s*:/.test(c)&&(/"lines"\s*:|"isNew"\s*:/.test(c)||/write_file/.test(c));
+});
+if(codeHotEnd&&iteration<=6){
   const low=String(assistantMsg.content||'').toLowerCase();
-  const looksReady=/ready to write|i am ready|i'll write|i will write|let me write|shall i write|what would you like/i.test(low);
-  const wrote=messages.some(m=>String(m.name||'')==='write_file'||(m.role==='tool'&&/write_file/.test(String(m.content||''))));
-  if(!wrote||looksReady){
-    messages.push({role:'user',content:'Stop announcing. Immediately call write_file and create a complete working HTML page with embedded CSS and JavaScript that fulfills the original task. Also write any extra .css/.js files. The live preview must work. Then call check_code. Do not ask questions.'});
+  const looksReady=/ready to write|i am ready|i'll write|i will write|let me write|shall i write|what would you like|here is a plan/i.test(low);
+  if(!wroteFiles||looksReady){
+    messages.push({role:'user',content:'Stop announcing. Immediately call write_file under the current code session folder and create a complete working HTML page with embedded CSS and JavaScript that fulfills the original task. Also write any extra .css/.js files needed. Paths must be under the session code/ folder (e.g. index.html). The live preview must work. Then call check_code. After tools succeed, give a short final summary with [[preview:...]] links. Do not ask questions.'});
     continue;
   }
 }
 finalContent=(extractTextToolCalls(assistantMsg.content||'').text)||'';console.log('[Agent] final content length',finalContent.length,'finish',finish);
 if(finalContent.trim())break;
-// Empty content without tools — avoid infinite empty loops
-if(iteration>=2){finalContent=finalContent||'(Model returned an empty response.)';break}
+// Empty content without tools — in code mode synthesize a useful final reply if files were written
+if(iteration>=2){
+  if(codeHotEnd&&wroteFiles&&!String(finalContent||'').trim()){
+    try{
+      const ui=window.__app&&window.__app.ui;
+      const root=(ui&&ui.codeRoot&&ui.codeRoot())||'code';
+      const files=(this.tools&&this.tools.vfs&&this.tools.vfs.filesInFolder)?(this.tools.vfs.filesInFolder(root)||[]):[];
+      const html=files.find(p=>/index\.html$/i.test(p))||files.find(p=>/\.html$/i.test(p));
+      const list=files.slice(0,12).map(p=>'- [['+'file:'+p+']]').join('\n');
+      finalContent='Done. Files saved under `'+root+'`.'+(html?'\n\n[[preview:'+html+']]':'')+(list?'\n\n'+list:'');
+    }catch(e){
+      finalContent='Done. Files were written to the code workspace.';
+    }
+  }else{
+    finalContent=finalContent||'(Model returned an empty response.)';
+  }
+  break;
+}
 }
 if(deepThink||(this.storage.get('intensity','')==='ultra')||this.storage.get('intensity','')==='xultra'){
   try{
@@ -5465,6 +5544,24 @@ _buildUserContent(text,attachments){
   return out;
 }
 async _streamWriteFile(args,actId,onEvent){
+  // Normalize path into the active code session workspace when in code mode
+  args=args&&typeof args==='object'?{...args}:{};
+  try{
+    const ui=window.__app&&window.__app.ui;
+    const mode=(window.__app&&window.__app.mode)||(this.storage&&this.storage.get('appMode',''))||'';
+    if((mode==='code'||(ui&&ui.mode==='code'))&&ui&&typeof ui.codeRoot==='function'){
+      const root=String(ui.codeRoot()||'code').replace(/\/$/,'');
+      let raw=String(args.path||'').replace(/^\/+/, '').trim();
+      if(!raw) raw='index.html';
+      if(!/^(memory|uploads|plugins|archive|external)\b/.test(raw)){
+        if(raw===root||raw.startsWith(root+'/')) args.path=raw;
+        else if(raw==='code'||raw.startsWith('code/')) args.path=root+'/'+raw.replace(/^code\/?/,'');
+        else args.path=root+'/'+raw;
+      } else {
+        args.path=raw;
+      }
+    }
+  }catch(e){}
   const path=args.path||'untitled';
   const content=args.content==null?'':String(args.content);
   const lines=content.split('\n');
@@ -5482,8 +5579,18 @@ async _streamWriteFile(args,actId,onEvent){
     onEvent({type:'status',text:`Writing ${path} (${shown}/${total} lines)…`});
     await sleep(total>200?8:total>60?14:22);
   }
-  const result=this.tools.vfs.write(path,content);
-  onEvent({type:'activity-update',id:actId,status:'running',detail:`Saving ${path}…`,delta:{added:result.added,removed:result.removed},full:content.length>20000?content.slice(0,20000)+'\n…':content,stream:true,expand:true});
+  // Route through ToolManager.execute so code-mode rewrite + CrashGuard + size limits all apply
+  let result;
+  try{
+    result=await this.tools.execute('write_file',{path,content});
+  }catch(e){
+    // Fallback direct write if execute throws unexpectedly
+    try{result=this.tools.vfs.write(path,content)}catch(e2){result={error:true,message:(e2&&e2.message)||String(e2)}}
+  }
+  const savedPath=(result&&result.path)||path;
+  const added=(result&&result.added)||0;
+  const removed=(result&&result.removed)||0;
+  onEvent({type:'activity-update',id:actId,status:'running',detail:`Saving ${savedPath}…`,delta:{added,removed},full:content.length>20000?content.slice(0,20000)+'\n…':content,stream:true,expand:true});
   return result;
 }
 _agentFor(name){
@@ -6266,13 +6373,22 @@ setAgentRunningUi(running){
   const ta=$('#swarm-goal');
   const topStop=$('#swarm-stop');
   if(running){
-    if(send)send.classList.add('hidden-by-stop');
-    if(stop)stop.classList.add('visible');
+    if(send){send.classList.add('hidden-by-stop');send.style.display='none'}
+    if(stop){
+      stop.classList.add('visible');
+      stop.style.display='inline-flex';
+      stop.setAttribute('aria-hidden','false');
+    }
     if(ta){ta.disabled=false;ta.placeholder='Send another message in this chat…'}
-    if(topStop)topStop.style.display='none';
+    // Header Stop as backup (always available while running)
+    if(topStop){topStop.style.display='inline-flex';topStop.textContent='Stop'}
   }else{
-    if(send)send.classList.remove('hidden-by-stop');
-    if(stop)stop.classList.remove('visible');
+    if(send){send.classList.remove('hidden-by-stop');send.style.display=''}
+    if(stop){
+      stop.classList.remove('visible');
+      stop.style.display='none';
+      stop.setAttribute('aria-hidden','true');
+    }
     if(ta){ta.disabled=false;const ph=(this.app.i18n&&this.app.i18n.t('agent.placeholder'))||'Message Agent…';ta.placeholder=(ph==='agent.placeholder'?'Message Agent…':ph)}
     if(topStop)topStop.style.display='none';
   }
@@ -6331,16 +6447,28 @@ async startSwarm(opts){
     {const who=this.userLabel();msg.innerHTML='<div class="agent-msg-head"><div class="avatar user"'+(who.bg?(' style="'+who.bg+'"'):'')+'>'+(who.img||who.initial)+'</div><span class="agent-msg-role">'+escapeHtml(who.label)+'</span></div><div class="agent-msg-body">'+escapeHtml(goal)+'</div>';}
     box.appendChild(msg);
     this.paintMsgActions(msg,{kind:'agent',id:msg.dataset.mid||uid(),role:'user',text:goal});
-    // working block
+    // Demote ALL live agent UI ids on prior messages so thought process + final body bind to THIS run
+    try{
+      const liveIds=['agent-live-msg','agent-work','agent-work-toggle','agent-work-body','agent-work-label','agent-work-meta','agent-work-ico','agent-live-clock','agent-final-body'];
+      liveIds.forEach(id=>{
+        document.querySelectorAll('#'+id).forEach(el=>{
+          el.removeAttribute('id');
+          if(el.classList&&el.classList.contains('agent-work'))el.classList.remove('open');
+        });
+      });
+    }catch(e){}
+    // working block — unique run, always the only element holding these ids
     const work=document.createElement('div');work.className='agent-msg assistant';work.id='agent-live-msg';
+    work.dataset.mid=uid();
     work.innerHTML='<div class="agent-msg-head"><div class="avatar">TD</div><span class="agent-msg-role">Supervisor</span><span class="agent-clock" id="agent-live-clock">0:00</span></div><div class="agent-work open" id="agent-work"><button type="button" class="agent-work-toggle" id="agent-work-toggle"><span class="aw-ico spinning" id="agent-work-ico">'+(SVG.thinkOrbit||SVG.spin)+'</span> <span id="agent-work-label">Working for 0:00</span> <span style="margin-left:auto;opacity:.6" id="agent-work-meta"></span></button><div class="agent-work-body" id="agent-work-body"><div class="hint">Supervisor is assembling the team…</div></div></div><div class="agent-msg-body" id="agent-final-body" style="display:none"></div>';
     box.appendChild(work);
-    document.querySelectorAll('#agent-live-msg').forEach((el,i,arr)=>{if(i<arr.length-1)el.removeAttribute('id')});
     const tog=$('#agent-work-toggle');
     if(tog)tog.onclick=()=>$('#agent-work')?.classList.toggle('open');
     this.scrollAgentChat?this.scrollAgentChat(true): (box.scrollTop=box.scrollHeight);
   }
   this.setAgentRunningUi(true);
+  // Re-assert stop button after DOM settle (some browsers miss class toggle during layout)
+  try{requestAnimationFrame(()=>this.setAgentRunningUi(true))}catch(e){this.setAgentRunningUi(true)}
   this._setAgentStatus('Running · '+count+' agents');
   if(this._agentClockTimer)clearInterval(this._agentClockTimer);
   this._agentClockTimer=setInterval(()=>this._tickAgentClock(),500);
@@ -7025,7 +7153,9 @@ RUNTIME CHECK LOOP (required):
 2. Call check_code (folder or specific path).
 3. If errors is non-empty, fix the files and call check_code again.
 4. Repeat until check_code returns ok:true with empty errors.
-5. Only then give the final summary. Never claim code works without a clean check_code result.
+5. Only then give the final summary to the user (always required — never end on a silent tool turn).
+6. Your last message must be a short human-readable summary of what you built, with [[preview:...]] and [[file:...]] links. Do not stop after tools with empty content.
+Never claim code works without a clean check_code result.
 LINKING OUTPUTS:
 - Single file: [[file:code/path/file.ext]]
 - Whole project folder: [[folder:code/projectname]] (never invent a .zip path; folder links auto-download as zip)
