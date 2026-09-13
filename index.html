@@ -1419,7 +1419,7 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
       <div class="code-right-body">
         <div class="code-preview-wrap" id="code-preview-wrap">
           <div class="code-preview-empty" id="code-preview-empty">Building your app...</div>
-          <iframe id="code-preview-frame" title="Preview" sandbox="allow-scripts allow-same-origin"></iframe>
+          <iframe id="code-preview-frame" title="Preview" sandbox="allow-scripts allow-forms allow-modals"></iframe>
         </div>
         <div class="code-edit-wrap" id="code-edit-wrap" style="display:none">
           <div class="code-file-tree" id="code-file-tree"></div>
@@ -1781,7 +1781,7 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
   </div>
 </div>
 <div class="monaco-host" id="monaco-host" aria-hidden="true"><div class="mh"><strong id="monaco-title">Editor</strong><button type="button" class="btn-secondary" id="monaco-send-errors">Send errors to AI</button><button type="button" class="icon-btn" id="monaco-close" aria-label="Close editor">×</button></div><div class="mh-body" id="monaco-body"></div></div>
-<div id="code-preview-fs" aria-hidden="true"><div class="fs-bar"><strong>Preview</strong><button type="button" class="icon-btn" id="code-preview-fs-close" aria-label="Close preview" style="margin-left:auto">×</button></div><iframe id="code-preview-fs-frame" title="Full preview" sandbox="allow-scripts allow-same-origin"></iframe></div>
+<div id="code-preview-fs" aria-hidden="true"><div class="fs-bar"><strong>Preview</strong><button type="button" class="icon-btn" id="code-preview-fs-close" aria-label="Close preview" style="margin-left:auto">×</button></div><iframe id="code-preview-fs-frame" title="Full preview" sandbox="allow-scripts allow-forms allow-modals"></iframe></div>
 <div class="proj-setup overlay" id="proj-setup-overlay" aria-hidden="true"><div class="panel"><div class="panel-header"><h2>New project</h2><button class="icon-btn" id="proj-setup-close" type="button" aria-label="Close">×</button></div><div class="panel-body">
 <div class="form-group"><label>Project name</label><input id="proj-name" placeholder="My app"></div>
 <div class="form-group"><label>Type</label><select id="proj-type"><option>Web app</option><option>Python tool</option><option>Game</option><option>Docs / notes</option><option>Other</option></select></div>
@@ -6906,14 +6906,10 @@ async sendCode(){this.ensureAgent();
   const filesSnapshot=existingFiles.length
     ?('CURRENT FILES IN THIS CODE SESSION ('+existingFiles.length+'):\n'+existingFiles.map(p=>'- '+p).join('\n'))
     :('CURRENT FILES IN THIS CODE SESSION: (none — workspace is empty)\n'
-      +'Because there are no project files yet, you MUST create a complete app from scratch:
-'
-      +'1) Call list_files on the code root (optional confirm).
-'
-      +'2) Immediately write_file a full working index.html with embedded <style> CSS and <script> JS (or write index.html + style.css + app.js with relative links).
-'
-      +'3) Call check_code, fix until clean.
-'
+      +'Because there are no project files yet, you MUST create a complete app from scratch:\n'
+      +'1) Call list_files on the code root (optional confirm).\n'
+      +'2) Immediately write_file a full working index.html with embedded <style> CSS and <script> JS (or write index.html + style.css + app.js with relative links).\n'
+      +'3) Call check_code, fix until clean.\n'
       +'4) End with [[preview:.../index.html]] so the live preview shows the app.');
 
   const codePrompt=`CODE MODE — EXECUTE NOW. Intensity: ${inten.label}. ${inten.extra}\n
