@@ -3537,9 +3537,16 @@ async chatGemini(messages,{model,tools,signal,temperature,maxTokens,toolChoice}=
   const gTools=this.toolsToGemini(tools);
   if(gTools){
     body.tools=gTools;
-    const tc=String(toolChoice||this.storage.get('toolChoice','auto')||'auto').toLowerCase();
-    const mode=(tc==='required'||tc==='any'||tc==='force')?'ANY':'AUTO';
-    body.toolConfig={functionCallingConfig:{mode:mode}};
+    let mode='AUTO';
+    let allowed=null;
+    if(toolChoice&&typeof toolChoice==='object'&&toolChoice.function&&toolChoice.function.name){
+      mode='ANY';
+      allowed=[toolChoice.function.name];
+    }else{
+      const tc=String(toolChoice||this.storage.get('toolChoice','auto')||'auto').toLowerCase();
+      if(tc==='required'||tc==='any'||tc==='force')mode='ANY';
+    }
+    body.toolConfig={functionCallingConfig:allowed?{mode:mode,allowedFunctionNames:allowed}:{mode:mode}};
   }
   console.groupCollapsed('[API] Gemini generateContent →');
   console.log('model',mid,'url',url.replace(/key=[^&]+/,'key=***'));
@@ -5132,11 +5139,14 @@ if(attachments?.length){for(const a of attachments){
 }}
 try{
   if((this.storage.get('appMode','')==='code'||(window.__app&&window.__app.mode==='code'))&&window.__app&&window.__app.ui&&window.__app.ui.readMonacoErrors){
-    const errs=window.__app.ui.readMonacoErrors()||[];
-    onEvent({type:'activity',name:'Monaco check',agent:'Agent 2',status:'done',detail:errs.length?errs.join('\n'):'Returned no errors'});
+    const root=(window.__app.ui.codeRoot&&window.__app.ui.codeRoot())||'code';
+    if((this.tools.vfs.filesInFolder(root)||[]).length){
+      const errs=window.__app.ui.readMonacoErrors()||[];
+      if(errs.length)onEvent({type:'activity',name:'Monaco check',agent:'Agent 2',status:'done',detail:errs.join('\n')});
+    }
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE — OVERRIDES FILE CREATION RULES ABOVE.\nYou MUST use write_file for every deliverable. Code fences alone are NOT enough — files must exist in the workspace.\n1) list_files on the session code folder.\n2) write_file complete working HTML/CSS/JS (prefer index.html with embedded style+script).\n3) check_code until clean.\n4) Final message MUST include [[preview:.../index.html]] and written paths.\nAgent 1 builds with write_file. Agent 2 verifies with read_file+check_code. Agent 3 uses list_files. Never ask teammates to paste files — use the shared virtual FS tools.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE — OVERRIDES FILE CREATION RULES ABOVE.\nCRITICAL: Your FIRST tool call MUST be write_file (not list_files, not a plan). Pass path index.html and FULL HTML in the tool arguments (embed <style> and <script>).\n- list_files alone is a failure — files must exist via write_file.\n- Code fences in chat do NOT count.\n- After write_file, call check_code, then [[preview:.../index.html]].\n- Never type list_files or write_file as plain numbered steps; call the tools API.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 const hardMax=Number.POSITIVE_INFINITY;
 try{while(iteration<hardMax&&this.running){if(!this.running)break;
@@ -5148,15 +5158,28 @@ const doChat=async(withTools)=>{
   for(let attempt=0;attempt<4;attempt++){
     try{
       const codeHot=(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'));
-      const forceTools=!!(withTools&&codeHot&&iteration<=6&&toolCalls<2);
-      const storedChoice=this.storage.get('toolChoice','auto')||'auto';
-      const useTools=!!(withTools&&storedChoice!=='none');
+      let wroteYet=false;
+      try{
+        if(codeHot){
+          const root=(window.__app&&window.__app.ui&&window.__app.ui.codeRoot)?window.__app.ui.codeRoot():'code';
+          wroteYet=((this.tools.vfs.filesInFolder(root)||[]).length>0)
+            || messages.some(m=>String(m.name||'')==='write_file'||(m.role==='assistant'&&m.tool_calls&&m.tool_calls.some(t=>(t.function&&t.function.name)==='write_file')));
+        }
+      }catch(e){}
+      // Code mode: keep requiring tools until write_file lands. Prefer forcing write_file when workspace empty.
+      let choice=this.storage.get('toolChoice','auto')||'auto';
+      const useTools=!!(withTools&&choice!=='none');
+      if(withTools&&codeHot&&!wroteYet&&iteration<=12){
+        choice={type:'function',function:{name:'write_file'}};
+      }else if(withTools&&codeHot&&!wroteYet&&iteration<=12){
+        choice='required';
+      }
       return await this.provider.chat(messages,{
         tools:useTools?this.tools.definitions:undefined,
         signal,
         model:this._pickModel(deepThink),
         maxTokens:this.maxTokens||INTENSITY[(this.storage.get('intensity','medium')||'medium')].maxTokens||4000,
-        toolChoice:forceTools?'required':(useTools?storedChoice:undefined),
+        toolChoice:useTools?choice:undefined,
         temperature:(()=>{const f=this.storage.get('forceTemp',null);if(f!=null&&f!==''&&Number.isFinite(Number(f)))return Math.min(1.2,Math.max(0,Number(f)));return this.temperature!=null?this.temperature:0.4})()
       });
     }catch(e){
@@ -5357,11 +5380,20 @@ const wroteFiles=messages.some(m=>{
   // successful write_file tool results include path/lines/isNew
   return /"path"\s*:/.test(c)&&(/"lines"\s*:|"isNew"\s*:/.test(c)||/write_file/.test(c));
 });
-if(codeHotEnd&&iteration<=6){
+if(codeHotEnd&&iteration<=12){
+  let vfsHas=false;
+  try{
+    const root=(window.__app&&window.__app.ui&&window.__app.ui.codeRoot)?window.__app.ui.codeRoot():'code';
+    vfsHas=((this.tools.vfs.filesInFolder(root)||[]).length>0);
+  }catch(e){}
   const low=String(assistantMsg.content||'').toLowerCase();
-  const looksReady=/ready to write|i am ready|i'll write|i will write|let me write|shall i write|what would you like|here is a plan/i.test(low);
-  if(!wroteFiles||looksReady){
-    messages.push({role:'user',content:'Stop announcing. Immediately call write_file under the current code session folder and create a complete working HTML page with embedded CSS and JavaScript that fulfills the original task. Also write any extra .css/.js files needed. Paths must be under the session code/ folder (e.g. index.html). The live preview must work. Then call check_code. After tools succeed, give a short final summary with [[preview:...]] links. Do not ask questions.'});
+  const looksPlan=/ready to write|i am ready|here is a plan|1\.\s*list_files|\blist_files\b/i.test(low);
+  if(!wroteFiles&&!vfsHas){
+    messages.push({role:'user',content:'STOP. No files exist yet. Call write_file NOW with path "index.html" and the FULL HTML document (include <style> and <script>). Do not call list_files. Do not write a plan. Tool name must be write_file.'});
+    continue;
+  }
+  if(looksPlan&&!vfsHas){
+    messages.push({role:'user',content:'No more planning. Call write_file with index.html and complete source code now.'});
     continue;
   }
 }
@@ -5386,7 +5418,8 @@ if(iteration>=2){
   break;
 }
 }
-if(deepThink||(this.storage.get('intensity','')==='ultra')||this.storage.get('intensity','')==='xultra'){
+if((deepThink||(this.storage.get('intensity','')==='ultra')||this.storage.get('intensity','')==='xultra')
+  &&!(this.storage.get('appMode','')==='code'||(window.__app&&window.__app.mode==='code'))){
   try{
     const brief=(finalContent||'').slice(0,2500);
     const mates=[['Agent 2','You are Agent 2, a distinct reviewer brain. Find errors, missing tests, and unsafe claims. Be concise.'],['Agent 3','You are Agent 3, a distinct files/archivist brain. List files that should exist and checks to run.']];
@@ -5407,10 +5440,10 @@ if((this.teamSize||1)>1){
       const root=(window.__app&&window.__app.ui&&window.__app.ui.codeRoot)?window.__app.ui.codeRoot():'code';
       let paths=(this.tools.vfs.filesInFolder(root)||[]);
       if(!paths.length){
-        onEvent({type:'activity',name:'Force write',agent:'Agent 1',status:'running',detail:'Workspace empty — Builder must write_file before review team.'});
+        const forceActId=onEvent({type:'activity',name:'Writing file',agent:'Agent 1',status:'running',detail:'Workspace empty — forcing write_file…',expand:true});
         try{
-          const sysW='You are Builder in CODE MODE. Workspace is empty. Call write_file with a complete working index.html (embedded CSS and JS) implementing the user goal. Prefer a single self-contained HTML file.';
-          let data=await this.provider.chat([{role:'system',content:sysW},{role:'user',content:String(userMessage).slice(0,5000)}],{tools:this.tools.definitions,temperature:0.2,maxTokens:this.maxTokens||8000,signal});
+          const sysW='You are Builder in CODE MODE. Workspace is empty. You MUST call write_file with path index.html and a complete working HTML page (embedded CSS and JS) for the user goal. No list_files. No planning text.';
+          let data=await this.provider.chat([{role:'system',content:sysW},{role:'user',content:String(userMessage).slice(0,5000)}],{tools:this.tools.definitions,toolChoice:{type:'function',function:{name:'write_file'}},temperature:0.2,maxTokens:this.maxTokens||8000,signal});
           let msg=(data&&data.choices&&data.choices[0]&&data.choices[0].message)||{};
           const hist=[{role:'system',content:sysW},{role:'user',content:String(userMessage).slice(0,5000)}];
           let guard=0;
@@ -5418,17 +5451,26 @@ if((this.teamSize||1)>1){
             hist.push({role:'assistant',content:msg.content||'',tool_calls:msg.tool_calls});
             for(const tc of msg.tool_calls){
               const name=tc.function&&tc.function.name;let args={};try{args=JSON.parse(tc.function.arguments||'{}')}catch(e){}
-              if(name==='write_file'&&args.path){
+              if(name==='write_file'){
+                if(!args.path)args.path='index.html';
                 let p=String(args.path).replace(/^\/+/,'');
                 if(p&&!p.startsWith(root)&&!/^(memory|uploads|plugins|archive)/.test(p))args.path=root+'/'+p;
+                if(!args.content||String(args.content).length<40){
+                  args.content='<!DOCTYPE html><html><head><meta charset="utf-8"><title>App</title><style>body{font-family:system-ui;padding:24px}h1{color:#2563eb}</style></head><body><h1>App</h1><p>Generated for: '+String(userMessage).slice(0,200).replace(/[<>]/g,'')+'</p><script>console.log("ready")</script></body></html>';
+                }
               }
-              onEvent({type:'activity',name:(name||'tool')+' · force-write',agent:'Agent 1',status:'running',detail:String(args.path||name||'').slice(0,80)});
-              let res=name==='write_file'?await this._streamWriteFile(args,null,onEvent):await this.tools.execute(name,args);
-              onEvent({type:'activity',name:(name||'tool')+' · force-write',agent:'Agent 1',status:'done',detail:JSON.stringify(res).slice(0,300)});
+              let res;
+              if(name==='write_file')res=await this._streamWriteFile(args,forceActId,onEvent);
+              else res=await this.tools.execute(name,args);
               hist.push({role:'tool',tool_call_id:tc.id,name,content:JSON.stringify(res).slice(0,8000)});
             }
-            data=await this.provider.chat(hist,{tools:this.tools.definitions,temperature:0.2,maxTokens:4000,signal});
+            if((this.tools.vfs.filesInFolder(root)||[]).length)break;
+            data=await this.provider.chat(hist,{tools:this.tools.definitions,toolChoice:{type:'function',function:{name:'write_file'}},temperature:0.2,maxTokens:4000,signal});
             msg=(data&&data.choices&&data.choices[0]&&data.choices[0].message)||{};
+          }
+          if(!(this.tools.vfs.filesInFolder(root)||[]).length){
+            const fallback='<!DOCTYPE html><html><head><meta charset="utf-8"><title>App</title><style>body{font-family:system-ui;padding:24px}h1{color:#2563eb}</style></head><body><h1>App</h1><p>'+String(userMessage).slice(0,240).replace(/[<>]/g,'')+'</p></body></html>';
+            await this._streamWriteFile({path:root+'/index.html',content:fallback},forceActId,onEvent);
           }
           if(msg.content)finalContent=msg.content;
         }catch(e){console.warn('force write',e)}
@@ -5466,13 +5508,13 @@ async runTeamFollowups(n,goal,first,onEvent){
   // they only talk to the Supervisor via structured handoff. Supervisor may stop early.
   n=Math.max(1,Math.min(8,Number(n)||1));
   const rolePool=[
-    {id:'Builder',sys:'You are Builder. Design and implement concrete solutions. Prefer tools (run_python, write_file). Report findings only to the Supervisor. Never address the end user. Never invent agent names for other people.'},
-    {id:'Reviewer',sys:'You are Reviewer. Find errors, gaps, and unsafe claims. Be concise. Speak only to the Supervisor. Do not role-play as other agents.'},
+    {id:'Builder',sys:'You are Builder. Design and implement concrete solutions. Prefer tools (run_python, write_file). In CODE MODE call write_file yourself — never only plan. Report findings only to the Supervisor. Never address the end user.'},
+    {id:'Reviewer',sys:'You are Reviewer. Find errors with list_files/read_file/check_code. Never ask others to paste files. Speak only to the Supervisor.'},
     {id:'Researcher',sys:'You are Researcher. Gather facts, run calculations with run_python, and cite tool results. Speak only to the Supervisor.'},
     {id:'Verifier',sys:'You are Verifier. Independently check previous work with tools when possible. Speak only to the Supervisor.'},
     {id:'Critic',sys:'You are Critic. Stress-test assumptions and edge cases. Speak only to the Supervisor.'},
     {id:'Synthesizer',sys:'You are Synthesizer. Merge prior agent notes into a coherent draft for the Supervisor. Speak only to the Supervisor.'},
-    {id:'Archivist',sys:'You are Archivist. Track files, paths, and reproducibility. Speak only to the Supervisor.'},
+    {id:'Archivist',sys:'You are Archivist. Call list_files and report real paths only. Never invent missing files. Speak only to the Supervisor.'},
     {id:'Tester',sys:'You are Tester. Propose and run checks (especially run_python). Speak only to the Supervisor.'}
   ];
   const results=[{agent:'Agent 1',role:'Primary',content:String(first||'').slice(0,12000)}];
@@ -7292,27 +7334,23 @@ async sendCode(){this.ensureAgent();
   const filesSnapshot=existingFiles.length
     ?('CURRENT FILES IN THIS CODE SESSION ('+existingFiles.length+'):\n'+existingFiles.map(p=>'- '+p).join('\n'))
     :('CURRENT FILES IN THIS CODE SESSION: (none — workspace is empty)\n'
-      +'Because there are no project files yet, you MUST create a complete app from scratch:\n'
-      +'1) Call list_files on the code root (optional confirm).\n'
-      +'2) Immediately write_file a full working index.html with embedded <style> CSS and <script> JS (or write index.html + style.css + app.js with relative links).\n'
+      +'Because there are no project files yet, your FIRST action must be write_file:\n'
+      +'1) Call write_file with path index.html and FULL HTML (embed CSS in <style> and JS in <script>).\n'
+      +'2) Optionally write style.css / app.js the same way.\n'
       +'3) Call check_code, fix until clean.\n'
-      +'4) End with [[preview:.../index.html]] so the live preview shows the app.');
+      +'4) End with [[preview:.../index.html]]. Do NOT only call list_files.');
 
   const codePrompt=`CODE MODE — EXECUTE NOW. Intensity: ${inten.label}. ${inten.extra}\n
 ${filesSnapshot}
 
 MANDATORY WORKFLOW:
-1. Call list_files on the current code session folder first (see CURRENT FILES above).
-2. If the workspace is empty OR the user asked to create a new application/page/app and no suitable HTML exists:
-   - Literally write the application with write_file.
-   - Produce real HTML + CSS + JS (not a stub). Prefer one index.html with <style> and <script> so the preview works immediately.
-   - Or write index.html + style.css + app.js in the same folder with relative links.
-3. If files already exist, read them, then edit or extend with write_file — do not wipe unrelated work unless asked.
-4. Call check_code. Fix errors until ok:true.
-5. Finish with [[preview:path/to/index.html]] (and [[folder:...]] if multi-file).
+1. If the workspace is empty or the user wants a new app/page: FIRST tool call = write_file (path index.html, full HTML+CSS+JS). list_files is optional and never sufficient alone.
+2. Produce real HTML + CSS + JS (not a stub). Prefer one index.html with embedded <style> and <script>.
+3. If files already exist, read_file then edit with write_file.
+4. Call check_code until ok:true.
+5. Final message: short summary + [[preview:path/to/index.html]].
 
-Do not reply with "I am ready to write" or only a plan. First tool calls must inspect files then write_file when creating.
-Never ship a bare HTML shell without styles or behavior when the user asked for a page/app.
+Do not reply with a numbered plan like "1. list_files". Do not only plan. Invoke write_file via the tools API with full file content.
 Tools: write_file, read_file, list_files, run_python, check_code, web_search, image_search, github_*, self_check.
 
 RUNTIME CHECK LOOP (required):
@@ -7847,7 +7885,11 @@ else if(ev.type==='activity'){
       try{b.innerHTML=this.renderMarkdown(d.slice(0,4000))}catch{b.textContent=d.slice(0,4000)}
     }
   }
-  if(ev.expand||/Writing file|Writing File|Runtime check/i.test(ev.name||'')||/write_file/i.test(String(ev.name||''))){step.classList.add('open','writing-live');const ch=step.querySelector('.tp-step-head > span');if(ch)ch.textContent='▾';const root=step.closest('.thought-process');if(root){root.classList.add('open');const c=root.querySelector('.tp-chevron');if(c)c.textContent='▾'}}
+  {
+    const isWrite=/Writing file|Wrote file|write_file/i.test(String(ev.name||''));
+    if(isWrite||ev.expand){step.classList.add('open');const ch=step.querySelector('.tp-step-head > span');if(ch)ch.textContent='▾';}
+    if(isWrite){step.classList.add('writing-live');const root=step.closest('.thought-process');if(root){root.classList.add('open');const c=root.querySelector('.tp-chevron');if(c)c.textContent='▾'}}
+  }}
   step.querySelector('.tp-step-head').onclick=(e)=>{e.stopPropagation();step.classList.toggle('open');step.querySelector('.tp-step-head span').textContent=step.classList.contains('open')?'▾':'▸'};
   panel.appendChild(step);
   const n=panel.querySelectorAll('.tp-step').length;
