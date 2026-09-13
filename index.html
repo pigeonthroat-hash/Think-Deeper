@@ -5117,7 +5117,7 @@ try{
     onEvent({type:'activity',name:'Monaco check',agent:'Agent 2',status:'done',detail:errs.length?errs.join('\n'):'Returned no errors'});
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE — BUILD NOW. You are a coding agent.\n1) Call list_files on the code session folder first.\n2) If no project files exist (or the user asked to create an app/page and there is no HTML yet), you MUST literally write a complete working application with write_file: real HTML + CSS + JS. Prefer index.html with embedded <style> and <script>, or index.html + style.css + app.js with relative links.\n3) If files already exist, read them and edit with write_file.\n4) Call check_code until clean, then link [[preview:.../index.html]].\nDo not only plan. Do not claim the app is ready without writing files. Persist only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE — OVERRIDES FILE CREATION RULES ABOVE.\nYou MUST use write_file for every deliverable. Code fences alone are NOT enough — files must exist in the workspace.\n1) list_files on the session code folder.\n2) write_file complete working HTML/CSS/JS (prefer index.html with embedded style+script).\n3) check_code until clean.\n4) Final message MUST include [[preview:.../index.html]] and written paths.\nAgent 1 builds with write_file. Agent 2 verifies with read_file+check_code. Agent 3 uses list_files. Never ask teammates to paste files — use the shared virtual FS tools.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 const hardMax=Number.POSITIVE_INFINITY;
 try{while(iteration<hardMax&&this.running){if(!this.running)break;
@@ -5373,7 +5373,59 @@ if(deepThink||(this.storage.get('intensity','')==='ultra')||this.storage.get('in
   }catch(e){console.warn('team',e)}
 }
 if(!finalContent)finalContent='Stopped before a final answer. Press Stop to cancel a long run, or send again if the model returned nothing.';
-if((this.teamSize||1)>1){try{finalContent=await this.runTeamFollowups(this.teamSize,userMessage,finalContent,onEvent)}catch(e){console.warn('team',e)}}
+if((this.teamSize||1)>1){
+  try{
+    const codeMode=this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code');
+    if(codeMode){
+      const root=(window.__app&&window.__app.ui&&window.__app.ui.codeRoot)?window.__app.ui.codeRoot():'code';
+      let paths=(this.tools.vfs.filesInFolder(root)||[]);
+      if(!paths.length){
+        onEvent({type:'activity',name:'Force write',agent:'Agent 1',status:'running',detail:'Workspace empty — Builder must write_file before review team.'});
+        try{
+          const sysW='You are Builder in CODE MODE. Workspace is empty. Call write_file with a complete working index.html (embedded CSS and JS) implementing the user goal. Prefer a single self-contained HTML file.';
+          let data=await this.provider.chat([{role:'system',content:sysW},{role:'user',content:String(userMessage).slice(0,5000)}],{tools:this.tools.definitions,temperature:0.2,maxTokens:this.maxTokens||8000,signal});
+          let msg=(data&&data.choices&&data.choices[0]&&data.choices[0].message)||{};
+          const hist=[{role:'system',content:sysW},{role:'user',content:String(userMessage).slice(0,5000)}];
+          let guard=0;
+          while(msg.tool_calls&&msg.tool_calls.length&&guard++<8&&this.running){
+            hist.push({role:'assistant',content:msg.content||'',tool_calls:msg.tool_calls});
+            for(const tc of msg.tool_calls){
+              const name=tc.function&&tc.function.name;let args={};try{args=JSON.parse(tc.function.arguments||'{}')}catch(e){}
+              if(name==='write_file'&&args.path){
+                let p=String(args.path).replace(/^\/+/,'');
+                if(p&&!p.startsWith(root)&&!/^(memory|uploads|plugins|archive)/.test(p))args.path=root+'/'+p;
+              }
+              onEvent({type:'activity',name:(name||'tool')+' · force-write',agent:'Agent 1',status:'running',detail:String(args.path||name||'').slice(0,80)});
+              let res=name==='write_file'?await this._streamWriteFile(args,null,onEvent):await this.tools.execute(name,args);
+              onEvent({type:'activity',name:(name||'tool')+' · force-write',agent:'Agent 1',status:'done',detail:JSON.stringify(res).slice(0,300)});
+              hist.push({role:'tool',tool_call_id:tc.id,name,content:JSON.stringify(res).slice(0,8000)});
+            }
+            data=await this.provider.chat(hist,{tools:this.tools.definitions,temperature:0.2,maxTokens:4000,signal});
+            msg=(data&&data.choices&&data.choices[0]&&data.choices[0].message)||{};
+          }
+          if(msg.content)finalContent=msg.content;
+        }catch(e){console.warn('force write',e)}
+        paths=(this.tools.vfs.filesInFolder(root)||[]);
+      }
+    }
+    finalContent=await this.runTeamFollowups(this.teamSize,userMessage,finalContent,onEvent);
+  }catch(e){console.warn('team',e)}
+}
+try{
+  if(this.storage.get('appMode','')==='code'||(window.__app&&window.__app.mode==='code')){
+    const root=(window.__app&&window.__app.ui&&window.__app.ui.codeRoot)?window.__app.ui.codeRoot():'code';
+    const paths=(this.tools.vfs.filesInFolder(root)||[]);
+    if(paths.length){
+      const html=paths.find(p=>/index\.html$/i.test(p))||paths.find(p=>/\.html$/i.test(p));
+      const links=paths.slice(0,12).map(p=>'[[file:'+p+']]').join(' ');
+      if(!/\[\[(file|preview):/i.test(String(finalContent||''))){
+        finalContent=String(finalContent||'Done.').trim()+'\n\n'+(html?'[[preview:'+html+']]\n':'')+links;
+      }
+    }else if(!String(finalContent||'').trim()){
+      finalContent='No files were written to the code workspace. Please try again and ask to create the app (files are saved with write_file).';
+    }
+  }
+}catch(e){}
 onEvent({type:'final',content:finalContent});onEvent({type:'status',text:''});onEvent({type:'done'});return finalContent}
 catch(e){if(e.name==='AbortError'){onEvent({type:'status',text:'Stopped'});onEvent({type:'final',content:finalContent||'*(Stopped)*'});onEvent({type:'done'});return finalContent}
 console.error('[Agent] fatal',e);
@@ -5430,8 +5482,25 @@ async runTeamFollowups(n,goal,first,onEvent){
     const task=String(asg.task||'Verify and improve prior work.');
     onEvent({type:'activity',name:agentLabel,agent:agentLabel,status:'running',detail:task});
     try{
-      const sys=roleDef.sys+'\nYour code name is "'+roleDef.id+'". The Supervisor is your only contact. Never greet or name the human user. Never claim other agents called you by a human name. When done, summarize your result for the Supervisor only.';
-      const userMsg='Supervisor assignment:\\n'+task+'\\n\\nOriginal goal:\\n'+String(goal).slice(0,3500)+'\\n\\nPrior handoff (from Supervisor):\\n'+String(last).slice(0,6000);
+      const sys=roleDef.sys+'\nYour code name is "'+roleDef.id+'". The Supervisor is your only contact. Never greet or name the human user. Never claim other agents called you by a human name. When done, summarize your result for the Supervisor only.'+(this.storage.get('appMode','')==='code'||(window.__app&&window.__app.mode==='code')?'\nCODE FS: use list_files/read_file/write_file/check_code. Never ask others to paste files.':'');
+      
+      let workspaceNote='';
+      try{
+        const codeMode=this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code');
+        if(codeMode){
+          const root=(window.__app&&window.__app.ui&&window.__app.ui.codeRoot)?window.__app.ui.codeRoot():'code';
+          const paths=(this.tools.vfs.filesInFolder(root)||[]).slice(0,40);
+          if(paths.length){
+            const briefs=paths.slice(0,6).map(p=>{
+              try{const c=String(this.tools.vfs.read(p)||'');return '- '+p+' ('+c.length+' chars)\n'+c.slice(0,900)+(c.length>900?'\n…':'');}
+              catch(e){return '- '+p}
+            }).join('\n');
+            workspaceNote='\n\nSHARED WORKSPACE FILES under '+root+' (all agents share this FS):\n'+paths.map(p=>'- '+p).join('\n')+'\n\nPreviews:\n'+briefs;
+          }else workspaceNote='\n\nSHARED WORKSPACE under '+root+': EMPTY. Builder must write_file before review. Do not claim files exist.';
+        }
+      }catch(e){}
+
+      const userMsg='Supervisor assignment:\\n'+task+'\\n\\nOriginal goal:\\n'+String(goal).slice(0,3500)+'\\n\\nPrior handoff (from Supervisor):\\n'+String(last).slice(0,6000)+workspaceNote;
       let data=await this.provider.chat([
         {role:'system',content:sys},
         {role:'user',content:userMsg}
@@ -6010,6 +6079,15 @@ saveAgentSession(partial){
   Object.assign(s,partial,{updated:Date.now()});
   if(!s.projectId&&this.activeProjectId)s.projectId=this.activeProjectId();
   if(s.title)s.title=String(s.title).slice(0,48);
+  if(Array.isArray(s.messages)&&s.messages.length>1){
+    const out=[];
+    for(const m of s.messages){
+      const prev=out[out.length-1];
+      if(prev&&m&&prev.role===m.role&&prev.role!=='user'&&String(prev.content||'')===String(m.content||''))continue;
+      out.push(m);
+    }
+    s.messages=out.slice(-200);
+  }
   this.app.storage.set('agentSessions',list.slice(0,40));
   try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
   this.renderAgentHist();
@@ -6205,7 +6283,18 @@ loadAgentSession(id){
   const box=$('#swarm-think');if(!box)return;
   box.innerHTML='';
   const who=this.userLabel();
-  (s.messages||[]).forEach(m=>{
+  // Repair spam: collapse consecutive identical assistant messages
+  let cleaned=[];
+  for(const m of (s.messages||[])){
+    const prev=cleaned[cleaned.length-1];
+    if(prev&&prev.role===m.role&&prev.role!=='user'&&String(prev.content||'')===String(m.content||''))continue;
+    cleaned.push(m);
+  }
+  if(cleaned.length!==(s.messages||[]).length){
+    s.messages=cleaned;
+    try{this.saveAgentSession({id:s.id,title:s.title,messages:cleaned,runAlive:false})}catch(e){}
+  }
+  cleaned.forEach(m=>{
     if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);
     const div=document.createElement('div');
     div.className='agent-msg '+(m.role==='user'?'user':'assistant')+(m.speaker==='Supervisor'||m.role==='assistant'?' supervisor':'');
@@ -6467,6 +6556,7 @@ async startSwarm(opts){
     this.scrollAgentChat?this.scrollAgentChat(true): (box.scrollTop=box.scrollHeight);
   }
   this.setAgentRunningUi(true);
+  this._lastSavedSolvedSig=null;
   // Re-assert stop button after DOM settle (some browsers miss class toggle during layout)
   try{requestAnimationFrame(()=>this.setAgentRunningUi(true))}catch(e){this.setAgentRunningUi(true)}
   this._setAgentStatus('Running · '+count+' agents');
@@ -6596,8 +6686,19 @@ renderSwarm(ev){
         const s=this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{id:this._currentAgentSessionId,messages:[]};
         let finalTxt=String(k.solved);
         if(this.app.vfs&&this.app.vfs.rewriteLinks)finalTxt=this.app.vfs.rewriteLinks(finalTxt);
-        const messages=(s.messages||[]).concat([{role:'assistant',speaker:'Supervisor',content:finalTxt}]);
-        this.saveAgentSession({id:s.id,title:s.title||'Agent chat',messages,runAlive:false});
+        // renderSwarm runs on every event while k.solved is true — only save once
+        const sig=String(this._currentAgentSessionId)+'::'+finalTxt.length+'::'+finalTxt.slice(0,240);
+        if(this._lastSavedSolvedSig!==sig){
+          const msgs=(s.messages||[]).slice();
+          while(msgs.length){
+            const last=msgs[msgs.length-1];
+            if(last&&last.role==='assistant'&&String(last.content||'')===finalTxt)msgs.pop();
+            else break;
+          }
+          msgs.push({role:'assistant',speaker:'Supervisor',content:finalTxt,id:uid()});
+          this._lastSavedSolvedSig=sig;
+          this.saveAgentSession({id:s.id,title:s.title||'Agent chat',messages:msgs,runAlive:false});
+        }
       }
     }catch(e){}
   }
@@ -7177,7 +7278,8 @@ ${text}${attNote||''}`;
   this.app.agent.settings.maxTime=86400;
   this.app.agent.temperature=inten.temperature;
   this.app.agent.maxTokens=inten.maxTokens||4000;
-  this.app.agent.projectCtx=this.projectContext();this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: maximum verification and tools.':'');
+  this.app.agent.projectCtx=this.projectContext();this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: maximum verification and tools. Agent 1 MUST write_file real code. Agent 2 must check_code/read_file. Agent 3 must list_files and confirm paths.':'');
+  this.app.agent.teamSize=(inten.team||inten.ultraSkills)?3:1;
   this.app.mode='code';
   this.mode='code';
   this.app.storage.set('appMode','code');
