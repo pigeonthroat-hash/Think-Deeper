@@ -5456,7 +5456,7 @@ if((this.teamSize||1)>1){
                 let p=String(args.path).replace(/^\/+/,'');
                 if(p&&!p.startsWith(root)&&!/^(memory|uploads|plugins|archive)/.test(p))args.path=root+'/'+p;
                 if(!args.content||String(args.content).length<40){
-                  args.content='<!DOCTYPE html><html><head><meta charset="utf-8"><title>App</title><style>body{font-family:system-ui;padding:24px}h1{color:#2563eb}</style></head><body><h1>App</h1><p>Generated for: '+String(userMessage).slice(0,200).replace(/[<>]/g,'')+'</p><script>console.log("ready")</script></body></html>';
+                  args.content='<!DOCTYPE html><html><head><meta charset="utf-8"><title>App</title><style>body{font-family:system-ui;padding:24px}h1{color:#2563eb}</style></head><body><h1>App</h1><p>Generated for: '+String(userMessage).slice(0,200).replace(/[<>]/g,'')+'</p><scr'+'ipt>console.log("ready")</scr'+'ipt></body></html>';
                 }
               }
               let res;
@@ -7220,7 +7220,7 @@ refreshCodePreview(){
       if(!/\.css/i.test(rel)&&!/stylesheet/i.test(m))return m;
       return '<style data-td-inline="1">\n'+hit.text+'\n</style>';
     });
-    html=html.replace(/<script\b([^>]*?)src=["'](?!https?:|data:|blob:)([^"']+)["']([^>]*)><\/script>/gi,(m,pre,rel,post)=>{
+    html=html.replace(new RegExp('<scr'+'ipt\\b([^>]*?)src=["\'](?!https?:|data:|blob:)([^"\']+)["\']([^>]*)><\\/scr'+'ipt>','gi'),(m,pre,rel,post)=>{
       const hit=resolveRel(rel);if(!hit)return m;
       return '<script data-td-inline="1">\n'+hit.text+'\n</scr'+'ipt>';
     });
@@ -7889,7 +7889,7 @@ else if(ev.type==='activity'){
     const isWrite=/Writing file|Wrote file|write_file/i.test(String(ev.name||''));
     if(isWrite||ev.expand){step.classList.add('open');const ch=step.querySelector('.tp-step-head > span');if(ch)ch.textContent='▾';}
     if(isWrite){step.classList.add('writing-live');const root=step.closest('.thought-process');if(root){root.classList.add('open');const c=root.querySelector('.tp-chevron');if(c)c.textContent='▾'}}
-  }}
+  }
   step.querySelector('.tp-step-head').onclick=(e)=>{e.stopPropagation();step.classList.toggle('open');step.querySelector('.tp-step-head span').textContent=step.classList.contains('open')?'▾':'▸'};
   panel.appendChild(step);
   const n=panel.querySelectorAll('.tp-step').length;
