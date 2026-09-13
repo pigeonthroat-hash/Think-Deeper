@@ -3301,11 +3301,17 @@ messagesToGemini(messages){
     }
     const role=msg.role==='assistant'?'model':'user';
     if(role==='model'&&msg._geminiParts&&msg._geminiParts.length){
-      // Strip thoughtSignature — Gemini accepts it on responses only, not on request functionCall parts
+      // Keep part-level thoughtSignature; never nest it inside functionCall (API rejects that)
       const cleanParts=msg._geminiParts.map(p=>{
-        if(!p||!p.functionCall)return p;
-        const fc={name:p.functionCall.name||'',args:p.functionCall.args||p.functionCall.arguments||{}};
-        return {functionCall:fc};
+        if(!p||typeof p!=='object')return p;
+        if(!p.functionCall)return p;
+        const fc=p.functionCall;
+        const out={functionCall:{name:fc.name||'',args:fc.args||fc.arguments||{}}};
+        const sig=p.thoughtSignature||p.thought_signature||fc.thoughtSignature||fc.thought_signature||null;
+        if(sig){out.thoughtSignature=sig;}
+        // preserve other non-functionCall part fields (e.g. text alongside)
+        if(p.text)out.text=p.text;
+        return out;
       });
       contents.push({role:'model',parts:cleanParts});
       continue;
@@ -3328,26 +3334,38 @@ messagesToGemini(messages){
       parts.push({text:String(msg.content)});
     }
     if(msg.tool_calls&&msg.tool_calls.length){
-      msg.tool_calls.forEach(tc=>{
+      msg.tool_calls.forEach((tc,idx)=>{
         const fn=tc.function||{};
         let args={};
         try{args=typeof fn.arguments==='string'?JSON.parse(fn.arguments||'{}'):(fn.arguments||{});}catch(e){args={_raw:String(fn.arguments||'')}}
-        // Do not attach thoughtSignature — Gemini rejects it on request payloads
+        const sig=tc.thoughtSignature||tc.thought_signature||(tc.extra_content&&tc.extra_content.google&&(tc.extra_content.google.thoughtSignature||tc.extra_content.google.thought_signature))||null;
+        // thoughtSignature must be on the PART, not inside functionCall
         const fcPart={functionCall:{name:fn.name||'',args:args&&typeof args==='object'&&!Array.isArray(args)?args:{}}};
+        if(sig)fcPart.thoughtSignature=sig;
         parts.push(fcPart);
       });
     }
     if(parts.length)contents.push({role,parts});
   }
   if(!contents.length)contents.push({role:'user',parts:[{text:'Hello'}]});
-  // Ensure no residual thoughtSignature fields leak into the request
+  // Sanitize: ensure signatures stay part-level; never inside functionCall
   contents.forEach(c=>{
     if(!c||!c.parts)return;
     c.parts=c.parts.map(p=>{
       if(!p||!p.functionCall)return p;
-      const fc={name:p.functionCall.name||'',args:p.functionCall.args||p.functionCall.arguments||{}};
-      return {functionCall:fc};
+      const fc=p.functionCall;
+      const out={functionCall:{name:fc.name||'',args:fc.args||fc.arguments||{}}};
+      const sig=p.thoughtSignature||p.thought_signature||fc.thoughtSignature||fc.thought_signature||null;
+      if(sig)out.thoughtSignature=sig;
+      if(p.text)out.text=p.text;
+      return out;
     });
+    // Parallel tool calls: only first functionCall needs a signature; if any has one, copy to first
+    const fcs=c.parts.filter(p=>p&&p.functionCall);
+    if(fcs.length>1){
+      const donor=fcs.find(p=>p.thoughtSignature);
+      if(donor&&!fcs[0].thoughtSignature)fcs[0].thoughtSignature=donor.thoughtSignature;
+    }
   });
   return {system:systemParts.join('\n\n'),contents};
 }
