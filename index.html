@@ -2187,6 +2187,20 @@ class CloudSync{
       this.db=firebase.firestore();
       try{this.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)}catch{}
       this.ready=true;
+      this._authInFlight=false;
+      // Complete redirect-based sign-in if a previous popup was blocked
+      try{
+        this.auth.getRedirectResult().then((result)=>{
+          if(result&&result.user){
+            this.uid=result.user.uid;
+            console.log('[CloudSync] redirect sign-in',result.user.uid);
+            this._onAuthUser(result.user);
+          }
+        }).catch((e)=>{
+          const code=(e&&e.code)||'';
+          if(code&&code!=='auth/popup-closed-by-user')console.warn('[CloudSync] redirect result',e);
+        });
+      }catch(e){}
       this._authReady=new Promise((resolve)=>{
         let resolved=false;
         this.auth.onAuthStateChanged((user)=>{
@@ -2245,12 +2259,52 @@ class CloudSync{
   }
   async signInWithGoogle(){
     if(!this.ready&&!this.init())throw new Error('Firebase not configured (firebaseConfig in config.local.js)');
-    const provider=new firebase.auth.GoogleAuthProvider();
-    provider.addScope('profile');provider.addScope('email');
-    const result=await this.auth.signInWithPopup(provider);
-    const u=result.user;
-    this.uid=u.uid;
-    return{id:u.uid,name:u.displayName,email:u.email,picture:u.photoURL};
+    if(this._authInFlight){
+      const err=new Error('Sign-in already in progress. Finish or close the other popup first.');
+      err.code='auth/already-in-progress';
+      throw err;
+    }
+    this._authInFlight=true;
+    try{
+      // Prefer existing session if already signed in
+      try{
+        const cur=this.auth&&this.auth.currentUser;
+        if(cur){
+          this.uid=cur.uid;
+          return{id:cur.uid,name:cur.displayName,email:cur.email,picture:cur.photoURL};
+        }
+      }catch(e){}
+      const provider=new firebase.auth.GoogleAuthProvider();
+      provider.addScope('profile');provider.addScope('email');
+      let result;
+      try{
+        result=await this.auth.signInWithPopup(provider);
+      }catch(e){
+        const code=(e&&e.code)||'';
+        if(code==='auth/cancelled-popup-request'||code==='auth/popup-closed-by-user'){
+          const err=new Error('Sign-in was cancelled. Click Continue with Google once and complete the popup.');
+          err.code=code;throw err;
+        }
+        if(code==='auth/popup-blocked'){
+          // Fallback: full-page redirect (survives popup blockers)
+          try{
+            await this.auth.signInWithRedirect(provider);
+            const err=new Error('Popup blocked — redirected to Google sign-in. Complete sign-in and you will return here.');
+            err.code=code;throw err;
+          }catch(e2){
+            if(e2&&e2.code===code)throw e2;
+            const err=new Error('Popup blocked by the browser. Allow popups for this site, or try again.');
+            err.code=code;throw err;
+          }
+        }
+        throw e;
+      }
+      const u=result.user;
+      this.uid=u.uid;
+      return{id:u.uid,name:u.displayName,email:u.email,picture:u.photoURL};
+    }finally{
+      this._authInFlight=false;
+    }
   }
   async signOut(){
     this.stopListening();
@@ -3326,38 +3380,40 @@ messagesToGemini(messages){
         const fn=tc.function||{};
         let args={};
         try{args=typeof fn.arguments==='string'?JSON.parse(fn.arguments||'{}'):(fn.arguments||{});}catch(e){args={_raw:String(fn.arguments||'')}}
-        const sig=tc.thoughtSignature||tc.thought_signature||(tc.extra_content&&tc.extra_content.google&&(tc.extra_content.google.thoughtSignature||tc.extra_content.google.thought_signature))||null;
+        // Never put thoughtSignature inside functionCall — Gemini rejects unknown fields there (400).
         const fcPart={functionCall:{name:fn.name||'',args:args&&typeof args==='object'&&!Array.isArray(args)?args:{}}};
-        if(sig){
-          fcPart.thoughtSignature=sig;
-          fcPart.thought_signature=sig;
-          fcPart.functionCall.thoughtSignature=sig;
-        }
         parts.push(fcPart);
       });
     }
     if(parts.length)contents.push({role,parts});
   }
   if(!contents.length)contents.push({role:'user',parts:[{text:'Hello'}]});
-  contents.forEach(c=>{
-    if(!c||c.role!=='model'||!c.parts)return;
-    const fcs=c.parts.filter(p=>p&&p.functionCall);
-    if(!fcs.length)return;
-    const hasSig=fcs.some(p=>p.thoughtSignature||p.thought_signature||(p.functionCall&&(p.functionCall.thoughtSignature||p.functionCall.thought_signature)));
-    if(hasSig){
-      const first=fcs[0];
-      if(!(first.thoughtSignature||first.thought_signature||first.functionCall.thoughtSignature)){
-        const donor=fcs.find(p=>p.thoughtSignature||p.thought_signature||(p.functionCall&&p.functionCall.thoughtSignature));
-        const sig=donor&&(donor.thoughtSignature||donor.thought_signature||donor.functionCall.thoughtSignature);
-        if(sig){first.thoughtSignature=sig;first.thought_signature=sig;}
+  // Sanitize: strip experimental / model-only metadata that generateContent rejects
+  const stripThoughtMeta=(obj)=>{
+    if(!obj||typeof obj!=='object')return obj;
+    if(Array.isArray(obj))return obj.map(stripThoughtMeta);
+    const out={};
+    for(const k of Object.keys(obj)){
+      if(k==='thoughtSignature'||k==='thought_signature'||k==='thought'||k==='thoughtsTokenCount')continue;
+      const v=obj[k];
+      if(k==='functionCall'&&v&&typeof v==='object'){
+        const fc={};
+        if(v.name!=null)fc.name=v.name;
+        if(v.args!=null)fc.args=v.args;
+        else if(v.arguments!=null)fc.args=v.arguments;
+        out.functionCall=fc;
+      }else if(k==='functionResponse'&&v&&typeof v==='object'){
+        const fr={};
+        if(v.name!=null)fr.name=v.name;
+        if(v.response!=null)fr.response=v.response;
+        out.functionResponse=fr;
+      }else{
+        out[k]=stripThoughtMeta(v);
       }
-      return;
     }
-    c.parts=c.parts.map(p=>{
-      if(!p||!p.functionCall)return p;
-      return {text:'Called '+p.functionCall.name+'(' + JSON.stringify(p.functionCall.args||{}) + ')'};
-    });
-  });
+    return out;
+  };
+  for(let i=0;i<contents.length;i++)contents[i]=stripThoughtMeta(contents[i]);
   return {system:systemParts.join('\n\n'),contents};
 }
 toolsToGemini(tools){
@@ -3424,8 +3480,24 @@ async chatGemini(messages,{model,tools,signal,temperature,maxTokens,toolChoice}=
   const base=this.normalizeBaseUrl(this.config.baseUrl||'https://generativelanguage.googleapis.com/v1beta');
   const url=base.replace(/\/$/,'')+'/models/'+encodeURIComponent(mid)+':generateContent?key='+encodeURIComponent(key);
   const converted=this.messagesToGemini(this.normalizeMessages(messages));
+  // Final pass: Gemini generateContent rejects unknown fields like thoughtSignature on function_call
+  const scrub=(node)=>{
+    if(node==null||typeof node!=='object')return node;
+    if(Array.isArray(node))return node.map(scrub);
+    const out={};
+    for(const k of Object.keys(node)){
+      if(/^(thoughtSignature|thought_signature|thought)$/i.test(k))continue;
+      let v=node[k];
+      if(k==='functionCall'&&v&&typeof v==='object'){
+        out.functionCall={name:v.name||'',args:(v.args!=null?v.args:(v.arguments!=null?v.arguments:{}))};
+        continue;
+      }
+      out[k]=scrub(v);
+    }
+    return out;
+  };
   const body={
-    contents:converted.contents,
+    contents:scrub(converted.contents),
     generationConfig:{
       temperature:temperature!=null?temperature:0.4,
       maxOutputTokens:maxTokens||8192
@@ -8623,7 +8695,10 @@ openAuthModal(mode){
 mountGoogleButton(host,overlay){
   const status=overlay&&overlay.querySelector('#auth-status');
   const cfg=window.__THINK_DEEPER_CONFIG||{};
-  const doFirebase=async()=>{
+  const doFirebase=async(btn)=>{
+    if(this._uiAuthBusy)return;
+    this._uiAuthBusy=true;
+    if(btn){btn.disabled=true;btn.style.opacity='0.6';btn.style.pointerEvents='none'}
     try{
       if(status)status.textContent='Opening Google sign-in…';
       if(!this.app.cloud)this.app.cloud=new CloudSync();
@@ -8661,9 +8736,19 @@ mountGoogleButton(host,overlay){
       })();
     }catch(e){
       console.error(e);
-      const msg=(e&&e.message)||String(e);
+      const code=(e&&e.code)||'';
+      let msg=(e&&e.message)||String(e);
+      if(code==='auth/cancelled-popup-request'||code==='auth/already-in-progress')
+        msg='Sign-in already started. Use the open Google popup, or wait a moment and try once.';
+      else if(code==='auth/popup-blocked')
+        msg='Popup blocked. Allow popups for this site, or complete the redirect sign-in.';
+      else if(code==='auth/popup-closed-by-user')
+        msg='Sign-in window closed before finishing.';
       if(status)status.textContent=msg;
       toast(msg,'error');
+    }finally{
+      this._uiAuthBusy=false;
+      if(btn){btn.disabled=false;btn.style.opacity='';btn.style.pointerEvents=''}
     }
   };
   if(cfg.firebaseConfig&&cfg.firebaseConfig.apiKey&&typeof firebase!=='undefined'){
@@ -8672,7 +8757,7 @@ mountGoogleButton(host,overlay){
       const btn=document.createElement('button');
       btn.type='button';btn.className='google-btn';
       btn.innerHTML=(typeof SVG!=='undefined'?SVG.google:'')+' Continue with Google';
-      btn.onclick=()=>doFirebase();
+      btn.onclick=()=>doFirebase(btn);
       host.appendChild(btn);
     }
     if(status)status.textContent='Firebase Auth enabled — click to sign in';
