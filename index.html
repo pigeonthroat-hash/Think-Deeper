@@ -3301,19 +3301,7 @@ messagesToGemini(messages){
     }
     const role=msg.role==='assistant'?'model':'user';
     if(role==='model'&&msg._geminiParts&&msg._geminiParts.length){
-      // Keep part-level thoughtSignature; never nest it inside functionCall (API rejects that)
-      const cleanParts=msg._geminiParts.map(p=>{
-        if(!p||typeof p!=='object')return p;
-        if(!p.functionCall)return p;
-        const fc=p.functionCall;
-        const out={functionCall:{name:fc.name||'',args:fc.args||fc.arguments||{}}};
-        const sig=p.thoughtSignature||p.thought_signature||fc.thoughtSignature||fc.thought_signature||null;
-        if(sig){out.thoughtSignature=sig;}
-        // preserve other non-functionCall part fields (e.g. text alongside)
-        if(p.text)out.text=p.text;
-        return out;
-      });
-      contents.push({role:'model',parts:cleanParts});
+      contents.push({role:'model',parts:msg._geminiParts});
       continue;
     }
     const parts=[];
@@ -3334,38 +3322,41 @@ messagesToGemini(messages){
       parts.push({text:String(msg.content)});
     }
     if(msg.tool_calls&&msg.tool_calls.length){
-      msg.tool_calls.forEach((tc,idx)=>{
+      msg.tool_calls.forEach(tc=>{
         const fn=tc.function||{};
         let args={};
         try{args=typeof fn.arguments==='string'?JSON.parse(fn.arguments||'{}'):(fn.arguments||{});}catch(e){args={_raw:String(fn.arguments||'')}}
         const sig=tc.thoughtSignature||tc.thought_signature||(tc.extra_content&&tc.extra_content.google&&(tc.extra_content.google.thoughtSignature||tc.extra_content.google.thought_signature))||null;
-        // thoughtSignature must be on the PART, not inside functionCall
         const fcPart={functionCall:{name:fn.name||'',args:args&&typeof args==='object'&&!Array.isArray(args)?args:{}}};
-        if(sig)fcPart.thoughtSignature=sig;
+        if(sig){
+          fcPart.thoughtSignature=sig;
+          fcPart.thought_signature=sig;
+          fcPart.functionCall.thoughtSignature=sig;
+        }
         parts.push(fcPart);
       });
     }
     if(parts.length)contents.push({role,parts});
   }
   if(!contents.length)contents.push({role:'user',parts:[{text:'Hello'}]});
-  // Sanitize: ensure signatures stay part-level; never inside functionCall
   contents.forEach(c=>{
-    if(!c||!c.parts)return;
+    if(!c||c.role!=='model'||!c.parts)return;
+    const fcs=c.parts.filter(p=>p&&p.functionCall);
+    if(!fcs.length)return;
+    const hasSig=fcs.some(p=>p.thoughtSignature||p.thought_signature||(p.functionCall&&(p.functionCall.thoughtSignature||p.functionCall.thought_signature)));
+    if(hasSig){
+      const first=fcs[0];
+      if(!(first.thoughtSignature||first.thought_signature||first.functionCall.thoughtSignature)){
+        const donor=fcs.find(p=>p.thoughtSignature||p.thought_signature||(p.functionCall&&p.functionCall.thoughtSignature));
+        const sig=donor&&(donor.thoughtSignature||donor.thought_signature||donor.functionCall.thoughtSignature);
+        if(sig){first.thoughtSignature=sig;first.thought_signature=sig;}
+      }
+      return;
+    }
     c.parts=c.parts.map(p=>{
       if(!p||!p.functionCall)return p;
-      const fc=p.functionCall;
-      const out={functionCall:{name:fc.name||'',args:fc.args||fc.arguments||{}}};
-      const sig=p.thoughtSignature||p.thought_signature||fc.thoughtSignature||fc.thought_signature||null;
-      if(sig)out.thoughtSignature=sig;
-      if(p.text)out.text=p.text;
-      return out;
+      return {text:'Called '+p.functionCall.name+'(' + JSON.stringify(p.functionCall.args||{}) + ')'};
     });
-    // Parallel tool calls: only first functionCall needs a signature; if any has one, copy to first
-    const fcs=c.parts.filter(p=>p&&p.functionCall);
-    if(fcs.length>1){
-      const donor=fcs.find(p=>p.thoughtSignature);
-      if(donor&&!fcs[0].thoughtSignature)fcs[0].thoughtSignature=donor.thoughtSignature;
-    }
   });
   return {system:systemParts.join('\n\n'),contents};
 }
@@ -4992,7 +4983,7 @@ try{
     onEvent({type:'activity',name:'Monaco check',agent:'Agent 2',status:'done',detail:errs.length?errs.join('\n'):'Returned no errors'});
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE — BUILD NOW. You are a coding agent. First turn MUST call write_file. Do not say you are ready, do not only plan. Create a complete working HTML+CSS+JS project under code/. Embed CSS in <style> and JS in <script> (or write sibling files with relative links). Then check_code and link [[preview:code/.../index.html]]. Persist files only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE — BUILD NOW. You are a coding agent.\n1) Call list_files on the code session folder first.\n2) If no project files exist (or the user asked to create an app/page and there is no HTML yet), you MUST literally write a complete working application with write_file: real HTML + CSS + JS. Prefer index.html with embedded <style> and <script>, or index.html + style.css + app.js with relative links.\n3) If files already exist, read them and edit with write_file.\n4) Call check_code until clean, then link [[preview:.../index.html]].\nDo not only plan. Do not claim the app is ready without writing files. Persist only via write_file.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 const hardMax=Number.POSITIVE_INFINITY;
 try{while(iteration<hardMax&&this.running){if(!this.running)break;
@@ -6906,18 +6897,44 @@ async sendCode(){this.ensureAgent();
   const enabled=CODE_SKILLS.filter(s=>{const c=document.querySelector(`input[data-skill="${s.id}"]`);return c&&c.checked});
   const skillText=enabled.map(s=>`### ${s.name}\n${s.body}`).join('\n\n');
   const inten=this.getIntensity();
+  // Snapshot current workspace files so the model knows whether to create from scratch
+  let existingFiles=[];
+  try{
+    const root=this.codeRoot?this.codeRoot():'code';
+    existingFiles=(this.app.vfs.filesInFolder(root)||[]).filter(p=>!String(p).includes('/archive/'));
+  }catch(e){}
+  const filesSnapshot=existingFiles.length
+    ?('CURRENT FILES IN THIS CODE SESSION ('+existingFiles.length+'):\n'+existingFiles.map(p=>'- '+p).join('\n'))
+    :('CURRENT FILES IN THIS CODE SESSION: (none — workspace is empty)\n'
+      +'Because there are no project files yet, you MUST create a complete app from scratch:
+'
+      +'1) Call list_files on the code root (optional confirm).
+'
+      +'2) Immediately write_file a full working index.html with embedded <style> CSS and <script> JS (or write index.html + style.css + app.js with relative links).
+'
+      +'3) Call check_code, fix until clean.
+'
+      +'4) End with [[preview:.../index.html]] so the live preview shows the app.');
+
   const codePrompt=`CODE MODE — EXECUTE NOW. Intensity: ${inten.label}. ${inten.extra}\n
-Do not reply with "I am ready to write" or any acknowledgement. Your first actions must be write_file calls that create a full working site (HTML + CSS + JS) the preview can open.
-Write project files under code/SESSION/ using the current code/ folder.
-For any HTML page you MUST include working CSS and JS:
-- Prefer embedding CSS in <style> and JS in <script> inside the HTML so preview works immediately.
-- If you use separate style.css / app.js, write those files next to the HTML and link them with relative href/src (same folder).
+${filesSnapshot}
+
+MANDATORY WORKFLOW:
+1. Call list_files on the current code session folder first (see CURRENT FILES above).
+2. If the workspace is empty OR the user asked to create a new application/page/app and no suitable HTML exists:
+   - Literally write the application with write_file.
+   - Produce real HTML + CSS + JS (not a stub). Prefer one index.html with <style> and <script> so the preview works immediately.
+   - Or write index.html + style.css + app.js in the same folder with relative links.
+3. If files already exist, read them, then edit or extend with write_file — do not wipe unrelated work unless asked.
+4. Call check_code. Fix errors until ok:true.
+5. Finish with [[preview:path/to/index.html]] (and [[folder:...]] if multi-file).
+
+Do not reply with "I am ready to write" or only a plan. First tool calls must inspect files then write_file when creating.
 Never ship a bare HTML shell without styles or behavior when the user asked for a page/app.
-Never stop after a planning sentence. Build the thing.
 Tools: write_file, read_file, list_files, run_python, check_code, web_search, image_search, github_*, self_check.
 
 RUNTIME CHECK LOOP (required):
-1. Write or edit code under code/.
+1. Write or edit code under the session code/ folder.
 2. Call check_code (folder or specific path).
 3. If errors is non-empty, fix the files and call check_code again.
 4. Repeat until check_code returns ok:true with empty errors.
@@ -6926,7 +6943,7 @@ LINKING OUTPUTS:
 - Single file: [[file:code/path/file.ext]]
 - Whole project folder: [[folder:code/projectname]] (never invent a .zip path; folder links auto-download as zip)
 - HTML preview: [[preview:code/path/index.html]]
-Python cannot write to the real disk — use write_file tool (or run_python only for computation). Always persist code via write_file under code/.
+Python cannot write to the real disk — use write_file tool. Always persist code via write_file under the session code folder.
 
 If web_search/image_search fail with fetch errors, continue without them and say so.
 When using tools, put short narration in message content.
