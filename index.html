@@ -3380,22 +3380,34 @@ messagesToGemini(messages){
         const fn=tc.function||{};
         let args={};
         try{args=typeof fn.arguments==='string'?JSON.parse(fn.arguments||'{}'):(fn.arguments||{});}catch(e){args={_raw:String(fn.arguments||'')}}
-        // Never put thoughtSignature inside functionCall — Gemini rejects unknown fields there (400).
+        // thoughtSignature must sit on the Part (sibling of functionCall), not inside functionCall.
+        // Gemini requires it when replaying model turns that contained function calls (else 400).
         const fcPart={functionCall:{name:fn.name||'',args:args&&typeof args==='object'&&!Array.isArray(args)?args:{}}};
+        const sig=tc.thoughtSignature||tc.thought_signature
+          ||(tc.extra_content&&tc.extra_content.google&&(tc.extra_content.google.thoughtSignature||tc.extra_content.google.thought_signature))
+          ||null;
+        if(sig)fcPart.thoughtSignature=String(sig);
         parts.push(fcPart);
       });
     }
     if(parts.length)contents.push({role,parts});
   }
   if(!contents.length)contents.push({role:'user',parts:[{text:'Hello'}]});
-  // Sanitize: strip experimental / model-only metadata that generateContent rejects
+  // Sanitize: strip experimental metadata, but KEEP thoughtSignature on Parts that carry functionCall
+  // (Gemini requires the signature when replaying those model turns; stripping it causes 400).
   const stripThoughtMeta=(obj)=>{
     if(!obj||typeof obj!=='object')return obj;
     if(Array.isArray(obj))return obj.map(stripThoughtMeta);
+    const hasFc=!!(obj.functionCall&&typeof obj.functionCall==='object');
     const out={};
     for(const k of Object.keys(obj)){
-      if(k==='thoughtSignature'||k==='thought_signature'||k==='thought'||k==='thoughtsTokenCount')continue;
       const v=obj[k];
+      if(k==='thought'||k==='thoughtsTokenCount')continue;
+      // Preserve signature only when this Part has a functionCall
+      if((k==='thoughtSignature'||k==='thought_signature')){
+        if(hasFc&&v!=null&&v!=='')out.thoughtSignature=String(v);
+        continue;
+      }
       if(k==='functionCall'&&v&&typeof v==='object'){
         const fc={};
         if(v.name!=null)fc.name=v.name;
@@ -3480,14 +3492,19 @@ async chatGemini(messages,{model,tools,signal,temperature,maxTokens,toolChoice}=
   const base=this.normalizeBaseUrl(this.config.baseUrl||'https://generativelanguage.googleapis.com/v1beta');
   const url=base.replace(/\/$/,'')+'/models/'+encodeURIComponent(mid)+':generateContent?key='+encodeURIComponent(key);
   const converted=this.messagesToGemini(this.normalizeMessages(messages));
-  // Final pass: Gemini generateContent rejects unknown fields like thoughtSignature on function_call
+  // Final pass: keep thoughtSignature on Parts with functionCall; strip it elsewhere / inside functionCall
   const scrub=(node)=>{
     if(node==null||typeof node!=='object')return node;
     if(Array.isArray(node))return node.map(scrub);
+    const hasFc=!!(node.functionCall&&typeof node.functionCall==='object');
     const out={};
     for(const k of Object.keys(node)){
-      if(/^(thoughtSignature|thought_signature|thought)$/i.test(k))continue;
       let v=node[k];
+      if(/^thought$/i.test(k))continue;
+      if(/^(thoughtSignature|thought_signature)$/i.test(k)){
+        if(hasFc&&v!=null&&v!=='')out.thoughtSignature=String(v);
+        continue;
+      }
       if(k==='functionCall'&&v&&typeof v==='object'){
         out.functionCall={name:v.name||'',args:(v.args!=null?v.args:(v.arguments!=null?v.arguments:{}))};
         continue;
@@ -3582,9 +3599,10 @@ normalizeMessages(messages){
           // Gemini OpenAI-compat: thought_signature lives under extra_content.google
           if(tc.extra_content!=null)item.extra_content=tc.extra_content;
           if(tc.thought_signature!=null)item.thought_signature=tc.thought_signature;
+          if(tc.thoughtSignature!=null)item.thoughtSignature=tc.thoughtSignature;
           // Preserve any other provider-specific keys on the tool call
           for(const k of Object.keys(tc)){
-            if(['id','type','function','index','extra_content','thought_signature'].includes(k))continue;
+            if(['id','type','function','index','extra_content','thought_signature','thoughtSignature'].includes(k))continue;
             if(tc[k]!==undefined)item[k]=tc[k];
           }
           return item;
@@ -5136,8 +5154,9 @@ if(hasTools){
     };
     if(tc.extra_content!=null)item.extra_content=tc.extra_content;
     if(tc.thought_signature!=null)item.thought_signature=tc.thought_signature;
+    if(tc.thoughtSignature!=null)item.thoughtSignature=tc.thoughtSignature;
     for(const k of Object.keys(tc)){
-      if(['id','type','function','index','extra_content','thought_signature'].includes(k))continue;
+      if(['id','type','function','index','extra_content','thought_signature','thoughtSignature'].includes(k))continue;
       if(tc[k]!==undefined)item[k]=tc[k];
     }
     return item;
