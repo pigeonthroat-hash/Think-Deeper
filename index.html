@@ -7664,11 +7664,26 @@ saveCodeTranscript(force){
         content='';
         if(!html||/thinking-indicator|Working for/i.test(html))html='';
       }
-      const activities=tp?[...tp.querySelectorAll('.tp-step')].map(st=>({
-        agent:(st.dataset.agent||st.querySelector('.tp-agent')?.textContent||'').trim(),
-        name:(st.querySelector('.tp-step-title')?.innerText||'').trim(),
-        detail:(st.querySelector('.tp-step-body')?.innerText||'').trim().slice(0,12000)
-      })):undefined;
+      const activities=tp?[...tp.querySelectorAll('.tp-step')].map(st=>{
+        const agent=(st.dataset.agent||st.querySelector('.tp-agent')?.textContent||'').trim();
+        // Title text includes the agent badge — strip it so restore doesn't prepend again
+        let name=(st.querySelector('.tp-step-title')?.innerText||'').trim();
+        if(agent){
+          const esc=agent.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+          name=name.replace(new RegExp('^('+esc+'\\s*)+','i'),'').trim();
+        }
+        // Collapse accidental "Supervisor Supervisor …" leftovers
+        name=name.replace(/^(Supervisor\s*)+/i,'').replace(/^(Reviewer\s*)+/i,'').replace(/^(Builder\s*)+/i,'').trim()||'Step';
+        return {
+          agent,
+          name,
+          detail:(st.querySelector('.tp-step-body')?.innerText||'').trim().slice(0,12000)
+        };
+      }).filter((a,i,arr)=>{
+        // Dedupe identical consecutive steps
+        if(i&&a.name===arr[i-1].name&&a.agent===arr[i-1].agent&&a.detail===arr[i-1].detail)return false;
+        return true;
+      }):undefined;
       const thinkMs=tp?Number(tp.dataset.thinkStart? (Date.now()-Number(tp.dataset.thinkStart)):0):undefined;
       return {
         id:el.dataset.mid,
@@ -7732,22 +7747,21 @@ restoreCodeTranscript(session){
       const body=document.createElement('div');
       body.className='message-body';
       if(isUser){
-        body.innerHTML=escapeHtml(text);
+        body.innerHTML=escapeHtml(text).replace(/\n/g,'<br>');
       }else{
         const final=document.createElement('div');
         final.className='final-content';
-        final.dataset.md=text;
-        if(m.html&&String(m.html).trim()){
-          final.innerHTML=String(m.html);
-        }else{
-          let md=text;
-          try{
-            md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>this.fileChipHtml({folder:p,name:(p.split('/').pop()||p)+'.zip'}));
-            md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return '<button type="button" class="preview-chip" data-preview="'+escapeHtml(rp)+'">'+((SVG&&SVG.eye)||'')+' Preview '+(escapeHtml((rp.split('/').pop()||p)))+'</button>'});
-            md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return this.fileChipHtml({path:rp,name:(rp.split('/').pop()||p)})});
-          }catch(e){}
-          try{final.innerHTML=this.renderMarkdown?this.renderMarkdown(md):escapeHtml(md)}catch(e){final.textContent=text}
-        }
+        // Always rebuild from markdown so LaTeX, paragraphs, and preview chips survive refresh
+        const src=String(m.content||m.html||'').trim()?String(m.content||''):String(m.html||'');
+        const mdSrc=String(m.content||text||'').trim()||text;
+        final.dataset.md=mdSrc;
+        let md=mdSrc;
+        try{
+          md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>this.fileChipHtml({folder:p,name:(p.split('/').pop()||p)+'.zip'}));
+          md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return '<button type="button" class="preview-chip" data-preview="'+escapeHtml(rp)+'">'+((SVG&&SVG.eye)||'')+' Preview '+(escapeHtml((rp.split('/').pop()||p)))+'</button>'});
+          md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return this.fileChipHtml({path:rp,name:(rp.split('/').pop()||p)})});
+        }catch(e){}
+        try{final.innerHTML=this.renderMarkdown?this.renderMarkdown(md):escapeHtml(md)}catch(e){final.textContent=mdSrc}
         body.appendChild(final);
         try{this.enhanceCodeBlocks&&this.enhanceCodeBlocks(final)}catch(e){}
         try{if(this._renderMath)this._renderMath(final)}catch(e){}
@@ -7763,7 +7777,14 @@ restoreCodeTranscript(session){
   this._shownCodeId=cur&&cur.id;
   this._currentCodeId=cur&&cur.id;
   try{this.renderCodeSessions()}catch(e){}
+  try{this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}
   try{this.resyncCodePreview?this.resyncCodePreview():this.refreshCodePreview()}catch(e){}
+  try{this.showCodePreviewPane&&this.showCodePreviewPane()}catch(e){}
+  // Previews can lag VFS hydrate — refresh again shortly so they appear on open/refresh
+  try{
+    setTimeout(()=>{try{this.refreshCodePreview&&this.refreshCodePreview();this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}},80);
+    setTimeout(()=>{try{this.refreshCodePreview&&this.refreshCodePreview()}catch(e){}},350);
+  }catch(e){}
 }
 wireCodeMessageChips(root){
   if(!root)return;
@@ -8711,9 +8732,13 @@ else if(ev.type==='activity'){
   const step=document.createElement('div');step.className='tp-step';step.dataset.id=id;
   const title=ev.name||'Step';
   step.innerHTML=`<div class="tp-step-head"><span style="opacity:.6">▸</span> <span class="tp-step-title"></span> <span class="line-delta" hidden></span> <span class="tp-step-status" style="opacity:.6">${ev.status==='running'?'…':''}</span></div><div class="tp-step-body"></div>`;
-  const agent=ev.agent||'';
+  let agent=String(ev.agent||'').trim();
+  let titleText=String(title||'Step');
+  if(agent && titleText.toLowerCase().startsWith(agent.toLowerCase())){
+    titleText=titleText.slice(agent.length).replace(/^[\s·\-:]+/,'').trim()||titleText;
+  }
   step.dataset.agent=agent;
-  step.querySelector('.tp-step-title').innerHTML=(agent?('<span class="tp-agent">'+escapeHtml(agent)+'</span> '):'')+title;
+  step.querySelector('.tp-step-title').innerHTML=(agent?('<span class="tp-agent">'+escapeHtml(agent)+'</span> '):'')+escapeHtml(titleText);
   if(ev.detail){
     const b=step.querySelector('.tp-step-body');
     let d=String(ev.detail);
@@ -8935,13 +8960,32 @@ hydrateThoughts(div,msg){
     root.querySelector('.tp-chevron').textContent=root.classList.contains('open')?'▾':'▸';
   };
   const panel=root.querySelector('.tp-panel');
+  const seen=new Set();
   msg.activities.forEach(a=>{
-    const step=document.createElement('div');step.className='tp-step';
-    let name=a.name||'Step';
+    if(!a)return;
+    let agent=String(a.agent||'').trim();
+    let name=String(a.name||'Step').trim();
+    // Strip any stacked agent prefixes from prior bad saves
+    if(agent){
+      const esc=agent.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      name=name.replace(new RegExp('^('+esc+'\\s*)+','i'),'').trim();
+    }
+    name=name.replace(/^(Supervisor\s*){2,}/i,'Supervisor ').replace(/^(Supervisor\s*)+/i, m => agent==='Supervisor'?'':m).trim();
+    while(agent && name.toLowerCase().startsWith(agent.toLowerCase()+' ')){
+      name=name.slice(agent.length).trim();
+    }
+    name=name.replace(/^(Supervisor\s*)+/i, agent==='Supervisor'?'':name.replace(/^(Supervisor\s*)+/i,'')).trim()||'Step';
     if(/^Planning$/i.test(name))name='Planned';
     if(/^Deep thinking$/i.test(name))name='Deep thought';
+    // If name is only repeated "Supervisor", collapse
+    if(/^(Supervisor\s*)+$/i.test(name))name='received';
+    const key=agent+'|'+name+'|'+(a.detail||'').slice(0,80);
+    if(seen.has(key))return;
+    seen.add(key);
+    const step=document.createElement('div');step.className='tp-step';
+    if(agent)step.dataset.agent=agent;
     step.innerHTML=`<div class="tp-step-head"><span class="tp-step-title"></span><span class="tp-step-status" style="margin-left:auto;opacity:.6">${escapeHtml(a.status||'')}</span></div><div class="tp-step-body"></div>`;
-    step.querySelector('.tp-step-title').innerHTML=(a.agent?('<span class="tp-agent">'+escapeHtml(a.agent)+'</span> '):'')+escapeHtml(name);
+    step.querySelector('.tp-step-title').innerHTML=(agent?('<span class="tp-agent">'+escapeHtml(agent)+'</span> '):'')+escapeHtml(name);
     if(a.detail)step.querySelector('.tp-step-body').textContent=String(a.detail).slice(0,4000);
     panel.appendChild(step);
   });
