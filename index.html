@@ -3090,7 +3090,7 @@ class CloudSync{
       });
       s.set('codeSessions',[...map.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0)).slice(0,40));
     }
-    ['apiConfig','agentSettings','plugins','vfs','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','profile','siteMockups','deletedAutomations','deletedConversations','agentSessions','agentQuality','uiLanguage','uiTextSize','appVersion','versionLog'].forEach(k=>{
+    ['apiConfig','agentSettings','plugins','vfs','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','pluginsGlobal','appMode','discoveredModels','codeMessages','profile','siteMockups','deletedAutomations','deletedConversations','agentSessions','agentQuality','uiLanguage','uiTextSize','appVersion','versionLog'].forEach(k=>{
       if(data[k]===undefined||data[k]===null)return;
       if(k==='vfs'&&data.vfs&&typeof data.vfs==='object'){
         s.set('vfs',Object.assign({},s.get('vfs',{})||{},data.vfs));
@@ -3098,6 +3098,7 @@ class CloudSync{
       }
       s.set(k,data[k]);
     });
+    // currentProjectId is session-only: never restore from cloud (refresh = all chats)
     if(data.currentCodeId){
       const ids=new Set((s.get('codeSessions',[])||[]).map(x=>x&&String(x.id)));
       const localId=s.get('currentCodeId',null);
@@ -6103,6 +6104,11 @@ init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;
 
   this.t=(k,v)=>this.app.i18n?this.app.i18n.t(k,v):k;
   try{this.app.i18n.load(this.app.storage.get('uiLanguage','en')||'en')}catch(e){}
+  // On refresh/load always leave any project and show the normal all-chats list
+  try{
+    this.app.storage.set('currentProjectId',null);
+    this._pendingProjectId=null;
+  }catch(e){}
   this.bindEvents();try{this.syncProjectBundles()}catch(e){}this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);this.newChat();
   window.addEventListener('beforeunload',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}try{this.app.conversations&&this.app.conversations.persist()}catch(e){}});
   window.addEventListener('pagehide',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}});
