@@ -4091,47 +4091,74 @@ case'read_file':{
   const slice=length?text.slice(start,start+length):text.slice(start,start+8000);
   return {path:p,bytes:text.length,start,length:slice.length,content:slice,note:text.length>slice.length?('Use start/length to read more. Total '+text.length+' chars.'):undefined};
 }
-case'write_file':{let path=String((args&&args.path)||'');
+case'write_file':{
+  let path=String((args&&args.path)||'').replace(/^\/+/,'').trim();
+  let content=args&&args.content;
+  if(content==null)content='';
+  content=String(content);
   try{
     const mode=(window.__app&&window.__app.mode)||(window.__app&&window.__app.storage&&window.__app.storage.get('appMode',''))||'';
     const uiMode=(window.__app&&window.__app.ui&&window.__app.ui.mode)||'';
     if(mode==='code'||uiMode==='code'){
       const root=((window.__app.ui&&window.__app.ui.codeRoot&&window.__app.ui.codeRoot())||'code').replace(/\/$/,'');
-      let raw=String(path||'').replace(/^\/+/, '').trim();
-      if(!raw) raw='index.html';
-      // Always persist code-mode writes under the session code root unless targeting system folders
-      if(!/^(memory|uploads|plugins|archive|external)\b/.test(raw)){
-        if(raw===root||raw.startsWith(root+'/')) path=raw;
-        else if(raw==='code'||raw.startsWith('code/')) path=root+'/'+raw.replace(/^code\/?/,'');
-        else path=root+'/'+raw;
-      } else {
-        path=raw;
+      if(!path) path='index.html';
+      if(!/^(memory|uploads|plugins|archive|external)\b/.test(path)){
+        if(!(path===root||path.startsWith(root+'/'))){
+          if(path==='code'||path.startsWith('code/')) path=root+'/'+path.replace(/^code\/?/,'');
+          else path=root+'/'+path;
+        }
+      }
+    } else {
+      // Chat / agent / any mode: bare filenames go under artifacts/
+      if(!path){
+        if(/<html[\s>]/i.test(content)||/<!DOCTYPE/i.test(content)) path='artifacts/index.html';
+        else if(/^\s*[{[]/.test(content)) path='artifacts/data.json';
+        else if(/^(def |import |from )/m.test(content)) path='artifacts/script.py';
+        else path='artifacts/note.txt';
+      } else if(!/^(artifacts|memory|uploads|plugins|archive|code|external)\b/.test(path) && path.indexOf('/')<0){
+        path='artifacts/'+path;
       }
     }
   }catch(e){}
-  const content=args&&args.content;
-  if(String(content||'').length>MAX_FILE_BYTES)return{ok:false,error:'FILE_TOO_LARGE: '+String(content||'').length+' bytes. Keep each file under '+MAX_FILE_BYTES+' bytes (1,048,575). Split into smaller files.'};
-  if(/\.(html?|js|css)$/i.test(path)||/<(?:script|html)/i.test(String(content||''))){
-    const web=CrashGuard.inspectWeb(String(content||''));
-    if(!web.ok){
-      try{CrashGuard.note(web.error+' @ '+path)}catch(e){}
-      // Still write a sanitized copy so code mode is never stuck with zero files
-      let safe=String(content||'')
-        .replace(/while\s*\(\s*true\s*\)/gi,'while(false)')
-        .replace(/while\s*\(\s*1\s*\)/g,'while(false)')
-        .replace(/for\s*\(\s*;\s*;\s*\)/g,'for(;false;)')
-        .replace(/location\s*\.\s*reload\s*\(/gi,'/*reload blocked*/(')
-        .replace(/document\s*\.\s*write\s*\(/gi,'/*document.write blocked*/(');
-      const result=this.vfs.write(path,safe);
-      return Object.assign({},result,{ok:true,warning:web.error,sanitized:true});
+  if(content.length>MAX_FILE_BYTES){
+    return{ok:false,error:'FILE_TOO_LARGE: '+content.length+' bytes. Keep each file under '+MAX_FILE_BYTES+' bytes.',path};
+  }
+  try{
+    if(/\.(html?|js|css)$/i.test(path)||/<(?:script|html)/i.test(content)){
+      try{
+        const web=CrashGuard.inspectWeb(content);
+        if(web&&!web.ok){
+          try{CrashGuard.note(web.error+' @ '+path)}catch(e){}
+          content=content
+            .replace(/while\s*\(\s*true\s*\)/gi,'while(false)')
+            .replace(/while\s*\(\s*1\s*\)/g,'while(false)')
+            .replace(/for\s*\(\s*;\s*;\s*\)/g,'for(;false;)')
+            .replace(/location\s*\.\s*reload\s*\(/gi,'/*reload blocked*/(')
+            .replace(/document\s*\.\s*write\s*\(/gi,'/*document.write blocked*/(');
+        }
+      }catch(e){}
+    }
+    const result=this.vfs.write(path,content);
+    const finalPath=result.path||path;
+    return Object.assign({},result,{
+      ok:true,
+      exists:true,
+      path:finalPath,
+      lines:result.lines,
+      isNew:!!result.isNew,
+      message:(result.isNew?'Created ':'Updated ')+finalPath+' ('+(result.lines||0)+' lines). File EXISTS at this path — use read_file or [[file:'+finalPath+']].'
+    });
+  }catch(err){
+    // Last resort: still try bare write
+    try{
+      const result=this.vfs.write(path,content,{archiveOld:false});
+      return Object.assign({},result,{ok:true,exists:true,path:result.path||path,message:'Created '+(result.path||path)});
+    }catch(e2){
+      return{ok:false,error:String((err&&err.message)||err),path};
     }
   }
-  if(/\.(py)$/i.test(path)){
-    const py=CrashGuard.inspectPython(String(content||''));
-    if(!py.ok){try{CrashGuard.note(py.error+' @ '+path)}catch(e){}return{ok:false,error:py.error,blocked:true,path}}
-  }
-  return this.vfs.write(path,content);
 }
+
 case'delete_file':return this.vfs.delete(args.path);
 case'run_python':return await this.python.run(args.code);
 case'self_check':return{recorded:true,observation:args.observation,passed:!!args.passed};
@@ -6043,70 +6070,86 @@ _relevantFileContext(text,attachments){
   return 'FILES ATTACHED OR REFERENCED IN THIS MESSAGE (not from older chats):\n'+bits.join('\n\n');
 }
 async _streamWriteFile(args,actId,onEvent){
-  // Normalize path into the active code session workspace when in code mode
   args=args&&typeof args==='object'?{...args}:{};
   try{
     const ui=window.__app&&window.__app.ui;
-    const mode=(window.__app&&window.__app.mode)||(this.storage&&this.storage.get('appMode',''))||'';
+    const mode=(window.__app&&window.__app.mode)||(this.storage&&this.storage.get('appMode',''))||(ui&&ui.mode)||'';
+    let raw=String(args.path||'').replace(/^\/+/,'').trim();
     if((mode==='code'||(ui&&ui.mode==='code'))&&ui&&typeof ui.codeRoot==='function'){
       const root=String(ui.codeRoot()||'code').replace(/\/$/,'');
-      let raw=String(args.path||'').replace(/^\/+/, '').trim();
       if(!raw) raw='index.html';
       if(!/^(memory|uploads|plugins|archive|external)\b/.test(raw)){
-        if(raw===root||raw.startsWith(root+'/')) args.path=raw;
-        else if(raw==='code'||raw.startsWith('code/')) args.path=root+'/'+raw.replace(/^code\/?/,'');
-        else args.path=root+'/'+raw;
-      } else {
-        args.path=raw;
+        if(!(raw===root||raw.startsWith(root+'/'))){
+          if(raw==='code'||raw.startsWith('code/')) raw=root+'/'+raw.replace(/^code\/?/,'');
+          else raw=root+'/'+raw;
+        }
       }
+      args.path=raw;
+    } else {
+      if(!raw){
+        const c=String(args.content||'');
+        if(/<html[\s>]/i.test(c)||/<!DOCTYPE/i.test(c)) raw='artifacts/index.html';
+        else raw='artifacts/note.txt';
+      } else if(!/^(artifacts|memory|uploads|plugins|archive|code|external)\b/.test(raw) && raw.indexOf('/')<0){
+        raw='artifacts/'+raw;
+      }
+      args.path=raw;
     }
   }catch(e){}
-  const path=args.path||'untitled';
+  const path=args.path||'artifacts/note.txt';
   const content=args.content==null?'':String(args.content);
   const lines=content.split('\n');
   const total=Math.max(1,lines.length);
-  let step=1;
-  if(total>400)step=Math.ceil(total/80);
-  else if(total>120)step=Math.ceil(total/50);
-  else if(total>40)step=2;
+  const step=Math.max(1,Math.ceil(total/20));
   const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
   const isHtml=/\.html?$/i.test(path)||/<html[\s>]/i.test(content);
   let shown=0;
-  // Seed activity title as "Writing file"
   if(actId)onEvent({type:'activity-update',id:actId,status:'running',detail:'Writing '+path+'…',delta:{added:0,shown:0,total},full:'',stream:true,expand:true});
-  while(shown<total){
+  // Cap animation so large files never feel like a timeout
+  const maxTicks=30;
+  let ticks=0;
+  while(shown<total&&ticks++<maxTicks){
     shown=Math.min(total,shown+step);
     const partial=lines.slice(0,shown).join('\n')+(shown<total?'\n…':'');
     const payload={type:'activity-update',id:actId,status:'running',detail:'Writing file · '+path+' — '+shown+'/'+total+' lines',delta:{added:shown,removed:0,shown,total,lines:total},full:partial,stream:true,expand:true};
     if(isHtml)payload.previewHtml=partial.replace(/\n…$/,'');
     if(actId)onEvent(payload);
     onEvent({type:'status',text:'Writing file · '+path+' ('+shown+'/'+total+')'});
-    await sleep(total>200?6:total>60?12:18);
+    await sleep(6);
   }
+  shown=total;
   let result;
   try{
     result=await this.tools.execute('write_file',{path,content});
   }catch(e){
-    try{result=this.tools.vfs.write(path,content)}catch(e2){result={error:true,message:(e2&&e2.message)||String(e2)}}
+    try{
+      result=this.tools.vfs.write(path,content,{archiveOld:true});
+      result=Object.assign({},result,{ok:true,exists:true,message:'Created '+path});
+    }catch(e2){
+      result={ok:false,error:true,message:(e2&&e2.message)||String(e2)};
+    }
   }
+  try{
+    if(typeof window!=='undefined'&&window.__app&&window.__app.ui){
+      const ui=window.__app.ui;
+      if(ui.updateWorkspaceBadge)ui.updateWorkspaceBadge();
+      if(ui.renderFileTree)ui.renderFileTree();
+      if(ui.renderCodeFiles)ui.renderCodeFiles();
+    }
+  }catch(e){}
   const savedPath=(result&&result.path)||path;
   const added=(result&&result.added!=null)?result.added:total;
   const removed=(result&&result.removed)||0;
   const ok=!(result&&(result.error||result.blocked||result.ok===false));
   if(actId){
-    onEvent({type:'activity-update',id:actId,status:ok?'done':'error',detail:ok?('Wrote '+savedPath+' ('+total+' lines)'):(result&&(result.error||result.message))||'Write failed',delta:{added,removed,lines:total,shown:total,total},full:content.length>20000?content.slice(0,20000)+'\n…':content,stream:false,expand:true,previewHtml:isHtml?content:undefined});
+    onEvent({type:'activity-update',id:actId,status:ok?'done':'error',detail:ok?('Wrote '+savedPath+' ('+total+' lines) — file ready'):(result&&(result.error||result.message))||'Write failed',delta:{added,removed,lines:total,shown:total,total},full:content.length>20000?content.slice(0,20000)+'\n…':content,stream:false,expand:true,previewHtml:isHtml?content:undefined});
   }
-  // Ensure code UI refreshes even if actId was null
-  try{
-    if(typeof window!=='undefined'&&window.__app&&window.__app.ui){
-      const ui=window.__app.ui;
-      if(ui.renderCodeFiles)ui.renderCodeFiles();
-      if(ui.refreshCodePreview)ui.refreshCodePreview();
-      if(ui.showCodePreviewPane&&isHtml)ui.showCodePreviewPane();
-    }
-  }catch(e){}
-  return result;
+  onEvent({type:'status',text:ok?('Saved '+savedPath):('Write failed: '+((result&&(result.error||result.message))||''))});
+  // Emit a file link event so the chat can show a chip
+  try{if(ok)onEvent({type:'file-saved',path:savedPath,lines:total,isNew:!!(result&&result.isNew)})}catch(e){}
+  return result&&typeof result==='object'?result:{ok:true,path:savedPath,lines:total,exists:true};
 }
+
 _agentFor(name){
   if(name==='check_code'||name==='self_check')return 'Agent 2';
   if(name==='read_file'||name==='list_files')return 'Agent 3';
@@ -6137,7 +6180,7 @@ _activityTitle(name,args,done=false){
 _detailForArgs(name,args){if(name==='run_python')return args.code||'';if(name==='write_file')return args.content||'';if(name==='self_check')return args.observation||'';return JSON.stringify(args,null,2)}
 _summarizeResult(name,result){if(result?.error)return{detail:'Error: '+result.error,full:result.error};
 if(name==='run_python'){const parts=[];if(result.stdout)parts.push('stdout:\n'+result.stdout);if(result.stderr)parts.push('stderr:\n'+result.stderr);if(result.result!=null)parts.push('→ '+result.result);const full=parts.join('\n\n')||(result.ok?'(no output)':'Failed');return{detail:full.slice(0,300)+(full.length>300?'…':''),full}}
-if(name==='write_file'){const added=result.added||0,removed=result.removed||0;return{detail:result.isNew?`Created ${result.path} (${result.lines} lines)`:`Updated ${result.path}`,delta:{added,removed},full:`Path: ${result.path}\nLines: ${result.lines}\n+${added} / -${removed}`}}
+if(name==='write_file'){if(result&&(result.error||result.ok===false))return{detail:'Write failed: '+(result.error||result.message||''),full:JSON.stringify(result)};const added=result.added||0,removed=result.removed||0;const p=result.path||'file';return{detail:(result.isNew?'Created ':'Saved ')+p+' ('+(result.lines||0)+' lines) — exists',delta:{added,removed},full:'Path: '+p+'\nLines: '+(result.lines||0)+'\n+'+added+' / -'+removed+'\nFile EXISTS. Link: [[file:'+p+']]'}}
 if(name==='generate_image'){const pth=result.path||'generated/image.png';return{detail:'Saved '+pth,full:'Image stored at '+pth+'\nEmbed in your answer exactly as:\n![]('+pth+')'}}
 if(name==='check_code'){return{detail:result.summary||(result.ok?'Checks passed':'Checks failed'),full:(result.errors&&result.errors.length)?result.errors.join('\n'):'Returned no errors'}}
 if(name==='delete_file')return{detail:'Deleted (archived)',delta:{added:0,removed:result.removed||0},full:JSON.stringify(result)};
@@ -8699,7 +8742,12 @@ else if(ev.type==='activity'){
   this.scrollToBottom();
   return id;
 }
-else if(ev.type==='activity-update'){
+else if(ev.type==='file-saved'&&ev.path){
+  try{this.updateWorkspaceBadge&&this.updateWorkspaceBadge()}catch(e){}
+  try{this.renderFileTree&&this.renderFileTree()}catch(e){}
+  try{toast('Saved '+ev.path,'success')}catch(e){}
+}
+if(ev.type==='activity-update'){
   const step=this.activityMap.get(ev.id);
   if(!step)return;
   const st=step.querySelector('.tp-step-status');
