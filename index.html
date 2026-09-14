@@ -3666,6 +3666,26 @@ normalizeMessages(messages){
   });
 }
 async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTokens}={}){
+  // Soft rate limit: slight delay between API calls to avoid quota / 429 storms
+  try{
+    const minGap=Number(this.storage.get('apiMinGapMs',900))||900;
+    const last=this._lastChatAt||0;
+    const wait=Math.max(0, minGap-(Date.now()-last));
+    if(wait>0){
+      if(signal&&signal.aborted){const err=new Error('Aborted');err.name='AbortError';throw err}
+      await new Promise((resolve,reject)=>{
+        const t=setTimeout(resolve,wait);
+        if(signal){
+          const onAbort=()=>{clearTimeout(t);const err=new Error('Aborted');err.name='AbortError';reject(err)};
+          if(signal.aborted){onAbort();return}
+          signal.addEventListener('abort',onAbort,{once:true});
+        }
+      });
+    }
+    this._lastChatAt=Date.now();
+  }catch(e){
+    if(e&&e.name==='AbortError')throw e;
+  }
   let base=(useFallback&&this.config.fallbackBaseUrl)?this.config.fallbackBaseUrl:this.config.baseUrl;
   base=this.normalizeBaseUrl(base);
   // Google Gemini: use native generateContent (browser-friendly) instead of OpenAI path that CORS-blocks
@@ -5237,6 +5257,7 @@ const doChat=async(withTools)=>{
       if(e.rateLimit&&attempt<3){
         const sec=Math.max(1,Math.min(20,e.waitSec||1));
         onEvent({type:'status',text:`Rate limited — waiting ${sec}s then retrying…`});
+        try{this.provider._lastChatAt=Date.now()+sec*1000;this.provider.storage.set('apiMinGapMs',Math.min(2500,Math.max(900,(Number(this.provider.storage.get('apiMinGapMs',900))||900)+300)))}catch(e2){}
         await new Promise(r=>setTimeout(r,sec*1000));
         continue;
       }
@@ -8163,9 +8184,15 @@ if(!contentEl){contentEl=document.createElement('div');contentEl.className='fina
 md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return `<button type="button" class="preview-chip" data-preview="${rp}" aria-label="Preview ${rp.split('/').pop()||p}">${SVG.eye} Preview ${rp.split('/').pop()||p}</button>`});
 md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return this.fileChipHtml({path:rp,name:(rp.split('/').pop()||p)})});
 if(tp){
-  const keepOpen=(this.mode==='code'||this.app.mode==='code');
-  if(!keepOpen)tp.classList.remove('open');
-  else {tp.classList.add('open');const panel=tp.querySelector('.tp-panel');if(panel)panel.style.display='block'}
+  tp.classList.remove('open');
+  const ch=tp.querySelector('.tp-chevron');if(ch)ch.textContent='▸';
+  const panel=tp.querySelector('.tp-panel');if(panel)panel.style.display='';
+  // Past-tense label
+  const lab=tp.querySelector('.tp-label');
+  if(lab&&/^Working for/i.test(lab.textContent||'')){
+    const start=Number(tp.dataset.thinkStart||Date.now());
+    try{lab.textContent='Worked for '+formatDuration(Date.now()-start)}catch(e){lab.textContent='Done'}
+  }
 }
 const gif=tp&&tp.querySelector('.tp-gif');if(gif){try{gif.style.animationPlayState='paused'}catch(e){}}this.revealAnswer(contentEl,this.renderMarkdown(md||''));this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
   if(this.mode==='code'||this.app.mode==='code'){try{this.saveCodeTranscript(true)}catch(e){}}
