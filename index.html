@@ -2059,11 +2059,13 @@ function syncProjectBundles(storage,conversations){
   if(!storage)return[];
   const projects=JSON.parse(JSON.stringify(storage.get('projects',[])||[]));
   const live=(conversations&&conversations.conversations)||storage.get('conversations',[])||[];
+  const deleted=new Set((storage.get('deletedConversations',[])||[]).map(String));
   const byId=new Map();
-  // Dedupe live conversations by id (keep richest copy)
+  // Dedupe live conversations by id (keep richest copy); skip tombstoned
   (Array.isArray(live)?live:[]).forEach(c=>{
     if(!c||!c.id)return;
     const id=String(c.id);
+    if(deleted.has(id))return;
     const L=byId.get(id);
     if(!L){byId.set(id,c);return}
     const lm=(L.messages&&L.messages.length)||0,rm=(c.messages&&c.messages.length)||0;
@@ -2077,6 +2079,7 @@ function syncProjectBundles(storage,conversations){
     (p.chats||[]).forEach(ch=>{
       if(!ch||!ch.id)return;
       const id=String(ch.id);
+      if(deleted.has(id))return;
       const L=byId.get(id);
       const msgN=(ch.messages&&ch.messages.length)||0;
       if(!L){
@@ -2446,7 +2449,7 @@ class CloudSync{
       const setDoc=await base.collection('settings').doc('app').get();
       if(setDoc.exists){
         const s=setDoc.data()||{};
-        ['apiConfig','agentSettings','plugins','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','currentCodeId','profile','siteMockups','deletedAutomations','autoStore','autoFiredMap','agentQuality','uiLanguage','uiTextSize','appVersion'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
+        ['apiConfig','agentSettings','plugins','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','currentCodeId','profile','siteMockups','deletedAutomations','deletedConversations','autoStore','autoFiredMap','agentQuality','uiLanguage','uiTextSize','appVersion'].forEach(k=>{if(s[k]!==undefined)out[k]=s[k]});
       }
       try{
         const extraDocs=['code','models','versions','autos'];
@@ -2767,6 +2770,7 @@ class CloudSync{
         profile:s.get('profile',{}),
         siteMockups:s.get('siteMockups',false),
         deletedAutomations:s.get('deletedAutomations',[]),
+        deletedConversations:s.get('deletedConversations',[]),
         autoStore:s.get('autoStore',{})||{},
         autoFiredMap:s.get('autoFiredMap',{})||{},
         agentQuality:s.get('agentQuality','auto'),
@@ -3028,12 +3032,14 @@ class CloudSync{
     if(!data||!app)return;
     const s=app.storage;
     if(Array.isArray(data.conversations)){
+      const deleted=new Set((s.get('deletedConversations',[])||[]).map(String));
       const local=s.get('conversations',[])||[];
       const map=new Map();
-      local.forEach(c=>{if(c&&c.id)map.set(String(c.id),c)});
+      local.forEach(c=>{if(c&&c.id&&!deleted.has(String(c.id)))map.set(String(c.id),c)});
       data.conversations.forEach(r=>{
         if(!r||!r.id)return;
         const id=String(r.id);
+        if(deleted.has(id))return; // never resurrect wiped chats
         const L=map.get(id);
         if(!L){map.set(id,r);return}
         const lu=Number(L.updated||0),ru=Number(r.updated||0);
@@ -3041,6 +3047,7 @@ class CloudSync{
         if(ru>lu||(ru===lu&&rm>lm))map.set(id,r);
       });
       s.set('conversations',[...map.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0)));
+      if(deleted.has(String(s.get('currentConvId',null)||'')))s.set('currentConvId',null);
     }
     if(data.currentConvId!==undefined&&data.currentConvId)s.set('currentConvId',data.currentConvId);
     if(Array.isArray(data.projects)){
@@ -3096,7 +3103,7 @@ class CloudSync{
       });
       s.set('codeSessions',[...map.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0)).slice(0,40));
     }
-    ['apiConfig','agentSettings','plugins','vfs','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','profile','siteMockups','deletedAutomations','agentSessions','agentQuality','uiLanguage','uiTextSize','appVersion','versionLog'].forEach(k=>{
+    ['apiConfig','agentSettings','plugins','vfs','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','currentProjectId','pluginsGlobal','appMode','discoveredModels','codeMessages','profile','siteMockups','deletedAutomations','deletedConversations','agentSessions','agentQuality','uiLanguage','uiTextSize','appVersion','versionLog'].forEach(k=>{
       if(data[k]===undefined||data[k]===null)return;
       if(k==='vfs'&&data.vfs&&typeof data.vfs==='object'){
         s.set('vfs',Object.assign({},s.get('vfs',{})||{},data.vfs));
@@ -3216,7 +3223,7 @@ class StorageManager{
   constructor(){
     this.root='thinkdeeper_v2_';
     this.guestMem={};
-    this._guestDurable=new Set(['projects','conversations','currentProjectId','currentConvId','theme','pins','personality','profile','codeSessions','codeMessages','currentCodeId','agentSessions','appMode','uiLanguage','uiTextSize','plugins','vfs','automations','deletedAutomations','autoStore','autoFiredMap','agentSettings','modelRoles','forceTemp','toolChoice','intensity','agentQuality','siteMockups','versionLog','appVersion']);
+    this._guestDurable=new Set(['projects','conversations','currentProjectId','currentConvId','theme','pins','personality','profile','codeSessions','codeMessages','currentCodeId','agentSessions','appMode','uiLanguage','uiTextSize','plugins','vfs','automations','deletedAutomations','deletedConversations','autoStore','autoFiredMap','agentSettings','modelRoles','forceTemp','toolChoice','intensity','agentQuality','siteMockups','versionLog','appVersion']);
     // Restore session account if previously logged in
     let uid=null;
     try{uid=JSON.parse(localStorage.getItem(this.root+'activeUser')||'null')}catch{}
@@ -3374,7 +3381,7 @@ persist(){this.storage.set('plugins',this.plugins);try{if(window.__app&&window._
 
 class ConversationManager{constructor(s){this.storage=s;this.conversations=s.get('conversations',[]);this.currentId=s.get('currentConvId',null)}
 list(){return this.conversations.slice()}
-get(id){return this.conversations.find(c=>c.id===id)}
+get(id){const sid=String(id||'');return this.conversations.find(c=>c&&String(c.id)===sid)}
 create(t='New conversation'){const c={id:uid(),title:t,messages:[],created:now(),updated:now()};this.conversations.unshift(c);this.currentId=c.id;this.persist();return c}
 update(id,patch){const c=this.get(id);if(!c)return;Object.assign(c,patch,{updated:now()});this.persist()}
 addMessage(id,msg){const c=this.get(id);if(!c)return;c.messages.push(msg);c.updated=now();if((!c.title||c.title==='New conversation')&&msg.role==='user'){c.title=this.draftTitle(msg.content);c.needsAiTitle=true}this.persist()}
