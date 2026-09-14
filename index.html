@@ -1920,9 +1920,9 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <script src="./config.local.js" onerror="console.info('[Think Deeper] config.local.js not found — Google login needs Client ID in that file or Settings')"></script>
 <script>
 const INTENSITY={
-  fast:{label:'Fast',maxTokens:1500,maxIterations:8,maxTools:10,temperature:0.4,extra:'Short answers. Stay near a 1.5k-token budget. Tools only if needed.',ultraSkills:false,team:false},
-  medium:{label:'Medium',maxTokens:4000,maxIterations:16,maxTools:20,temperature:0.4,extra:'Balanced replies near a 4k-token budget. Use tools when helpful.',ultraSkills:false,team:false},
-  hard:{label:'Hard',maxTokens:8000,maxIterations:24,maxTools:30,temperature:0.4,extra:'Thorough work near an 8k-token budget. Plan, tool, and verify.',ultraSkills:false,team:false},
+  fast:{label:'Fast',maxTokens:4000,maxIterations:12,maxTools:20,temperature:0.4,extra:'Quick replies. write_file and other tools are fully available — use them when the user asks to create or save files. Prefer concise answers otherwise.',ultraSkills:false,team:false},
+  medium:{label:'Medium',maxTokens:6000,maxIterations:16,maxTools:24,temperature:0.4,extra:'Balanced replies. write_file and all tools are available at this intensity — call write_file whenever the user wants a file created or updated.',ultraSkills:false,team:false},
+  hard:{label:'Hard',maxTokens:10000,maxIterations:24,maxTools:32,temperature:0.4,extra:'Thorough work. write_file and all tools are available — plan, write files with write_file, and verify.',ultraSkills:false,team:false},
   ultra:{label:'Ultra',maxTokens:16000,maxIterations:40,maxTools:48,temperature:0.4,extra:'Long-horizon work near a 16k-token budget. Agent 1 builds, Agent 2 checks, Agent 3 files.',ultraSkills:true,team:true,blurb:'Long jobs, team of 3 agents'},
   xultra:{label:'Extreme Ultra',maxTokens:32000,maxIterations:60,maxTools:64,temperature:0.2,extra:'Authenticated Extreme Ultra. Maximum reasoning tokens. Cross-check every claim. Prefer tools over guesses. Aim for zero hallucinations.',ultraSkills:true,team:true,authOnly:true,blurb:'Signed-in only · max precision'}
 };
@@ -5270,7 +5270,7 @@ _pickModel(deepThink){const c=this.provider.config;const roles=this.storage.get(
 }
 _memoryContext(){try{const bits=[];try{if(typeof window!=='undefined'&&window.__app&&window.__app.ui&&window.__app.ui.supervisorMemoryContext){const extra=window.__app.ui.supervisorMemoryContext();if(extra)bits.push(extra)}}catch(e){}const paths=this.tools.vfs.list('memory/')||[];for(const p of paths.slice(0,16)){try{const c=this.tools.vfs.read(p);if(c)bits.push('### '+p+'\n'+String(c).slice(0,900))}catch{}}if(!bits.length)return '';return '\n\nSHARED MEMORY (files, chats, agent thinking — keep these facts across chat and agent mode):\n'+bits.join('\n\n').slice(0,10000)}catch{return ''}}
 getSystemPrompt(deepThink=false){const personality=this.storage.get('personality','')||'';const pluginsOn=this.storage.get('pluginsGlobal',true)!==false;const pluginInj=pluginsOn?this.plugins.getSystemInjection():'';
-const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector (always on): After you write or edit JS/TS/HTML/CSS/Python, call check_code. If it returns errors, fix them before the final answer. If it returns no errors, say so in your thinking.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nFILES: Only treat files as attached if THIS user message lists them (or [[path]] / tool results in this turn). Do NOT assume uploads/ from older chats are attached. If the user did not attach a file on this message, do not claim they did.\nWhen they do attach or name a file, open it with read_file/search_file or run_python (ws_read/ws_search under /workspace/…).\nAfter write_file, always give a short final reply summarizing what you saved (path + brief description). Never end on an empty message after tools.\nTHINKING: Keep all work in this single reply. When Python runs, pause other steps until it finishes, then continue.\n';
+const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector (always on): After you write or edit JS/TS/HTML/CSS/Python, call check_code. If it returns errors, fix them before the final answer. If it returns no errors, say so in your thinking.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nFILES: Only treat files as attached if THIS user message lists them (or [[path]] / tool results in this turn). Do NOT assume uploads/ from older chats are attached. If the user did not attach a file on this message, do not claim they did.\nWhen they do attach or name a file, open it with read_file/search_file or run_python (ws_read/ws_search under /workspace/…).\nwrite_file is available at EVERY intensity (Fast, Medium, Hard, Ultra, Extreme Ultra). When the user asks to create, save, or write a file, you MUST call write_file — do not only describe the file in text.\nAfter write_file, always give a short final reply summarizing what you saved (path + brief description). Never end on an empty message after tools.\nTHINKING: Keep all work in this single reply. When Python runs, pause other steps until it finishes, then continue.\n';
 const deep=deepThink?`
 DEEP THINK MODE IS ON.
 - Keep working until the problem is FULLY solved and verified.
@@ -5360,7 +5360,7 @@ try{
     }
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+((this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE ACTIVE — OVERRIDES FILE CREATION RULES ABOVE.\nCRITICAL: Your FIRST tool call MUST be write_file (not list_files, not a plan). Pass path index.html and FULL HTML in the tool arguments (embed <style> and <script>).\n- list_files alone is a failure — files must exist via write_file.\n- Code fences in chat do NOT count.\n- After write_file, call check_code, then [[preview:.../index.html]].\n- Never type list_files or write_file as plain numbered steps; call the tools API.\n- Fast/Medium/Hard intensity still requires real write_file deliverables.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+((this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE ACTIVE — OVERRIDES FILE CREATION RULES ABOVE.\nCRITICAL: Your FIRST tool call MUST be write_file (not list_files, not a plan). Pass path index.html and FULL HTML in the tool arguments (embed <style> and <script>).\n- list_files alone is a failure — files must exist via write_file.\n- Code fences in chat do NOT count.\n- After write_file, call check_code, then [[preview:.../index.html]].\n- Never type list_files or write_file as plain numbered steps; call the tools API.\n- Fast/Medium/Hard intensity still requires real write_file deliverables.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 const hardMax=Number.POSITIVE_INFINITY;
 try{while(iteration<hardMax&&this.running){if(!this.running)break;
@@ -5381,17 +5381,35 @@ const doChat=async(withTools)=>{
             || messages.some(m=>String(m.name||'')==='write_file'||(m.role==='assistant'&&m.tool_calls&&m.tool_calls.some(t=>(t.function&&t.function.name)==='write_file')));
         }
       }catch(e){}
-      // Build mode (not quick chat): require tools until a file exists so Fast–Hard still write
+      // Tools (including write_file) available at EVERY intensity: Fast, Medium, Hard, Ultra
       let choice=this.storage.get('toolChoice','auto')||'auto';
+      // Detect user wants a file written — never block tools for this
+      let wantsFile=false;
+      try{
+        const lastUser=[...messages].reverse().find(m=>m.role==='user');
+        const ut=typeof lastUser?.content==='string'?lastUser.content:JSON.stringify(lastUser?.content||'');
+        wantsFile=/\b(write_file|create|make|save|generate|build)\b[\s\S]{0,80}\b(file|html|css|js|python|script|page|document|artifact)/i.test(ut)
+          ||/\b(file|html|page)\b[\s\S]{0,40}\b(create|write|make|save)\b/i.test(ut);
+      }catch(e){}
+      // Never honor toolChoice "none" when writing files is requested or in code mode
+      if(choice==='none'&&(wantsFile||codeHot))choice='auto';
       const useTools=!!(withTools&&choice!=='none');
       if(withTools&&codeHot&&!wroteYet&&iteration<=8){
         choice='required';
       }
+      // Normal chat + user asked for a file: nudge model to use tools (write_file works on Fast/Medium/Hard)
+      if(withTools&&wantsFile&&!codeHot&&iteration<=3&&choice==='auto'){
+        choice='auto';
+      }
+      // Ensure token budget can fit a write_file payload on Fast
+      const intenKey=this.storage.get('intensity','medium')||'medium';
+      let tok=this.maxTokens||INTENSITY[intenKey]?.maxTokens||4000;
+      if(wantsFile&&tok<4000)tok=4000;
       return await this.provider.chat(messages,{
         tools:useTools?this.tools.definitions:undefined,
         signal,
         model:this._pickModel(deepThink),
-        maxTokens:this.maxTokens||INTENSITY[(this.storage.get('intensity','medium')||'medium')].maxTokens||4000,
+        maxTokens:tok,
         toolChoice:useTools?choice:undefined,
         temperature:(()=>{const f=this.storage.get('forceTemp',null);if(f!=null&&f!==''&&Number.isFinite(Number(f)))return Math.min(1.2,Math.max(0,Number(f)));return this.temperature!=null?this.temperature:0.4})()
       });
