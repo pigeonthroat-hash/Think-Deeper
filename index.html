@@ -6489,13 +6489,19 @@ moveChatToProject(chatId,projectId){
 deleteProject(id){
   if(!id)return;
   const p=(this.app.storage.get('projects',[])||[]).find(x=>String(x.id)===String(id));
-  const name=(p&&p.name)||'this project';
-  // Two-step: confirm, then type name
-  this.appConfirm('Delete project "'+name+'"?\n\nChats are kept. This cannot be undone from the trash icon.','Delete project').then(ok=>{
+  const name=(p&&p.name)||'Untitled project';
+  // Two-step: confirm with visible name, then type the same name
+  this.appConfirm(
+    'Delete project:\n\n“'+name+'”\n\nChats inside are kept (only the project folder is removed).',
+    'Delete “'+name+'”'
+  ).then(ok=>{
     if(!ok)return;
-    this.appPrompt('Type the project name to confirm deletion','').then(typed=>{
+    this.appPrompt(
+      'Type the project name to confirm:\n“'+name+'”',
+      name
+    ).then(typed=>{
       if(String(typed||'').trim()!==String(name).trim()){
-        toast('Name did not match — project not deleted','error');
+        toast('Name did not match — “'+name+'” was not deleted','error');
         return;
       }
       const projects=(this.app.storage.get('projects',[])||[]).filter(x=>String(x.id)!==String(id));
@@ -7305,10 +7311,15 @@ saveProjectSetup(){
   projects.unshift(p);
   this.app.storage.set('projects',projects);
   this.app.storage.set('currentProjectId',p.id);
+  this._pendingProjectId=p.id;
   try{this.syncProjectBundles()}catch(e){}
   this.renderProjects();
+  this.renderConversations();
+  try{this.updateProjectFilterBar&&this.updateProjectFilterBar()}catch(e){}
+  try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
+  try{this.renderCodeHist&&this.renderCodeHist()}catch(e){}
   $('#proj-setup-overlay').classList.remove('open');
-  toast('Project created','success');
+  toast('Created and opened project: '+p.name,'success');
   try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
 }
 createProject(){
@@ -7319,9 +7330,12 @@ createProject(){
     projects.unshift(p);
     this.app.storage.set('projects',projects);
     this.app.storage.set('currentProjectId',p.id);
+    this._pendingProjectId=p.id;
     try{this.syncProjectBundles()}catch(e){}
     this.renderProjects();
-    toast('Project created','success');
+    this.renderConversations();
+    try{this.updateProjectFilterBar&&this.updateProjectFilterBar()}catch(e){}
+    toast('Created and opened project: '+p.name,'success');
     try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
   });
 }
