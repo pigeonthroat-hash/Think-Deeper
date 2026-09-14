@@ -5331,7 +5331,7 @@ _pickModel(deepThink){const c=this.provider.config;const roles=this.storage.get(
 }
 _memoryContext(){try{const bits=[];try{if(typeof window!=='undefined'&&window.__app&&window.__app.ui&&window.__app.ui.supervisorMemoryContext){const extra=window.__app.ui.supervisorMemoryContext();if(extra)bits.push(extra)}}catch(e){}const paths=this.tools.vfs.list('memory/')||[];for(const p of paths.slice(0,16)){try{const c=this.tools.vfs.read(p);if(c)bits.push('### '+p+'\n'+String(c).slice(0,900))}catch{}}if(!bits.length)return '';return '\n\nSHARED MEMORY (files, chats, agent thinking — keep these facts across chat and agent mode):\n'+bits.join('\n\n').slice(0,10000)}catch{return ''}}
 getSystemPrompt(deepThink=false){const personality=this.storage.get('personality','')||'';const pluginsOn=this.storage.get('pluginsGlobal',true)!==false;const pluginInj=pluginsOn?this.plugins.getSystemInjection():'';
-const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector (always on): After you write or edit JS/TS/HTML/CSS/Python, call check_code. If it returns errors, fix them before the final answer. If it returns no errors, say so in your thinking.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nFILES: Only treat files as attached if THIS user message lists them (or [[path]] / tool results in this turn). Do NOT assume uploads/ from older chats are attached. If the user did not attach a file on this message, do not claim they did.\nWhen they do attach or name a file, open it with read_file/search_file or run_python (ws_read/ws_search under /workspace/…).\nwrite_file is available at EVERY intensity (Fast, Medium, Hard, Ultra, Extreme Ultra). When the user asks to create, save, or write a file, you MUST call write_file — do not only describe the file in text.\nAfter write_file, always give a short final reply summarizing what you saved (path + brief description). Never end on an empty message after tools.\nTHINKING: Keep all work in this single reply. When Python runs, pause other steps until it finishes, then continue.\n';
+const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector: After YOU write or edit JS/TS/HTML/CSS/Python with write_file, you may call check_code. Do not run check_code on files the user only shared for reading/explanation.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nFILES — READ vs WRITE (critical):\n- Only treat files as attached if THIS user message lists them (or [[path]] / tool results in this turn). Do NOT invent attachments from older chats.\n- If the user ATTACHED a file or asks what is IN a file / to explain / summarize / review it: READ and EXPLAIN the contents. Use the file text already in the message when present. Otherwise call read_file (or ws_read). Do NOT call write_file, check_code, or run_python just to "inspect" an attached file.\n- Never create a new file when the user only asked what is inside an existing one.\n- write_file is available at every intensity ONLY when the user clearly asks to create, save, edit, or generate a file. After write_file, give a short final summary with the path.\n- check_code is only for code YOU just wrote or edited — not for user-shared files they only want explained.\nTHINKING: Keep all work in this single reply. When Python runs, pause other steps until it finishes, then continue.\n';
 const deep=deepThink?`
 DEEP THINK MODE IS ON.
 - Keep working until the problem is FULLY solved and verified.
@@ -5449,8 +5449,13 @@ const doChat=async(withTools)=>{
       try{
         const lastUser=[...messages].reverse().find(m=>m.role==='user');
         const ut=typeof lastUser?.content==='string'?lastUser.content:JSON.stringify(lastUser?.content||'');
-        wantsFile=/\b(write_file|create|make|save|generate|build)\b[\s\S]{0,80}\b(file|html|css|js|python|script|page|document|artifact)/i.test(ut)
-          ||/\b(file|html|page)\b[\s\S]{0,40}\b(create|write|make|save)\b/i.test(ut);
+        // Explain/read questions about existing files are NOT create requests
+        const wantsExplain=/\b(what('?s| is| are)?\s+(in|inside)|explain|summarize|review|read|show\s+me|contents?\s+of|look\s+at)\b/i.test(ut)
+          ||/\b(what does|what do)\b[\s\S]{0,40}\b(file|attachment|this|it)\b/i.test(ut);
+        const createIntent=/\b(write_file|create|make|save|generate|build|write)\b[\s\S]{0,80}\b(file|html|css|js|python|script|page|document|artifact)/i.test(ut)
+          ||/\b(file|html|page)\b[\s\S]{0,40}\b(create|write|make|save)\b/i.test(ut)
+          ||/\b(new file|save (this|it) (as|to)|put (this|it) in a file)\b/i.test(ut);
+        wantsFile=createIntent&&!wantsExplain;
       }catch(e){}
       // Never honor toolChoice "none" when writing files is requested or in code mode
       if(choice==='none'&&(wantsFile||codeHot))choice='auto';
@@ -6029,8 +6034,9 @@ _fileBrief(a){
   const path=a.vfsPath||('uploads/'+(a.name||name));
   let full=String(a.content||'');
   try{if((!full||full.startsWith('data:')) && this.tools&&this.tools.vfs) { const c=this.tools.vfs.read(path); if(c&&!String(c).startsWith('data:image')) full=String(c); }}catch(e){}
-  if(!full||full.startsWith('data:'))return '[Attached '+name+' saved at path "'+path+'" — call read_file path="'+path+'" or Python ws_read("'+path+'")]';
-  if(full.length<=4000)return '[Attached '+name+' at path "'+path+'"]\n```\n'+full+'\n```';
+  if(!full||full.startsWith('data:'))return '[Attached file "'+name+'" at path "'+path+'". Read it with read_file path="'+path+'" — do not write a new file.]';
+  // Prefer embedding contents so the model can explain without tools
+  if(full.length<=12000)return '[Attached file "'+name+'" at path "'+path+'". Full contents follow — explain these; do not rewrite unless asked.]\n```\n'+full+'\n```';
   const heads=[...full.matchAll(/<(h[1-3]|title)[^>]*>([^<]{1,80})/gi)].slice(0,12).map(m=>m[2].trim());
   const head=full.slice(0,1500);
   const tail=full.slice(-700);
@@ -6041,14 +6047,18 @@ _buildUserContent(text,attachments){
   const att=attachments||[];
   const imgs=att.filter(isImage);
   const files=att.filter(a=>a&&!isImage(a));
-  // Only this message's attachments / explicit file references — never prior-chat uploads
   let contextBlock='';
   try{contextBlock=this._relevantFileContext(text,att)||''}catch(e){}
+  const explainHint=(files.length||contextBlock)?(
+    '\n\n[INSTRUCTION] The user shared file content below. Answer about what is IN those files (summarize, explain, quote as needed). '
+    +'Do NOT call write_file, check_code, or invent a new file unless they explicitly asked you to create or modify one.'
+  ):'';
   if(imgs.length){
     const parts=[];
     let caption=text||'';
     if(files.length)caption+=(caption?'\n\n':'')+files.map(a=>this._fileBrief(a)).join('\n\n');
     if(contextBlock)caption+=(caption?'\n\n':'')+contextBlock;
+    caption+=explainHint;
     caption+=(caption?'\n\n':'')+'Attached image file(s) are provided as real images for vision. Paths under uploads/ are also available for tools/Python (/workspace/uploads/…): '+imgs.map(a=>'uploads/'+(a.name||'image')).join(', ')+'.';
     if(!text&&!files.length)caption='Please analyze the attached image(s). Describe shape, content, and any text you see.';
     parts.push({type:'text',text:caption});
@@ -6060,6 +6070,7 @@ _buildUserContent(text,attachments){
   let out=text||'';
   for(const a of files) out+='\n\n'+this._fileBrief(a);
   if(contextBlock) out+='\n\n'+contextBlock;
+  if(files.length||contextBlock) out+=explainHint;
   return out;
 }
 _relevantFileContext(text,attachments){
