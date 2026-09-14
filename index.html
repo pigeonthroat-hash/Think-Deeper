@@ -3464,9 +3464,14 @@ geminiToOpenAI(data,model){
   const cand=(data&&data.candidates&&data.candidates[0])||{};
   const parts=(cand.content&&cand.content.parts)||[];
   let text='';
+  let reasoning='';
   const tool_calls=[];
   parts.forEach((p,i)=>{
-    if(p.text)text+=p.text;
+    if(p.text){
+      // Gemini thinking models mark internal thoughts with thought:true
+      if(p.thought===true||p.thought==='true')reasoning+=p.text;
+      else text+=p.text;
+    }
     if(p.functionCall){
       const sig=p.thoughtSignature||p.thought_signature||p.functionCall.thoughtSignature||p.functionCall.thought_signature||null;
       const tc={
@@ -3494,6 +3499,7 @@ geminiToOpenAI(data,model){
   }
   const msg={role:'assistant',content:text||(tool_calls.length?null:'')};
   if(tool_calls.length)msg.tool_calls=tool_calls;
+  if(reasoning&&reasoning.trim())msg.reasoning_content=reasoning.trim();
   msg._geminiParts=parts;
   return {
     choices:[{message:msg,finish_reason:tool_calls.length?'tool_calls':(cand.finishReason||'stop')}],
@@ -3536,6 +3542,10 @@ async chatGemini(messages,{model,tools,signal,temperature,maxTokens,toolChoice}=
       maxOutputTokens:maxTokens||8192
     }
   };
+  // Only request thought parts on models that advertise thinking / 2.5+ — others 400 on thinkingConfig
+  if(/thinking|gemini-2\.5|gemini-3|gemini-exp/i.test(String(mid||''))){
+    body.generationConfig.thinkingConfig={includeThoughts:true};
+  }
   if(converted.system)body.systemInstruction={parts:[{text:converted.system}]};
   const gTools=this.toolsToGemini(tools);
   if(gTools){
@@ -3558,12 +3568,29 @@ async chatGemini(messages,{model,tools,signal,temperature,maxTokens,toolChoice}=
   try{
     res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal});
   }catch(e){
+    if(e&&(e.name==='AbortError'||(signal&&signal.aborted))){
+      const err=new Error('Aborted');err.name='AbortError';throw err;
+    }
     throw new Error('Network failed to fetch Gemini API ('+(e.message||e)+'). Check the key, model id, and that the Google AI API is enabled.');
   }
-  const raw=await res.text();
+  let raw=await res.text();
   if(!res.ok){
     let detail=raw.slice(0,400);
     try{detail=(JSON.parse(raw).error&&JSON.parse(raw).error.message)||detail}catch(e){}
+    // Retry once without thinkingConfig if the model rejected it
+    if(res.status===400&&body.generationConfig&&body.generationConfig.thinkingConfig&&/think/i.test(String(detail))){
+      try{
+        delete body.generationConfig.thinkingConfig;
+        res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal});
+        raw=await res.text();
+        if(res.ok){
+          return this.geminiToOpenAI(JSON.parse(raw),mid);
+        }
+        try{detail=(JSON.parse(raw).error&&JSON.parse(raw).error.message)||raw.slice(0,400)}catch(e){detail=raw.slice(0,400)}
+      }catch(e){
+        if(e&&(e.name==='AbortError'||(signal&&signal.aborted))){const err=new Error('Aborted');err.name='AbortError';throw err}
+      }
+    }
     throw new Error('Gemini API '+res.status+': '+detail);
   }
   let data;
@@ -5277,18 +5304,24 @@ console.log('[Agent] assistant appended',{hasTools,finish,contentPreview:(assist
 
 if(hasTools){
   const realThought=(assistantMsg.content||'').trim();
+  const reasoning=String(assistantMsg.reasoning_content||msg.reasoning_content||'').trim();
   const toolSummary=assistantMsg.tool_calls.map((t,i)=>{
     let a={};try{a=JSON.parse(t.function.arguments||'{}')}catch{}
     let hint='';
     if(t.function.name==='run_python')hint='Python';
-    else if(t.function.name==='read_file'||t.function.name==='write_file')hint=String(a.path||'').slice(0,60);
-    else if(t.function.name==='web_search'||t.function.name==='image_search')hint=String(a.query||'').slice(0,60);
+    else if(t.function.name==='read_file'||t.function.name==='write_file')hint=String(a.path||'').slice(0,80);
+    else if(t.function.name==='web_search'||t.function.name==='image_search')hint=String(a.query||'').slice(0,80);
     else hint='';
     return (i+1)+'. '+t.function.name+(hint?' · '+hint:'');
   }).join('\n');
-  const thought=String(realThought||'').replace(/\r/g,'').replace(/[ \t]+/g,' ').replace(/\n{2,}/g,'\n').trim().slice(0,220);
-  const planText=thought? (thought+'\n'+toolSummary) : toolSummary;
-  onEvent({type:'activity',name:deepThink?'Deep thinking':'Planning',agent:'Agent 1',status:'done',detail:planText,expand:true});
+  // Deep think / code mode: show full reasoning, not a 220-char stub
+  const codeHot=(this.storage.get('appMode','')==='code'||(window.__app&&window.__app.mode==='code'));
+  const lim=(deepThink||codeHot)?4000:220;
+  const thought=String(reasoning||realThought||'').replace(/\r/g,'').trim().slice(0,lim);
+  const planText=(thought?(thought+'\n\n'):'')+toolSummary;
+  onEvent({type:'activity',name:deepThink?'Deep thinking':'Planning',agent:'Agent 1',status:'done',detail:planText||'Working…',expand:true});
+  // Keep live "Deep thinking" step updated during long tool loops
+  try{if(waitId&&thought)onEvent({type:'activity-update',id:waitId,status:'done',detail:thought.slice(0,2000)})}catch(e){}
   for(const tc of assistantMsg.tool_calls){
     if(!this.running)break;
     toolCalls++;
@@ -5359,13 +5392,21 @@ if(hasTools){
       const summary=this._summarizeResult(name,result);
       onEvent({type:'activity-update',id:actId,status:'done',detail:summary.detail,delta:summary.delta,full:summary.full||(name==='write_file'?(args.content||''):summary.full),stream:false});
       console.log('[Agent] tool result',name,summary.detail);
-      if(name==='write_file'){
+      if(name==='write_file'&&result&&!result.error&&!result.blocked){
         try{
           if(typeof window!=='undefined'&&window.__app&&window.__app.ui){
             const ui=window.__app.ui;
             if(ui.renderCodeFiles)ui.renderCodeFiles();
             if(ui.refreshCodePreview)ui.refreshCodePreview();
             if(ui.showCodePreviewPane)ui.showCodePreviewPane();
+            // Prefer the file just written
+            try{
+              const p=(result&&result.path)||args.path;
+              if(p&&/\.html?/i.test(p)&&ui.livePreviewHtml){
+                const html=ui.app.vfs.read(p);
+                if(html)ui.livePreviewHtml(String(html));
+              }
+            }catch(e){}
           }
         }catch(e){}
         try{
@@ -5436,18 +5477,21 @@ if(iteration>=2){
       const root=(ui&&ui.codeRoot&&ui.codeRoot())||'code';
       let files=(this.tools&&this.tools.vfs&&this.tools.vfs.filesInFolder)?(this.tools.vfs.filesInFolder(root)||[]):[];
       if(!files.length){
-        // Guarantee a file exists — extract fences or write a starter page
+        // Only write if model put HTML in a fence — never invent a "prompt as H1" fake page here
         let htmlBody='';
-        const raw=String(finalContent||assistantMsg&&assistantMsg.content||'');
+        const raw=String(finalContent||(assistantMsg&&assistantMsg.content)||'');
         const fence=raw.match(/```(?:html|HTML)?\s*([\s\S]*?)```/);
         if(fence&&fence[1]&&fence[1].trim().length>40)htmlBody=fence[1].trim();
+        // Also try to find a full HTML document in plain content
         if(!htmlBody){
-          const goal=String(userMessage||'App').slice(0,180).replace(/[<>]/g,'');
-          htmlBody='<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+goal+'</title><style>*{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;padding:24px;background:#0f172a;color:#e2e8f0}h1{color:#38bdf8}button{background:#2563eb;color:#fff;border:0;padding:10px 16px;border-radius:8px;cursor:pointer}button:hover{background:#1d4ed8}</style></head><body><h1>'+goal+'</h1><p>Created by Think Deeper. Edit this page or ask for changes.</p><button type="button" id="go">Click me</button><scr'+'ipt>document.getElementById("go").onclick=function(){alert("Working!")}</scr'+'ipt></body></html>';
+          const m=raw.match(/<!DOCTYPE html[\s\S]*?<\/html>/i)||raw.match(/<html[\s\S]*?<\/html>/i);
+          if(m&&m[0].length>80)htmlBody=m[0];
         }
-        const actId=onEvent({type:'activity',name:'Writing file',agent:'Agent 1',status:'running',detail:'Ensuring index.html exists…',expand:true});
-        await this._streamWriteFile({path:root+'/index.html',content:htmlBody},actId,onEvent);
-        files=(this.tools.vfs.filesInFolder(root)||[]);
+        if(htmlBody){
+          const actId=onEvent({type:'activity',name:'Writing file',agent:'Agent 1',status:'running',detail:'Saving extracted HTML…',expand:true});
+          await this._streamWriteFile({path:root+'/index.html',content:htmlBody},actId,onEvent);
+          files=(this.tools.vfs.filesInFolder(root)||[]);
+        }
       }
       const html=files.find(p=>/index\.html$/i.test(p))||files.find(p=>/\.html$/i.test(p));
       const list=files.slice(0,12).map(p=>'- [['+'file:'+p+']]').join('\n');
@@ -7446,42 +7490,65 @@ ${text}${attNote||''}`;
     pill.textContent='Working for '+formatDuration(Date.now()-pillStart);
   },1000);
 
+  let codeAborted=false;
+  let codeHadRealWrite=false;
   try{
-    // Fake a conversation message path via agent run with synthetic history
     const aiMsg={id:uid(),role:'assistant',content:''};
-    await this.app.agent.run(codePrompt,[],codeAtt||[],(ev)=>this.handleCodeAgentEvent(ev,aiDiv,aiMsg),{deepThink:true});
-  }catch(e){this.explainApiError(e)}
+    await this.app.agent.run(codePrompt,[],codeAtt||[],(ev)=>{
+      try{
+        if(ev&&ev.type==='activity-update'&&/Wrote |Writing file/i.test(String(ev.detail||ev.name||'')))codeHadRealWrite=true;
+        if(ev&&ev.type==='activity'&&/Writing file|Wrote file/i.test(String(ev.name||'')))codeHadRealWrite=true;
+      }catch(e){}
+      return this.handleCodeAgentEvent(ev,aiDiv,aiMsg);
+    },{deepThink:true});
+  }catch(e){
+    if(e&&e.name==='AbortError'){
+      codeAborted=true;
+      toast('Stopped','info');
+      try{
+        const body=aiDiv.querySelector('.message-body');
+        if(body&&!body.querySelector('.final-content')){
+          const el=document.createElement('div');el.className='final-content';
+          el.innerHTML='<p><em>Stopped.</em></p>';
+          body.appendChild(el);
+        }
+      }catch(e2){}
+    }else this.explainApiError(e);
+  }
   finally{
     try{clearInterval(pillTimer)}catch(e){}
     this.app.agent.settings=prev;this.app.mode='code';this.mode='code';
-    // Guarantee workspace file + visible final if agent produced nothing
     try{
       const root=this.codeRoot?this.codeRoot():'code';
       let files=this.app.vfs.filesInFolder(root)||[];
-      if(!files.length){
-        const goal=String(text||'App').slice(0,180).replace(/[<>]/g,'');
-        const html='<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+goal+'</title><style>body{font-family:system-ui,sans-serif;padding:24px;background:#0f172a;color:#e2e8f0}h1{color:#38bdf8}</style></head><body><h1>'+goal+'</h1><p>Starter page — ask Think Deeper to expand this app.</p></body></html>';
-        this.app.vfs.write(root+'/index.html',html);
-        files=this.app.vfs.filesInFolder(root)||[];
-        toast('Wrote index.html to workspace','success');
+      // Never invent a fake "your prompt as H1" page on abort. Only ensure preview for real writes.
+      if(!codeAborted&&!files.length&&codeHadRealWrite){
+        /* rare race */
       }
-      const body=aiDiv.querySelector('.message-body');
-      const finalEl=body&&body.querySelector('.final-content');
-      const hasFinal=finalEl&&finalEl.textContent&&finalEl.textContent.trim().length>2;
-      if(!hasFinal&&body){
-        const htmlPath=files.find(p=>/index\.html$/i.test(p))||files[0];
-        let el=finalEl;
-        if(!el){el=document.createElement('div');el.className='final-content';body.appendChild(el)}
-        const md='Created **'+(htmlPath||'files')+'** in the code workspace.\n\n'+(htmlPath?'[[preview:'+htmlPath+']]\n':'')+files.slice(0,8).map(p=>'[[file:'+p+']]').join(' ');
-        el.innerHTML=this.renderMarkdown?this.renderMarkdown(md):escapeHtml(md);
-        if(this.enhanceCodeBlocks)this.enhanceCodeBlocks(el);
-        // wire preview chips
-        el.querySelectorAll&&el.querySelectorAll('.preview-chip').forEach(btn=>{
-          btn.onclick=()=>{try{this.refreshCodePreview();this.showCodePreviewPane&&this.showCodePreviewPane()}catch(e){}};
-        });
+      if(!codeAborted&&files.length){
+        this.renderCodeFiles();
+        this.refreshCodePreview();
+        this.showCodePreviewPane&&this.showCodePreviewPane();
+        const body=aiDiv.querySelector('.message-body');
+        const finalEl=body&&body.querySelector('.final-content');
+        const hasFinal=finalEl&&finalEl.textContent&&finalEl.textContent.trim().length>2;
+        if(!hasFinal&&body){
+          const htmlPath=files.find(p=>/index\.html$/i.test(p))||files.find(p=>/\.html$/i.test(p))||files[0];
+          let el=finalEl;
+          if(!el){el=document.createElement('div');el.className='final-content';body.appendChild(el)}
+          const md='Saved to the code workspace.\n\n'+(htmlPath?'[[preview:'+htmlPath+']]\n':'')+files.slice(0,12).map(p=>'[[file:'+p+']]').join(' ');
+          el.innerHTML=this.renderMarkdown?this.renderMarkdown(md):escapeHtml(md);
+          if(this.enhanceCodeBlocks)this.enhanceCodeBlocks(el);
+          el.querySelectorAll&&el.querySelectorAll('.preview-chip').forEach(btn=>{
+            btn.onclick=()=>{try{this.refreshCodePreview();this.showCodePreviewPane&&this.showCodePreviewPane()}catch(e){}};
+          });
+        }
+      }else if(codeAborted&&!files.length){
+        // leave workspace empty — do not write a fake file
       }
-    }catch(e){console.warn('code finally ensure',e)}
-    this.renderCodeFiles();this.refreshCodePreview();this.saveCodeTranscript();
+    }catch(e){console.warn('code finally',e)}
+    try{this.renderCodeFiles();this.refreshCodePreview()}catch(e){}
+    try{this.saveCodeTranscript()}catch(e){}
     try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
     const stopBtn=$('#code-stop-btn');const sendBtn=$('#code-send-btn');
     if(stopBtn)stopBtn.classList.remove('visible');if(sendBtn)sendBtn.style.display='';
@@ -7969,8 +8036,11 @@ else if(ev.type==='activity'){
     const b=step.querySelector('.tp-step-body');
     let d=String(ev.detail);
     if(/plan|think/i.test(ev.name||'')){
-      d=d.replace(/\r/g,'').replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n').trim().slice(0,320);
+      const codeHot=(this.mode==='code'||this.app.mode==='code');
+      d=d.replace(/\r/g,'').replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim().slice(0,(codeHot||/deep/i.test(ev.name||''))?6000:800);
       b.textContent=d;
+      step.classList.add('open');
+      b.style.display='block';
     }else{
       try{b.innerHTML=this.renderMarkdown(d.slice(0,4000))}catch{b.textContent=d.slice(0,4000)}
     }
@@ -9715,6 +9785,7 @@ openChatCanvas(id){
   run();
 }
 explainApiError(e){
+  if(e&&(e.name==='AbortError'||/aborted/i.test(String(e.message||''))))return;
   const st=e&&(e.status||e.statusCode);
   const raw=String((e&&(e.body||e.message))||e||'');
   if(st===429||/429|quota|rate limit/i.test(raw))toast('Quota or rate limit reached','error',raw.slice(0,240));
