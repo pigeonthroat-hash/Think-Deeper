@@ -2060,38 +2060,76 @@ function syncProjectBundles(storage,conversations){
   const projects=JSON.parse(JSON.stringify(storage.get('projects',[])||[]));
   const live=(conversations&&conversations.conversations)||storage.get('conversations',[])||[];
   const byId=new Map();
-  (Array.isArray(live)?live:[]).forEach(c=>{if(c&&c.id)byId.set(String(c.id),c)});
+  // Dedupe live conversations by id (keep richest copy)
+  (Array.isArray(live)?live:[]).forEach(c=>{
+    if(!c||!c.id)return;
+    const id=String(c.id);
+    const L=byId.get(id);
+    if(!L){byId.set(id,c);return}
+    const lm=(L.messages&&L.messages.length)||0,rm=(c.messages&&c.messages.length)||0;
+    const lu=Number(L.updated||0),ru=Number(c.updated||0);
+    if(rm>lm||(rm===lm&&ru>=lu))byId.set(id,Object.assign({},L,c));
+  });
+  // Merge project chat snapshots ONLY when the live chat already exists or snapshot has messages.
+  // Never resurrect empty deleted placeholders (that inflated counts on open/close).
   projects.forEach(p=>{
     if(!p||!p.id)return;
     (p.chats||[]).forEach(ch=>{
       if(!ch||!ch.id)return;
-      ch.projectId=p.id;
       const id=String(ch.id);
       const L=byId.get(id);
-      if(!L){byId.set(id,ch);return}
+      const msgN=(ch.messages&&ch.messages.length)||0;
+      if(!L){
+        if(msgN>0){ch.projectId=p.id;byId.set(id,ch)}
+        return;
+      }
       const lu=Number(L.updated||0),ru=Number(ch.updated||0);
-      const lm=(L.messages&&L.messages.length)||0,rm=(ch.messages&&ch.messages.length)||0;
+      const lm=(L.messages&&L.messages.length)||0,rm=msgN;
       if(ru>lu||(ru===lu&&rm>lm))byId.set(id,Object.assign({},L,ch,{projectId:p.id}));
-      else L.projectId=p.id;
+      else if(String(L.projectId||'')===String(p.id)||rm>0)L.projectId=L.projectId||p.id;
     });
   });
   projects.forEach(p=>{
     if(!p||!p.id)return;
-    const ids=new Set((p.chatIds||[]).map(String));
-    byId.forEach(c=>{if(c&&c.projectId===p.id)ids.add(String(c.id))});
+    // Unique chatIds that still exist in the conversation list
+    const ids=new Set();
+    (p.chatIds||[]).forEach(id=>{
+      const s=String(id);
+      if(byId.has(s))ids.add(s);
+    });
+    byId.forEach(c=>{
+      if(c&&String(c.projectId)===String(p.id))ids.add(String(c.id));
+    });
     p.chatIds=[...ids];
     p.chats=p.chatIds.map(id=>{
-      const snap=snapshotChat(byId.get(String(id)));
-      if(snap)snap.projectId=p.id;
-      return snap;
+      const snap=typeof snapshotChat==='function'?snapshotChat(byId.get(String(id))):byId.get(String(id));
+      if(snap){snap.projectId=p.id;return snap}
+      return null;
     }).filter(Boolean);
-    p.updated=Date.now();
+    // Do not bump updated on every sync — only when membership changed
   });
   const merged=[...byId.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0));
   storage.set('projects',projects);
   storage.set('conversations',merged);
   if(conversations)conversations.conversations=merged;
   return projects;
+}
+function countProjectChats(p,allChats){
+  if(!p)return 0;
+  const pid=String(p.id);
+  const set=new Set((p.chatIds||[]).map(String));
+  const seen=new Set();
+  let n=0;
+  (allChats||[]).forEach(c=>{
+    if(!c||!c.id)return;
+    const id=String(c.id);
+    if(seen.has(id))return;
+    if(String(c.projectId||'')===pid||set.has(id)){
+      seen.add(id);
+      n++;
+    }
+  });
+  return n;
 }
 const ErrorSink={
   logs:[],
@@ -6311,9 +6349,14 @@ renderProjects(){
   const projects=this.app.storage.get('projects',[])||[];
   const cur=this.app.storage.get('currentProjectId',null);
   const allChats=this.app.conversations.list()||[];
+  // Normalize membership once per render to kill duplicate / stale ids
+  try{this.normalizeProjectMembership(projects,allChats)}catch(e){}
   el.innerHTML=projects.map(p=>{
-    const set=new Set((p.chatIds||[]).map(String));
-    const n=allChats.filter(c=>c&&(String(c.projectId)===String(p.id)||set.has(String(c.id)))).length;
+    const n=typeof countProjectChats==='function'?countProjectChats(p,allChats):(function(){
+      const set=new Set((p.chatIds||[]).map(String));const seen=new Set();let x=0;
+      allChats.forEach(c=>{if(!c||!c.id)return;const id=String(c.id);if(seen.has(id))return;if(String(c.projectId||'')===String(p.id)||set.has(id)){seen.add(id);x++}});
+      return x;
+    })();
     return `<div class="project-item ${String(p.id)===String(cur||'')?'active':''}" data-id="${p.id}" title="Open project · drop a chat here to add it">
       ${SVG.folder} <span class="proj-name">${escapeHtml(p.name)}</span>
       <span class="proj-count">${n}</span>
@@ -6363,6 +6406,37 @@ leaveProject(){
   try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
   try{this.renderCodeHist&&this.renderCodeHist()}catch(e){}
   toast(p?'Left project: '+p.name+' — showing all chats':'Showing all chats','success');
+}
+normalizeProjectMembership(projects,allChats){
+  const list=projects||this.app.storage.get('projects',[])||[];
+  const chats=allChats||this.app.conversations.list()||[];
+  const liveIds=new Set(chats.map(c=>c&&String(c.id)).filter(Boolean));
+  let changed=false;
+  list.forEach(p=>{
+    if(!p)return;
+    const before=(p.chatIds||[]).join(',');
+    const ids=new Set();
+    (p.chatIds||[]).forEach(id=>{const s=String(id);if(liveIds.has(s))ids.add(s)});
+    chats.forEach(c=>{if(c&&String(c.projectId||'')===String(p.id))ids.add(String(c.id))});
+    p.chatIds=[...ids];
+    // Drop null snapshots / dupes in p.chats
+    if(Array.isArray(p.chats)){
+      const seen=new Set();
+      p.chats=p.chats.filter(ch=>{
+        if(!ch||!ch.id)return false;
+        const id=String(ch.id);
+        if(seen.has(id))return false;
+        if(!liveIds.has(id)&&!(ch.messages&&ch.messages.length))return false;
+        seen.add(id);
+        return true;
+      });
+    }
+    if(p.chatIds.join(',')!==before)changed=true;
+  });
+  if(changed){
+    this.app.storage.set('projects',list);
+  }
+  return list;
 }
 moveChatToProject(chatId,projectId){
   if(!chatId)return;
@@ -7201,8 +7275,9 @@ attachChatToProject(chatId){
   const pid=this.app.storage.get('currentProjectId',null)||this._pendingProjectId;if(!pid||!chatId)return;
   const projects=this.app.storage.get('projects',[])||[];
   const p=projects.find(x=>String(x.id)===String(pid));if(!p)return;
-  p.chatIds=p.chatIds||[];
-  if(!p.chatIds.map(String).includes(String(chatId)))p.chatIds.push(chatId);
+  // Dedupe chatIds every attach
+  p.chatIds=[...new Set((p.chatIds||[]).map(String).filter(Boolean))];
+  if(!p.chatIds.includes(String(chatId)))p.chatIds.push(String(chatId));
   const conv=this.app.conversations.get(chatId);
   if(conv){
     conv.projectId=pid;
