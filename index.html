@@ -335,6 +335,14 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 #code-view .intensity-bar{border-color:#1e2630;background:#0a0e13}
 #code-view .intensity-chip{background:#151b24;border-color:#2a3340;color:#9ca3af}
 #code-view .intensity-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.code-quick-chat-btn{
+  border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);
+  border-radius:999px;padding:6px 10px;font-size:.72rem;font-weight:600;cursor:pointer;white-space:nowrap
+}
+.code-quick-chat-btn:hover{border-color:var(--accent);color:var(--text-primary)}
+.code-quick-chat-btn.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+#code-view .code-quick-chat-btn{background:#151b24;border-color:#2a3340;color:#9ca3af}
+#code-view .code-quick-chat-btn.active{background:rgba(37,99,235,.2);border-color:#3b82f6;color:#93c5fd}
 .html-preview-frame{
   width:100%;min-height:360px;border:1px solid #2a3340;border-radius:12px;background:#fff;margin-top:8px
 }
@@ -1411,6 +1419,7 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
           <textarea id="code-user-input" rows="1" placeholder="Describe a coding task…"></textarea>
           <div class="input-actions">
             <button type="button" class="attach-btn" id="code-attach-btn" aria-label="Attach file" title="Attach file"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
+            <button type="button" class="code-quick-chat-btn" id="code-quick-chat-btn" aria-pressed="false" title="Quick chat without forcing file writes">Quick chat</button>
             <div style="position:relative">
               <button type="button" class="mode-mini" id="mode-mini-btn-code" aria-label="Choose mode"><span id="mode-mini-label-code">Medium</span> <span class="mode-caret">▾</span></button>
               <div class="mode-pop" id="mode-mini-pop-code"></div>
@@ -5218,7 +5227,7 @@ try{
     }
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code')?'\n\nCODE MODE ACTIVE — OVERRIDES FILE CREATION RULES ABOVE.\nCRITICAL: Your FIRST tool call MUST be write_file (not list_files, not a plan). Pass path index.html and FULL HTML in the tool arguments (embed <style> and <script>).\n- list_files alone is a failure — files must exist via write_file.\n- Code fences in chat do NOT count.\n- After write_file, call check_code, then [[preview:.../index.html]].\n- Never type list_files or write_file as plain numbered steps; call the tools API.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+((this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE ACTIVE — OVERRIDES FILE CREATION RULES ABOVE.\nCRITICAL: Your FIRST tool call MUST be write_file (not list_files, not a plan). Pass path index.html and FULL HTML in the tool arguments (embed <style> and <script>).\n- list_files alone is a failure — files must exist via write_file.\n- Code fences in chat do NOT count.\n- After write_file, call check_code, then [[preview:.../index.html]].\n- Never type list_files or write_file as plain numbered steps; call the tools API.\n- Fast/Medium/Hard intensity still requires real write_file deliverables.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 const hardMax=Number.POSITIVE_INFINITY;
 try{while(iteration<hardMax&&this.running){if(!this.running)break;
@@ -5229,7 +5238,8 @@ let response;
 const doChat=async(withTools)=>{
   for(let attempt=0;attempt<4;attempt++){
     try{
-      const codeHot=(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'));
+      const codeQuick=!!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat));
+      const codeHot=!codeQuick&&(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'));
       let wroteYet=false;
       try{
         if(codeHot){
@@ -5238,7 +5248,7 @@ const doChat=async(withTools)=>{
             || messages.some(m=>String(m.name||'')==='write_file'||(m.role==='assistant'&&m.tool_calls&&m.tool_calls.some(t=>(t.function&&t.function.name)==='write_file')));
         }
       }catch(e){}
-      // Code mode: require tools until a file exists. Prefer 'required' (any tool) — forcing only write_file breaks some providers.
+      // Build mode (not quick chat): require tools until a file exists so Fast–Hard still write
       let choice=this.storage.get('toolChoice','auto')||'auto';
       const useTools=!!(withTools&&choice!=='none');
       if(withTools&&codeHot&&!wroteYet&&iteration<=8){
@@ -5457,7 +5467,7 @@ if(hasTools){
 }
 
 // No tool calls → final answer, unless code mode still has not written files
-const codeHotEnd=(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'));
+const codeHotEnd=!this.codeQuickChat&&!(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat)&&(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'));
 let wroteFiles=messages.some(m=>{
   if(String(m.name||'')==='write_file')return true;
   if(m.role!=='tool')return false;
@@ -7107,7 +7117,8 @@ setMode(mode){
     try{
       if(this._shownCodeId!==this._currentCodeId)this.restoreCodeTranscript();
     }catch(e){console.warn('code restore',e)}
-    try{this.refreshCodePreview&&this.refreshCodePreview()}catch(e){}
+    try{this.resyncCodePreview?this.resyncCodePreview():this.refreshCodePreview()}catch(e){}
+    try{this.setCodePane('preview')}catch(e){}
   }
   if(mode==='auto')this.renderAutoHub();
   if(mode==='canvas')this.openAutoBuilder();
@@ -7296,7 +7307,19 @@ setCodePane(pane){
   const prev=$('#code-preview-wrap'),ed=$('#code-edit-wrap');
   if(prev)prev.style.display=pane==='preview'?'block':'none';
   if(ed)ed.style.display=pane==='code'?'flex':'none';
-  if(pane==='preview')this.refreshCodePreview();
+  if(pane==='preview'){
+    try{this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}
+    try{this.refreshCodePreview()}catch(e){}
+    // Second tick: catch late VFS writes / iframe settle
+    try{setTimeout(()=>{try{this.refreshCodePreview()}catch(e){}},80)}catch(e){}
+  }else if(pane==='code'){
+    try{this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}
+  }
+}
+resyncCodePreview(){
+  try{this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}
+  try{this.refreshCodePreview()}catch(e){}
+  try{this.showCodePreviewPane&&this.showCodePreviewPane()}catch(e){}
 }
 codeRoot(){
   const id=this.app.storage.get('currentCodeId','default')||'default';
@@ -7489,18 +7512,26 @@ ${skillText}
 User task:
 ${text}${attNote||''}`;
   const prev={...this.app.agent.settings};
+  const quickChat=!!(this._codeQuickChat||this.app.storage.get('codeQuickChat',false));
+  this._codeQuickChat=quickChat;
+  this.app.agent.codeQuickChat=quickChat;
   // Code mode: no iteration / tool / time caps
   this.app.agent.settings.maxIterations=999;
   this.app.agent.settings.maxTools=999;
   this.app.agent.settings.maxTime=86400;
   this.app.agent.temperature=inten.temperature;
-  this.app.agent.maxTokens=inten.maxTokens||4000;
-  this.app.agent.projectCtx=this.projectContext();this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: maximum verification and tools. Agent 1 MUST write_file real code. Agent 2 must check_code/read_file. Agent 3 must list_files and confirm paths.':'');
-  this.app.agent.teamSize=(inten.team||inten.ultraSkills)?3:1;
+  // Fast–Hard still need enough tokens to emit write_file with full HTML
+  this.app.agent.maxTokens=quickChat?(inten.maxTokens||4000):Math.max(inten.maxTokens||4000, 8192);
+  this.app.agent.projectCtx=this.projectContext();this.app.agent.projectCtx=this.projectContext();
+  this.app.agent.intensityExtra=quickChat
+    ?(inten.extra+'\nQUICK CHAT in code workspace: answer conversationally. Tools optional. Do not force write_file unless the user asks to build or save a file.')
+    :(inten.extra+(inten.ultraSkills?'\nULTRA: maximum verification and tools. Agent 1 MUST write_file real code. Agent 2 must check_code/read_file. Agent 3 must list_files and confirm paths.':'')
+      +'\nCODE BUILD: intensity '+inten.label+' still requires write_file for deliverables. Prefer a complete index.html.');
+  this.app.agent.teamSize=quickChat?1:((inten.team||inten.ultraSkills)?3:1);
   this.app.mode='code';
   this.mode='code';
   this.app.storage.set('appMode','code');
-  try{window.__app=this.app;window.__app.mode='code';window.__app.ui=this}catch(e){}
+  try{window.__app=this.app;window.__app.mode='code';window.__app.ui=this;window.__app.ui._codeQuickChat=quickChat}catch(e){}
 
   // Live timer on initial status pill until thought-process takes over
   const pillStart=Date.now();
@@ -7515,13 +7546,19 @@ ${text}${attNote||''}`;
   let codeHadRealWrite=false;
   try{
     const aiMsg={id:uid(),role:'assistant',content:''};
-    await this.app.agent.run(codePrompt,[],codeAtt||[],(ev)=>{
+    const runPrompt=quickChat
+      ?('CODE WORKSPACE QUICK CHAT (intensity: '+inten.label+'). You are in the code chat UI but Quick chat is ON.\n'
+        +'Answer the user normally. Do not force file creation. Only use write_file if they explicitly ask to build, save, or edit project files.\n'
+        +'Workspace files (if any):\n'+(existingFiles.length?existingFiles.map(p=>'- '+p).join('\n'):'(none)')+'\n\n'
+        +'User:\n'+text+(attNote||''))
+      :codePrompt;
+    await this.app.agent.run(runPrompt,[],codeAtt||[],(ev)=>{
       try{
         if(ev&&ev.type==='activity-update'&&/Wrote |Writing file/i.test(String(ev.detail||ev.name||'')))codeHadRealWrite=true;
         if(ev&&ev.type==='activity'&&/Writing file|Wrote file/i.test(String(ev.name||'')))codeHadRealWrite=true;
       }catch(e){}
       return this.handleCodeAgentEvent(ev,aiDiv,aiMsg);
-    },{deepThink:true});
+    },{deepThink:!quickChat});
   }catch(e){
     if(e&&e.name==='AbortError'){
       codeAborted=true;
@@ -7538,7 +7575,8 @@ ${text}${attNote||''}`;
   }
   finally{
     try{clearInterval(pillTimer)}catch(e){}
-    this.app.agent.settings=prev;this.app.mode='code';this.mode='code';
+    this.app.agent.settings=prev;this.app.agent.codeQuickChat=false;this.app.mode='code';this.mode='code';
+    try{if(window.__app&&window.__app.ui)window.__app.ui._codeQuickChat=!!this.app.storage.get('codeQuickChat',false)}catch(e){}
     try{
       const root=this.codeRoot?this.codeRoot():'code';
       let files=this.app.vfs.filesInFolder(root)||[];
