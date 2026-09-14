@@ -3024,10 +3024,13 @@ class CloudSync{
         if(!r||!r.id)return;
         const id=String(r.id);
         const L=map.get(id);
-        if(!L){map.set(id,r);return}
+        const remote={...r,id,messages:Array.isArray(r.messages)?r.messages.map(m=>({...m})):[]};
+        if(!L){map.set(id,remote);return}
         const lu=Number(L.updated||0),ru=Number(r.updated||0);
-        const lm=(L.messages&&L.messages.length)||0,rm=(r.messages&&r.messages.length)||0;
-        const merged=ru>lu||(ru===lu&&rm>lm)?Object.assign({},L,r):Object.assign({},r,L);
+        const lm=(L.messages&&L.messages.length)||0,rm=(remote.messages&&remote.messages.length)||0;
+        let merged;
+        if(ru>lu||(ru===lu&&rm>lm))merged=Object.assign({},L,remote,{messages:remote.messages});
+        else merged=Object.assign({},remote,L,{messages:Array.isArray(L.messages)?L.messages.map(m=>({...m})):[]});
         if(L.titleLocked||(L.title&&L.title!=='Code chat'&&(!r.title||r.title==='Code chat'))){merged.title=L.title;merged.titleLocked=!!L.titleLocked}
         else if(r.titleLocked||(r.title&&r.title!=='Code chat')){merged.title=r.title;merged.titleLocked=!!r.titleLocked}
         map.set(id,merged);
@@ -3677,7 +3680,7 @@ normalizeMessages(messages){
 async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTokens}={}){
   // Soft rate limit: slight delay between API calls to avoid quota / 429 storms
   try{
-    const minGap=Number(this.storage.get('apiMinGapMs',900))||900;
+    const minGap=Number(this.storage.get('apiMinGapMs',1200))||1200;
     const last=this._lastChatAt||0;
     const wait=Math.max(0, minGap-(Date.now()-last));
     if(wait>0){
@@ -3862,11 +3865,17 @@ async syncWorkspace(){
   const vfs=window.__app&&window.__app.vfs;
   if(!vfs||!this.pyodide)return;
   try{this.pyodide.FS.mkdirTree('/workspace')}catch(e){}
+  try{this.pyodide.FS.mkdirTree('/workspace/uploads')}catch(e){}
+  try{this.pyodide.FS.mkdirTree('/workspace/artifacts')}catch(e){}
+  try{this.pyodide.FS.mkdirTree('/workspace/code')}catch(e){}
   const files=vfs.files||{};
   for(const [path,meta] of Object.entries(files)){
-    const c=meta&&meta.content!=null?String(meta.content):'';
-    if(!c||c.startsWith('data:')||c.length>1500000)continue;
-    const full='/workspace/'+path;
+    let c=meta&&meta.content!=null?String(meta.content):'';
+    if(!c)continue;
+    // Skip huge pure binary data URLs except short markers
+    if(c.startsWith('data:')&&c.length>200000)c='[binary data url omitted — use tools to read path '+path+']';
+    if(c.length>2000000)c=c.slice(0,2000000)+'\n…[truncated for Python workspace]';
+    const full='/workspace/'+String(path).replace(/^\/+/, '');
     try{
       const parts=full.split('/');
       parts.pop();
@@ -3874,6 +3883,48 @@ async syncWorkspace(){
       this.pyodide.FS.writeFile(full,c);
     }catch(e){}
   }
+  // Install helpers every sync so scripts can always open workspace files
+  try{
+    await this.pyodide.runPythonAsync(String.raw`
+def ws_path(path):
+    p=str(path or '')
+    if p.startswith('/workspace'): return p
+    return '/workspace/'+p.lstrip('/')
+def ws_read(path, start=0, length=None):
+    p=ws_path(path)
+    with open(p,'r',encoding='utf-8',errors='replace') as f:
+        data=f.read()
+    start=int(start or 0)
+    if length is None:
+        return data[start:]
+    return data[start:start+int(length)]
+def ws_search(path, keyword, context=120, limit=30):
+    p=ws_path(path)
+    with open(p,'r',encoding='utf-8',errors='replace') as f:
+        data=f.read()
+    kw=str(keyword or '')
+    hits=[]
+    i=0
+    while kw and len(hits)<int(limit or 30):
+        j=data.find(kw,i)
+        if j<0: break
+        a=max(0,j-int(context or 120)); b=min(len(data),j+len(kw)+int(context or 120))
+        hits.append({'offset':j,'snippet':data[a:b]})
+        i=j+max(1,len(kw))
+    return hits
+def ws_list(prefix=''):
+    import os
+    root='/workspace'
+    pref=str(prefix or '').lstrip('/')
+    out=[]
+    for dirpath,_,files in os.walk(root):
+        for name in files:
+            rel=(dirpath[len(root):].lstrip('/')+'/'+name).lstrip('/')
+            if not pref or rel.startswith(pref):
+                out.append(rel)
+    return sorted(out)[:500]
+`)
+  }catch(e){console.warn('ws helpers',e)}
 }
 async run(code){
   let src=String(code==null?'':code).replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
@@ -5137,7 +5188,7 @@ _pickModel(deepThink){const c=this.provider.config;const roles=this.storage.get(
 }
 _memoryContext(){try{const bits=[];try{if(typeof window!=='undefined'&&window.__app&&window.__app.ui&&window.__app.ui.supervisorMemoryContext){const extra=window.__app.ui.supervisorMemoryContext();if(extra)bits.push(extra)}}catch(e){}const paths=this.tools.vfs.list('memory/')||[];for(const p of paths.slice(0,16)){try{const c=this.tools.vfs.read(p);if(c)bits.push('### '+p+'\n'+String(c).slice(0,900))}catch{}}if(!bits.length)return '';return '\n\nSHARED MEMORY (files, chats, agent thinking — keep these facts across chat and agent mode):\n'+bits.join('\n\n').slice(0,10000)}catch{return ''}}
 getSystemPrompt(deepThink=false){const personality=this.storage.get('personality','')||'';const pluginsOn=this.storage.get('pluginsGlobal',true)!==false;const pluginInj=pluginsOn?this.plugins.getSystemInjection():'';
-const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector (always on): After you write or edit JS/TS/HTML/CSS/Python, call check_code. If it returns errors, fix them before the final answer. If it returns no errors, say so in your thinking.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nLarge attached files live in uploads/. Page them with read_file start/length, search_file(query), or Python ws_search(path, keyword) then ws_read. Converted models live in models/*.onnx and can be executed with run_onnx.\n';
+const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector (always on): After you write or edit JS/TS/HTML/CSS/Python, call check_code. If it returns errors, fix them before the final answer. If it returns no errors, say so in your thinking.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nFILES: Attached and matching workspace files are listed in the user message. You MUST open them with read_file/search_file or run_python (ws_read/ws_search/ws_list under /workspace/…) when the user talks about their content — never ignore shared files. Uploads stay available across turns under uploads/ and /workspace/uploads/.\nLarge files: page with read_file start/length, search_file(query), or Python ws_search then ws_read. Converted models live in models/*.onnx (run_onnx).\nTHINKING: Keep all work in this single reply. When Python runs, pause other steps until it finishes, then continue.\n';
 const deep=deepThink?`
 DEEP THINK MODE IS ON.
 - Keep working until the problem is FULLY solved and verified.
@@ -5406,17 +5457,23 @@ if(hasTools){
         result=await this._streamWriteFile(args,actId,onEvent);
       } else if(name==='run_python'){
         let code=String(args.code||args.source||args.script||'');
-        onEvent({type:'activity-update',id:actId,status:'running',detail:'Supervisor optimizing Python for max speed…'});
+        // Go temporarily idle in the UI while Python runs (same response, paused thinking)
+        onEvent({type:'status',text:'Running Python…'});
+        onEvent({type:'activity-update',id:actId,status:'running',detail:'Idle while Python runs…'});
         try{
           const opt=await this.provider.chat([
-            {role:'system',content:'You optimize Python for Pyodide. All common modules are installed (numpy, scipy, sympy, pandas, networkx, mpmath, …). Rewrite for maximum speed and correctness. Return ONLY Python code — no markdown, no titles, no commentary.'},
+            {role:'system',content:'You optimize Python for Pyodide. Workspace files are under /workspace. Prefer ws_read/ws_search/ws_list. All common modules are installed. Return ONLY Python code — no markdown.'},
             {role:'user',content:code.slice(0,12000)}
-          ],{temperature:0.1,maxTokens:4000});
+          ],{temperature:0.1,maxTokens:4000,signal});
           const raw=((opt&&opt.choices&&opt.choices[0]&&opt.choices[0].message&&opt.choices[0].message.content)||'').trim().replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
           if(raw&&raw.length>10){args={...args,code:raw};code=raw}
         }catch(e){}
-        onEvent({type:'activity-update',id:actId,status:'running',detail:'Running optimized Python…'});
+        onEvent({type:'activity-update',id:actId,status:'running',detail:'Running Python (agent idle)…'});
+        onEvent({type:'status',text:'Python running — thinking paused'});
         result=await this.tools.execute('run_python',{code});
+        // Brief pause so the UI shows the Python step before the next model call
+        await new Promise(r=>setTimeout(r,450));
+        onEvent({type:'status',text:'Continuing after Python…'});
       } else {
         result=await this.tools.execute(name,args);
       }
@@ -5462,7 +5519,12 @@ if(hasTools){
     });
     onEvent({type:'status',text:`Finished ${name} — continuing…`});
   }
-  // Continue loop — do NOT treat empty assistant content as final when tools were requested
+  // Pace thinking: short delay after tools so steps stay readable and quota is softer
+  try{
+    const lastTool=(assistantMsg.tool_calls&&assistantMsg.tool_calls.length)?(assistantMsg.tool_calls[assistantMsg.tool_calls.length-1].function||{}).name:'';
+    await new Promise(r=>setTimeout(r,lastTool==='run_python'?600:350));
+  }catch(e){}
+  // Continue loop — same response; do not treat empty assistant content as final when tools ran
   continue;
 }
 
@@ -5784,15 +5846,19 @@ _fileBrief(a){
   return '[Large file: '+name+' → '+path+' ('+full.length+' chars). Full text is in the workspace. Call read_file with start and length to page through it.]\nOutline: '+(heads.join(' | ')||'(no headings)')+'\n--- start ---\n'+head+'\n--- end ---\n'+tail;
 }
 _buildUserContent(text,attachments){
-  if(!attachments||!attachments.length)return text||'';
   const isImage=a=>a&&a.dataUrl&&(a.isImage||(a.type&&String(a.type).startsWith('image/'))||/^data:image\//i.test(a.dataUrl));
-  const imgs=attachments.filter(isImage);
-  const files=attachments.filter(a=>a&&!isImage(a));
+  const att=attachments||[];
+  const imgs=att.filter(isImage);
+  const files=att.filter(a=>a&&!isImage(a));
+  // Always attach matched workspace files + open uploads so the model inspects them
+  let contextBlock='';
+  try{contextBlock=this._relevantFileContext(text,att)||''}catch(e){}
   if(imgs.length){
     const parts=[];
     let caption=text||'';
     if(files.length)caption+=(caption?'\n\n':'')+files.map(a=>this._fileBrief(a)).join('\n\n');
-    caption+=(caption?'\n\n':'')+'Attached image file(s) are provided as real images for vision. Paths under uploads/ are also available for tools/Python if needed: '+imgs.map(a=>'uploads/'+(a.name||'image')).join(', ')+'.';
+    if(contextBlock)caption+=(caption?'\n\n':'')+contextBlock;
+    caption+=(caption?'\n\n':'')+'Attached image file(s) are provided as real images for vision. Paths under uploads/ are also available for tools/Python (/workspace/uploads/…): '+imgs.map(a=>'uploads/'+(a.name||'image')).join(', ')+'.';
     if(!text&&!files.length)caption='Please analyze the attached image(s). Describe shape, content, and any text you see.';
     parts.push({type:'text',text:caption});
     for(const a of imgs){
@@ -5802,7 +5868,57 @@ _buildUserContent(text,attachments){
   }
   let out=text||'';
   for(const a of files) out+='\n\n'+this._fileBrief(a);
+  if(contextBlock) out+='\n\n'+contextBlock;
   return out;
+}
+_relevantFileContext(text,attachments){
+  const vfs=this.tools&&this.tools.vfs;if(!vfs)return '';
+  const bits=[];
+  const seen=new Set();
+  const addPath=(p,why)=>{
+    if(!p||seen.has(p))return;
+    try{
+      const c=vfs.read(p);if(c==null||c==='')return;
+      seen.add(p);
+      const s=String(c);
+      bits.push('### File '+p+(why?' ('+why+')':'')+' — also at /workspace/'+p+' for run_python (ws_read / ws_search)\n'
+        +(s.length<=6000?s:(s.slice(0,5000)+'\n…[truncated '+s.length+' chars; use read_file/search_file or Python ws_read]')) );
+    }catch(e){}
+  };
+  // Explicit attachments
+  (attachments||[]).forEach(a=>{
+    const p=a&&(a.vfsPath||(a.name?('uploads/'+a.name):''));
+    if(p)addPath(p,'attached');
+  });
+  // Recent uploads always visible to the model
+  try{
+    const ups=(vfs.filesInFolder&&vfs.filesInFolder('uploads'))||(vfs.list&&vfs.list('uploads/'))||[];
+    ups.slice(0,12).forEach(p=>addPath(p,'upload'));
+  }catch(e){}
+  // Keyword match against workspace filenames + light content scan
+  const q=String(text||'').toLowerCase();
+  const tokens=q.split(/[^a-z0-9_.-]{2,}/).map(t=>t.trim()).filter(t=>t.length>=3).slice(0,16);
+  if(tokens.length){
+    try{
+      const all=Object.keys(vfs.files||{}).filter(p=>!p.includes('/archive/')).slice(0,400);
+      for(const p of all){
+        if(seen.has(p))continue;
+        const pl=p.toLowerCase();
+        const nameHit=tokens.some(t=>pl.includes(t));
+        let bodyHit=false;
+        if(!nameHit){
+          try{
+            const c=String(vfs.read(p)||'').slice(0,8000).toLowerCase();
+            bodyHit=tokens.filter(t=>t.length>=4).some(t=>c.includes(t));
+          }catch(e){}
+        }
+        if(nameHit||bodyHit)addPath(p,nameHit?'name match':'content match');
+        if(bits.length>=8)break;
+      }
+    }catch(e){}
+  }
+  if(!bits.length)return '';
+  return 'RELEVANT WORKSPACE FILES (inspect these with tools or Python — do not ignore them when the user refers to their content):\n'+bits.join('\n\n');
 }
 async _streamWriteFile(args,actId,onEvent){
   // Normalize path into the active code session workspace when in code mode
@@ -6455,11 +6571,15 @@ loadCodeSession(id){
   if(!id)return;
   const nextId=String(id);
   const prev=String(this._currentCodeId||this.app.storage.get('currentCodeId')||'');
-  if(prev && prev!==nextId){try{this.saveCodeTranscript()}catch(e){}}
+  if(prev && prev!==nextId){try{this.saveCodeTranscript(true)}catch(e){}}
   const list=this.codeSessions();
   const s=list.find(x=>String(x.id)===nextId);
   if(!s){toast('Code chat not found','error');return}
+  // Isolate: clear visible messages before switching so we never save the wrong chat into this id
+  try{const box=$('#code-messages');if(box)box.querySelectorAll('.code-msg').forEach(n=>n.remove())}catch(e){}
   this._currentCodeId=s.id;
+  this.app.storage.set('currentCodeId',s.id);
+  this.app.storage.set('codeMessages',Array.isArray(s.messages)?s.messages.slice(-40):[]);
   this.app.storage.set('currentCodeId',s.id);
   this.markCodeActive(s.id);
   if(this.mode!=='code')this.setMode('code');
@@ -7164,59 +7284,77 @@ saveCodeTranscript(force){
     const box=$('#code-messages');if(!box)return;
     const els=[...box.querySelectorAll('.code-msg')];
     if(!els.length && !force)return;
+    const sid=String(this._currentCodeId||this.app.storage.get('currentCodeId','')||'');
     const msgs=els.map(el=>{
       const role=el.classList.contains('user')?'user':'assistant';
       if(!el.dataset.mid)el.dataset.mid=uid();
       const tp=el.querySelector('.thought-process');
       const final=el.querySelector('.final-content');
-      let body=final;
-      if(!body){
-        const raw=el.querySelector('.message-body');
-        if(raw){
-          const clone=raw.cloneNode(true);
-          clone.querySelectorAll('.thought-process,.thinking-indicator,.message-actions,.tp-panel,.tp-toggle').forEach(n=>n.remove());
-          body=clone;
-        }else body=el;
+      const rawBody=el.querySelector('.message-body');
+      // Prefer original markdown stored on the node
+      let md=String(el.dataset.md||(final&&final.dataset&&final.dataset.md)||'').trim();
+      let html='';
+      if(final){
+        html=String(final.innerHTML||'');
+        if(!md)md=String(final.innerText||final.textContent||'').trim();
+      }else if(rawBody){
+        const clone=rawBody.cloneNode(true);
+        clone.querySelectorAll('.thought-process,.thinking-indicator,.message-actions,.tp-panel,.tp-toggle').forEach(n=>n.remove());
+        html=String(clone.innerHTML||'');
+        if(!md)md=String(clone.innerText||clone.textContent||'').trim();
+      }
+      // Preserve newlines in plain content (do not crush whitespace)
+      let content=md||String((final||rawBody||el).innerText||'').replace(/\r/g,'').trim();
+      content=content.slice(0,100000);
+      if(role!=='user' && (!content || /^(Working|Thinking|Planned|Planning|Deep thought)\s*for/i.test(content))){
+        content='';
+        if(!html||/thinking-indicator|Working for/i.test(html))html='';
       }
       const activities=tp?[...tp.querySelectorAll('.tp-step')].map(st=>({
         agent:(st.dataset.agent||st.querySelector('.tp-agent')?.textContent||'').trim(),
         name:(st.querySelector('.tp-step-title')?.innerText||'').trim(),
-        detail:(st.querySelector('.tp-step-body')?.innerText||'').trim().slice(0,8000)
+        detail:(st.querySelector('.tp-step-body')?.innerText||'').trim().slice(0,12000)
       })):undefined;
-      let content=String((body.innerText||body.textContent||'')).replace(/\s+/g,' ').trim().slice(0,20000);
-      if(role!=='user' && (!content || /^(Working|Thinking|Planned|Planning|Deep thought)/i.test(content))){
-        content='';
-      }
+      const thinkMs=tp?Number(tp.dataset.thinkStart? (Date.now()-Number(tp.dataset.thinkStart)):0):undefined;
       return {
         id:el.dataset.mid,
         role,
         content,
-        html: role==='user' ? '' : '',
-        activities
+        html: role==='assistant' ? html.slice(0,200000) : '',
+        activities,
+        thinkMs:thinkMs||undefined,
+        sessionId:sid||undefined
       };
-    }).filter(m=>(m.content||m.activities||m.role==='user')&&!/^Running ·/.test(m.content||''));
-    const list=this.codeSessions();
-    const cur=this.currentCodeSession();
-    cur.messages=msgs.slice(-50);
-    if(force)cur.updated=Date.now();
-    if(!cur.titleLocked&&(!cur.title||cur.title==='Code chat')&&msgs[0]&&msgs[0].role==='user'){
-      cur.title=String(msgs[0].content).replace(/\s+/g,' ').slice(0,36)||cur.title;
+    }).filter(m=>(m.content||m.html||m.activities||m.role==='user')&&!/^Running ·/.test(m.content||''));
+    // Deep-clone into the matching session only (never share message arrays across chats)
+    const list=(this.codeSessions()||[]).map(s=>({...s,messages:Array.isArray(s.messages)?s.messages.slice():[]}));
+    let cur=list.find(s=>String(s.id)===sid);
+    if(!cur){
+      cur=this.currentCodeSession();
+      cur={...cur,messages:[]};
+      list.unshift(cur);
+    }
+    cur.messages=msgs.slice(-80).map(m=>({...m}));
+    cur.updated=Date.now();
+    if(!cur.titleLocked&&(!cur.title||cur.title==='Code chat')){
+      const firstUser=msgs.find(m=>m.role==='user');
+      if(firstUser)cur.title=String(firstUser.content||'').replace(/\s+/g,' ').slice(0,40)||cur.title;
     }
     cur.title=String(cur.title||'Code chat').slice(0,48);
-    const i=list.findIndex(s=>String(s.id)===String(cur.id));
-    if(i>=0)list[i]=cur;else list.unshift(cur);
     this._currentCodeId=cur.id;
-    this.app.storage.set('codeSessions',list);
-    this.app.storage.set('codeMessages',msgs.slice(-40));
+    this.persistCodeSessions?this.persistCodeSessions(list):this.app.storage.set('codeSessions',list);
+    // codeMessages is a cache of the CURRENT session only
+    this.app.storage.set('codeMessages',cur.messages.slice(-40));
     this.app.storage.set('currentCodeId',cur.id);
     try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
     this.renderCodeSessions();
-  }catch(e){}
+  }catch(e){console.warn('saveCodeTranscript',e)}
 }
 restoreCodeTranscript(session){
   const box=$('#code-messages');if(!box)return;
   const cur=session||this.currentCodeSession();
-  const msgs=(cur&&Array.isArray(cur.messages))?cur.messages.slice():[];
+  // Only this session's messages (never global codeMessages cache for other chats)
+  const msgs=(cur&&Array.isArray(cur.messages))?cur.messages.map(m=>({...m})).slice():[];
   box.querySelectorAll('.code-msg').forEach(n=>n.remove());
   let empty=$('#code-empty');
   if(!empty){
@@ -7233,18 +7371,63 @@ restoreCodeTranscript(session){
       const isUser=m.role==='user';
       div.className='code-msg '+(isUser?'user':'agent');
       div.dataset.mid=m.id||uid();
-      const text=String(m.content||'').slice(0,20000);
-      const safe=escapeHtml(text);
+      const text=String(m.content||'');
+      div.dataset.md=text;
       const avatar=isUser?(who.img||escapeHtml(who.initial||'Y')):'TD';
       const name=isUser?escapeHtml(who.label||'You'):'Think Deeper';
-      div.innerHTML='<div class="msg-who"><span class="avatar">'+avatar+'</span><span>'+name+'</span></div><div class="message-body">'+safe+'</div>';
+      const body=document.createElement('div');
+      body.className='message-body';
+      if(isUser){
+        body.innerHTML=escapeHtml(text);
+      }else{
+        const final=document.createElement('div');
+        final.className='final-content';
+        final.dataset.md=text;
+        if(m.html&&String(m.html).trim()){
+          final.innerHTML=String(m.html);
+        }else{
+          let md=text;
+          try{
+            md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>this.fileChipHtml({folder:p,name:(p.split('/').pop()||p)+'.zip'}));
+            md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return '<button type="button" class="preview-chip" data-preview="'+escapeHtml(rp)+'">'+((SVG&&SVG.eye)||'')+' Preview '+(escapeHtml((rp.split('/').pop()||p)))+'</button>'});
+            md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return this.fileChipHtml({path:rp,name:(rp.split('/').pop()||p)})});
+          }catch(e){}
+          try{final.innerHTML=this.renderMarkdown?this.renderMarkdown(md):escapeHtml(md)}catch(e){final.textContent=text}
+        }
+        body.appendChild(final);
+        try{this.enhanceCodeBlocks&&this.enhanceCodeBlocks(final)}catch(e){}
+        try{if(this._renderMath)this._renderMath(final)}catch(e){}
+        try{this.wireCodeMessageChips&&this.wireCodeMessageChips(final)}catch(e){}
+      }
+      div.innerHTML='<div class="msg-who"><span class="avatar">'+avatar+'</span><span>'+name+'</span></div>';
+      div.appendChild(body);
       box.appendChild(div);
       try{if(m.activities&&m.activities.length)this.hydrateThoughts(div,{activities:m.activities,thinkMs:m.thinkMs})}catch(e){}
       try{this.paintMsgActions(div,{kind:'code',id:div.dataset.mid,role:isUser?'user':'assistant',text:text})}catch(e){}
     }catch(e){console.warn('restore msg',e)}
   });
   this._shownCodeId=cur&&cur.id;
+  this._currentCodeId=cur&&cur.id;
   try{this.renderCodeSessions()}catch(e){}
+  try{this.resyncCodePreview?this.resyncCodePreview():this.refreshCodePreview()}catch(e){}
+}
+wireCodeMessageChips(root){
+  if(!root)return;
+  root.querySelectorAll('.file-chip-dl').forEach(a=>{
+    const go=e=>{e.preventDefault();e.stopPropagation();
+      if(a.dataset.folder){this.downloadFolderZip(a.dataset.folder);return}
+      const p=a.dataset.path;try{const c=this.app.vfs.read(p);const blob=new Blob([c],{type:'text/plain'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=(p.split('/').pop()||'file');link.click();URL.revokeObjectURL(url)}catch(err){toast(err.message,'error')}
+    };
+    a.querySelector('.dl-btn')?.addEventListener('click',go);
+    a.addEventListener('click',go);
+  });
+  root.querySelectorAll('.preview-chip').forEach(btn=>{
+    btn.onclick=e=>{e.preventDefault();
+      const p=btn.dataset.preview;
+      try{this.refreshCodePreview();this.showCodePreviewPane&&this.showCodePreviewPane()}catch(e){}
+      try{if(p)this.openHtmlPreview(p)}catch(e){}
+    };
+  });
 }
 renderCodeSessions(){
   const list=this.codeSessions().slice();
@@ -7274,11 +7457,13 @@ renderCodeSessions(){
   }
 }
 newCodeSession(){
-  try{this.saveCodeTranscript()}catch(e){}
+  try{this.saveCodeTranscript(true)}catch(e){}
   const s={id:uid(),title:'Code chat',messages:[],updated:Date.now(),projectId:this.activeProjectId?this.activeProjectId():null,titleLocked:false};
-  const list=this.codeSessions();list.unshift(s);
+  const list=(this.codeSessions()||[]).map(x=>({...x,messages:Array.isArray(x.messages)?x.messages.slice():[]}));
+  list.unshift(s);
   this.persistCodeSessions?this.persistCodeSessions(list):this.app.storage.set('codeSessions',list);
   this._currentCodeId=s.id;
+  this._shownCodeId=s.id;
   this.app.storage.set('currentCodeId',s.id);
   this.app.storage.set('codeMessages',[]);
   const box=$('#code-messages');
@@ -8035,11 +8220,12 @@ this.app.agent.settings.maxIterations=Number.POSITIVE_INFINITY;
 this.app.agent.settings.maxTools=Number.POSITIVE_INFINITY;
 this.app.agent.settings.maxTime=Number.POSITIVE_INFINITY;
 this.app.agent.temperature=inten.temperature;
-this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: use tools heavily, verify, and do not stop early.':'');
+this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: use tools heavily, verify, and do not stop early. Stay in this single response — no separate team agents in normal chat.':'');
 try{
-  {const inten=this.app.storage.get('intensity','medium')||'medium';const ultra=(inten==='ultra'||inten==='xultra');this.app.agent.teamSize=ultra?3:1;}
+  // Normal chat: single agent only (no Ultra/XUltra team). Team size 3 is agent/code modes only.
+  this.app.agent.teamSize=1;
   if(this.applyPinCtx)this.applyPinCtx('agent');
-   await this.app.agent.run(sendText,history,userMsg.attachments,ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!(this.isDeepThink&&this.isDeepThink())||!!inten.team||this.app.agent.teamSize>1});
+   await this.app.agent.run(sendText,history,userMsg.attachments,ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!(this.isDeepThink&&this.isDeepThink())||!!inten.team});
   if(aiMsg.content&&(conv.needsAiTitle||conv.messages.filter(m=>m.role==='user').length<=1))this.generateChatTitle(conv.id,text,aiMsg.content);
 }catch(e){toast(e.message,'error');const body=aiEl.querySelector('.message-body');if(body&&!body.querySelector('.final-content')?.textContent.trim())body.innerHTML+=`<p style="color:var(--error)">Error: ${escapeHtml(e.message)}</p>`}
 finally{
@@ -8218,7 +8404,9 @@ if(tp){
 }
 
 let contentEl=body.querySelector('.final-content');
-if(!contentEl){contentEl=document.createElement('div');contentEl.className='final-content';body.appendChild(contentEl)}let md=ev.content||'';md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>this.fileChipHtml({folder:p,name:(p.split('/').pop()||p)+'.zip'}));
+if(!contentEl){contentEl=document.createElement('div');contentEl.className='final-content';body.appendChild(contentEl)}
+try{contentEl.dataset.md=String(ev.content||'');if(aiEl)aiEl.dataset.md=String(ev.content||'')}catch(e){}
+let md=ev.content||'';md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>this.fileChipHtml({folder:p,name:(p.split('/').pop()||p)+'.zip'}));
 md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return `<button type="button" class="preview-chip" data-preview="${rp}" aria-label="Preview ${rp.split('/').pop()||p}">${SVG.eye} Preview ${rp.split('/').pop()||p}</button>`});
 md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return this.fileChipHtml({path:rp,name:(rp.split('/').pop()||p)})});
 if(tp){
@@ -8233,7 +8421,13 @@ if(tp){
   }
 }
 const gif=tp&&tp.querySelector('.tp-gif');if(gif){try{gif.style.animationPlayState='paused'}catch(e){}}this.revealAnswer(contentEl,this.renderMarkdown(md||''));this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
-  if(this.mode==='code'||this.app.mode==='code'){try{this.saveCodeTranscript(true)}catch(e){}}
+  if(this.mode==='code'||this.app.mode==='code'){
+    try{this.saveCodeTranscript(true)}catch(e){}
+    try{this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}
+    try{this.refreshCodePreview&&this.refreshCodePreview()}catch(e){}
+    try{this.showCodePreviewPane&&this.showCodePreviewPane()}catch(e){}
+    try{setTimeout(()=>{try{this.refreshCodePreview()}catch(e){}},100)}catch(e){}
+  }
 contentEl.querySelectorAll('.file-chip-dl').forEach(a=>{
   const go=e=>{e.preventDefault();e.stopPropagation();
     if(a.dataset.folder){this.downloadFolderZip(a.dataset.folder);return}
