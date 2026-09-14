@@ -408,8 +408,25 @@ button,.icon-btn,.conv-item,.project-item,.send-btn,.mode-tab,.intensity-chip,.a
 .project-list{padding:0 8px 8px;max-height:140px;overflow:auto}
 .project-item{padding:8px 10px;border-radius:8px;cursor:pointer;font-size:.82rem;color:var(--text-secondary);display:flex;align-items:center;gap:6px}
 .project-item:hover{background:var(--bg-hover)}
-.proj-del{border:none;background:transparent;color:var(--text-tertiary);cursor:pointer;margin-left:auto}
-.proj-del:hover{color:var(--error)}
+.proj-del{border:none;background:transparent;color:var(--text-tertiary);cursor:pointer;margin-left:4px;opacity:0;padding:2px 4px;border-radius:6px}
+.project-item:hover .proj-del,.project-item:focus-within .proj-del{opacity:.55}
+.proj-del:hover{opacity:1;color:var(--error);background:var(--bg-hover)}
+.project-item.drag-over{outline:2px dashed var(--accent);background:var(--accent-soft)}
+.conv-item[draggable="true"]{cursor:grab}
+.conv-item.dragging{opacity:.55}
+.project-filter-bar{
+  display:none;align-items:center;gap:8px;margin:0 10px 8px;padding:8px 10px;
+  border-radius:10px;border:1px solid var(--border);background:var(--bg-elevated);font-size:.78rem
+}
+.project-filter-bar.visible{display:flex}
+.project-filter-bar .pf-name{flex:1;font-weight:600;color:var(--text-primary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.project-filter-bar .pf-leave{
+  border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);
+  border-radius:999px;padding:4px 10px;font-size:.72rem;font-weight:600;cursor:pointer;white-space:nowrap
+}
+.project-filter-bar .pf-leave:hover{border-color:var(--accent);background:var(--accent-soft)}
+.project-item .proj-count{opacity:.65;font-size:.7rem;margin-left:4px}
+.project-item.active{background:var(--accent-soft);border-color:var(--accent)}
 .project-item.active{background:var(--bg-active);color:var(--text-primary);font-weight:600}
 .project-item .proj-count{margin-left:auto;font-size:.7rem;opacity:.6}
 .btn-new-project{width:100%;margin:4px 8px 8px;padding:8px;border-radius:8px;border:1px dashed var(--border);background:transparent;color:var(--text-secondary);font-size:.8rem;cursor:pointer}
@@ -1324,6 +1341,10 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <div class="sidebar-section">Projects</div>
 <button type="button" class="btn-new-project" id="new-project-btn">＋ New project</button>
 <div class="project-list" id="project-list"></div>
+<div class="project-filter-bar" id="project-filter-bar" aria-live="polite">
+  <span class="pf-name" id="project-filter-name">Project</span>
+  <button type="button" class="pf-leave" id="project-leave-btn" title="Show all conversations">← All chats</button>
+</div>
 <div class="sidebar-section sidebar-section-row" id="chat-list-section"><span>Conversations</span>
 <button type="button" class="sec-new-chat" id="new-chat-btn" title="New chat" aria-label="New chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
 </div>
@@ -6289,36 +6310,121 @@ renderProjects(){
   const el=$('#project-list');if(!el)return;
   const projects=this.app.storage.get('projects',[])||[];
   const cur=this.app.storage.get('currentProjectId',null);
+  const allChats=this.app.conversations.list()||[];
   el.innerHTML=projects.map(p=>{
-    const n=(p.chatIds||[]).length;
-    return `<div class="project-item ${p.id===cur?'active':''}" data-id="${p.id}">${SVG.folder} <span class="proj-name">${escapeHtml(p.name)}</span> <span class="proj-count">${n}</span><button type="button" class="proj-del" data-del="${p.id}" title="Delete project">${SVG.trash}</button></div>`;
+    const set=new Set((p.chatIds||[]).map(String));
+    const n=allChats.filter(c=>c&&(String(c.projectId)===String(p.id)||set.has(String(c.id)))).length;
+    return `<div class="project-item ${p.id===cur?'active':''}" data-id="${p.id}" title="Open project · drop a chat here to add it">
+      ${SVG.folder} <span class="proj-name">${escapeHtml(p.name)}</span>
+      <span class="proj-count">${n}</span>
+      <button type="button" class="proj-del" data-del="${p.id}" title="Delete project (asks for name)">${SVG.trash}</button>
+    </div>`;
   }).join('')||'<div style="padding:8px;font-size:.75rem;color:var(--text-tertiary)">No projects yet</div>';
   el.querySelectorAll('.project-item').forEach(n=>{
     n.onclick=e=>{if(e.target.closest('.proj-del'))return;this.selectProject(n.dataset.id)};
+    // Drop chats onto project
+    n.ondragover=e=>{e.preventDefault();n.classList.add('drag-over')};
+    n.ondragleave=()=>n.classList.remove('drag-over');
+    n.ondrop=e=>{
+      e.preventDefault();n.classList.remove('drag-over');
+      const chatId=e.dataTransfer.getData('text/td-chat-id')||e.dataTransfer.getData('text/plain');
+      if(chatId)this.moveChatToProject(chatId,n.dataset.id);
+    };
   });
   el.querySelectorAll('.proj-del').forEach(b=>b.onclick=e=>{e.stopPropagation();this.deleteProject(b.dataset.del)});
+  this.updateProjectFilterBar();
+  // Leave project button
+  const leave=$('#project-leave-btn');
+  if(leave&&!leave._bound){
+    leave._bound=true;
+    leave.onclick=()=>this.leaveProject();
+  }
+}
+updateProjectFilterBar(){
+  const bar=$('#project-filter-bar');
+  const nameEl=$('#project-filter-name');
+  const pid=this.app.storage.get('currentProjectId',null);
+  const p=pid?(this.app.storage.get('projects',[])||[]).find(x=>String(x.id)===String(pid)):null;
+  if(bar)bar.classList.toggle('visible',!!p);
+  if(nameEl)nameEl.textContent=p?('In project: '+p.name):'';
+  const sec=$('#chat-list-section span');
+  if(sec)sec.textContent=p?('Chats · '+p.name):'Conversations';
+}
+leaveProject(){
+  this.app.storage.set('currentProjectId',null);
+  this._pendingProjectId=null;
+  this.renderProjects();
+  this.renderConversations();
+  try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
+  try{this.renderCodeHist&&this.renderCodeHist()}catch(e){}
+  toast('Showing all chats','success');
+}
+moveChatToProject(chatId,projectId){
+  if(!chatId)return;
+  const conv=this.app.conversations.get(chatId);
+  if(!conv){toast('Chat not found','error');return}
+  const projects=this.app.storage.get('projects',[])||[];
+  // Remove from other projects' chatIds
+  projects.forEach(p=>{
+    if(!p)return;
+    p.chatIds=(p.chatIds||[]).filter(id=>String(id)!==String(chatId));
+  });
+  if(projectId){
+    const p=projects.find(x=>String(x.id)===String(projectId));
+    if(!p){toast('Project not found','error');return}
+    p.chatIds=p.chatIds||[];
+    if(!p.chatIds.map(String).includes(String(chatId)))p.chatIds.push(chatId);
+    conv.projectId=projectId;
+    this.app.conversations.update(chatId,{projectId});
+    this.app.storage.set('projects',projects);
+    try{this.syncProjectBundles()}catch(e){}
+    this.renderProjects();this.renderConversations();
+    toast('Moved to project: '+p.name,'success');
+  }else{
+    conv.projectId=null;
+    this.app.conversations.update(chatId,{projectId:null});
+    this.app.storage.set('projects',projects);
+    try{this.syncProjectBundles()}catch(e){}
+    this.renderProjects();this.renderConversations();
+    toast('Removed from project','success');
+  }
+  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
 }
 deleteProject(id){
   if(!id)return;
-  this.appConfirm('Delete this project? Chats are kept; they are only removed from the project.','Delete project').then(ok=>{
-  if(!ok)return;
-  const projects=(this.app.storage.get('projects',[])||[]).filter(p=>p.id!==id);
-  this.app.storage.set('projects',projects);
-  if(this.app.storage.get('currentProjectId',null)===id)this.app.storage.set('currentProjectId',null);
-  const convs=this.app.conversations.conversations||[];
-  convs.forEach(c=>{if(c.projectId===id)c.projectId=null});
-  this.app.conversations.persist();
-  try{this.syncProjectBundles()}catch(e){}
-  this.renderProjects();this.renderConversations();
-  toast('Project deleted','success');
-  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+  const p=(this.app.storage.get('projects',[])||[]).find(x=>String(x.id)===String(id));
+  const name=(p&&p.name)||'this project';
+  // Two-step: confirm, then type name
+  this.appConfirm('Delete project "'+name+'"?\n\nChats are kept. This cannot be undone from the trash icon.','Delete project').then(ok=>{
+    if(!ok)return;
+    this.appPrompt('Type the project name to confirm deletion','').then(typed=>{
+      if(String(typed||'').trim()!==String(name).trim()){
+        toast('Name did not match — project not deleted','error');
+        return;
+      }
+      const projects=(this.app.storage.get('projects',[])||[]).filter(x=>String(x.id)!==String(id));
+      this.app.storage.set('projects',projects);
+      if(String(this.app.storage.get('currentProjectId',null))===String(id))this.app.storage.set('currentProjectId',null);
+      const convs=this.app.conversations.conversations||[];
+      convs.forEach(c=>{if(String(c.projectId)===String(id))c.projectId=null});
+      this.app.conversations.persist();
+      try{this.syncProjectBundles()}catch(e){}
+      this.renderProjects();this.renderConversations();
+      toast('Project deleted','success');
+      try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+    });
   });
 }
 createProject(){this.openProjectSetup()}
 selectProject(id){
   const cur=this.app.storage.get('currentProjectId',null);
-  if(cur===id){this.app.storage.set('currentProjectId',null);toast('Showing all chats','success')}
-  else {this.app.storage.set('currentProjectId',id);const p=(this.app.storage.get('projects',[])||[]).find(x=>x.id===id);if(p)toast('Project: '+p.name,'success')}
+  if(String(cur)===String(id)){
+    this.leaveProject();
+    return;
+  }
+  this.app.storage.set('currentProjectId',id);
+  const p=(this.app.storage.get('projects',[])||[]).find(x=>String(x.id)===String(id));
+  if(p)toast('Project: '+p.name+' — new chats go here. Drag chats onto a project to move them.','success');
   this.renderProjects();this.renderConversations();
   try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
   try{this.renderCodeHist&&this.renderCodeHist()}catch(e){}
@@ -7082,11 +7188,11 @@ createProject(){
   });
 }
 attachChatToProject(chatId){
-  const pid=this.app.storage.get('currentProjectId',null);if(!pid||!chatId)return;
+  const pid=this.app.storage.get('currentProjectId',null)||this._pendingProjectId;if(!pid||!chatId)return;
   const projects=this.app.storage.get('projects',[])||[];
-  const p=projects.find(x=>x.id===pid);if(!p)return;
+  const p=projects.find(x=>String(x.id)===String(pid));if(!p)return;
   p.chatIds=p.chatIds||[];
-  if(!p.chatIds.includes(chatId))p.chatIds.push(chatId);
+  if(!p.chatIds.map(String).includes(String(chatId)))p.chatIds.push(chatId);
   const conv=this.app.conversations.get(chatId);
   if(conv){
     conv.projectId=pid;
@@ -8066,22 +8172,58 @@ newChat(){
     toast('New agent chat','success');
     return;
   }
-  this.app.conversations.currentId=null;
-  this.app.storage.set('currentConvId',null);
-  this._pendingProjectId=this.app.storage.get('currentProjectId',null);
+  // Create chat now so it belongs to the active project immediately
+  const pid=this.app.storage.get('currentProjectId',null);
+  this._pendingProjectId=pid;
+  const conv=this.app.conversations.create();
+  if(pid){
+    conv.projectId=pid;
+    this.app.conversations.update(conv.id,{projectId:pid});
+    this.attachChatToProject(conv.id);
+  }
+  this.app.conversations.setCurrent(conv.id);
+  this.app.storage.set('currentConvId',conv.id);
   try{this.fireAutomations('onNewChat',{})}catch(e){}
   this.renderConversations();
+  this.renderProjects();
   this.showEmpty();
   const msgs=$('#messages');if(msgs)msgs.innerHTML='';
+  if(pid){
+    const p=(this.app.storage.get('projects',[])||[]).find(x=>String(x.id)===String(pid));
+    toast('New chat in '+(p&&p.name?p.name:'project'),'success');
+  }
 }
 loadConversation(id){this.hideSelToolbar();if(this.isPhone&&this.isPhone())this.toggleSidebar(true);if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>{if(m&&m.content){try{m.content=extractTextToolCalls(m.content).text}catch(e){}}if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);this.renderMessage(m,false)});this.scrollToBottom();this._loadingConv=null}
-renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>p.id===pid):null;let chats=this.app.conversations.list();if(proj){const set=new Set(proj.chatIds||[]);chats=chats.filter(c=>set.has(c.id)||c.projectId===pid)}
+renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>String(p.id)===String(pid)):null;let chats=this.app.conversations.list();if(proj){const set=new Set((proj.chatIds||[]).map(String));chats=chats.filter(c=>set.has(String(c.id))||String(c.projectId)===String(pid))}
   const q=(this._convQuery||'').trim().toLowerCase();
   if(q){chats=chats.filter(c=>{
     if((c.title||'').toLowerCase().includes(q))return true;
     return (c.messages||[]).some(m=>String(m.content||'').toLowerCase().includes(q));
   })}
-  chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div>`;div.onclick=e=>{if(e.target.dataset.act==='delete'){e.stopPropagation();this.wipeConversation(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}else if(e.target.dataset.act==='rename'){e.stopPropagation();this.appPrompt('Rename chat',c.title).then(v=>{if(v){this.app.conversations.rename(c.id,v);this.renderConversations()}})}else if(e.target.dataset.act==='canvas'){e.stopPropagation();toast('Canvas chat was removed','info')}
+  this.updateProjectFilterBar&&this.updateProjectFilterBar();
+  chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.draggable=true;div.dataset.chatId=c.id;
+  const projMenu=projects.length?('<button type="button" data-act="to-project">Move to project…</button>'+(c.projectId?'<button type="button" data-act="leave-project">Remove from project</button>':'')):'';
+  div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button>${projMenu}<button type="button" data-act="delete">Delete</button></div>`;
+  div.ondragstart=e=>{div.classList.add('dragging');e.dataTransfer.setData('text/td-chat-id',c.id);e.dataTransfer.setData('text/plain',c.id);e.dataTransfer.effectAllowed='move'};
+  div.ondragend=()=>div.classList.remove('dragging');
+  div.onclick=e=>{
+    const act=e.target&&e.target.dataset&&e.target.dataset.act;
+    if(act==='delete'){e.stopPropagation();this.wipeConversation(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}
+    else if(act==='rename'){e.stopPropagation();this.appPrompt('Rename chat',c.title).then(v=>{if(v){this.app.conversations.rename(c.id,v);this.renderConversations()}})}
+    else if(act==='to-project'){
+      e.stopPropagation();
+      const names=projects.map((p,i)=>(i+1)+'. '+p.name).join('\n');
+      this.appPrompt('Move chat to project (type number or exact name)\n'+names,'').then(v=>{
+        if(!v)return;
+        const t=String(v).trim();
+        let target=projects.find(p=>p.name.toLowerCase()===t.toLowerCase());
+        if(!target&&/^\d+$/.test(t))target=projects[Number(t)-1];
+        if(!target){toast('Project not found','error');return}
+        this.moveChatToProject(c.id,target.id);
+      });
+    }
+    else if(act==='leave-project'){e.stopPropagation();this.moveChatToProject(c.id,null)}
+    else if(act==='canvas'){e.stopPropagation();toast('Canvas chat was removed','info')}
     else if(e.target.dataset.act==='pin'){e.stopPropagation();const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:c.title||'Chat',from:'chat'});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();div.classList.remove('open-menu')}
     else if(e.target.dataset.act==='refer'){e.stopPropagation();this.setReferQuote(c.title||'this chat');div.classList.remove('open-menu')}
     else if(e.target.dataset.act==='menu'){e.stopPropagation();
