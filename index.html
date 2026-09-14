@@ -5387,7 +5387,7 @@ try{
     }
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+((this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE ACTIVE — OVERRIDES FILE CREATION RULES ABOVE.\nCRITICAL: Your FIRST tool call MUST be write_file (not list_files, not a plan). Pass path index.html and FULL HTML in the tool arguments (embed <style> and <script>).\n- list_files alone is a failure — files must exist via write_file.\n- Code fences in chat do NOT count.\n- After write_file, call check_code, then [[preview:.../index.html]].\n- Never type list_files or write_file as plain numbered steps; call the tools API.\n- Fast/Medium/Hard intensity still requires real write_file deliverables.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+((this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 const hardMax=Number.POSITIVE_INFINITY;
 try{while(iteration<hardMax&&this.running){if(!this.running)break;
@@ -5421,7 +5421,9 @@ const doChat=async(withTools)=>{
       // Never honor toolChoice "none" when writing files is requested or in code mode
       if(choice==='none'&&(wantsFile||codeHot))choice='auto';
       const useTools=!!(withTools&&choice!=='none');
-      if(withTools&&codeHot&&!wroteYet&&iteration<=8){
+      if(withTools&&codeHot&&!wroteYet&&iteration<=10){
+        choice={type:'function',function:{name:'write_file'}};
+      }else if(withTools&&codeHot&&!wroteYet&&iteration<=14){
         choice='required';
       }
       // Normal chat + user asked for a file: nudge model to use tools (write_file works on Fast/Medium/Hard)
@@ -6916,7 +6918,9 @@ loadCodeSession(id){
   if(!id)return;
   const nextId=String(id);
   const prev=String(this._currentCodeId||this.app.storage.get('currentCodeId')||'');
+  try{this.finalizeCodeThinking&&this.finalizeCodeThinking()}catch(e){}
   if(prev && prev!==nextId){try{this.saveCodeTranscript(true)}catch(e){}}
+  this._pendingCodeSession=false;
   const list=this.codeSessions();
   const s=list.find(x=>String(x.id)===nextId);
   if(!s){toast('Code chat not found','error');return}
@@ -6933,20 +6937,21 @@ loadCodeSession(id){
   this.renderCodeSessions&&this.renderCodeSessions();
 }
 newCodeSession(){
-  try{this.saveCodeTranscript()}catch(e){}
-  const s={id:uid(),title:'Code chat',messages:[],updated:Date.now(),projectId:this.activeProjectId?this.activeProjectId():null,titleLocked:false};
-  const list=this.codeSessions();
-  list.unshift(s);
-  this.persistCodeSessions(list);
-  this._currentCodeId=s.id;
-  this.app.storage.set('currentCodeId',s.id);
+  try{this.finalizeCodeThinking&&this.finalizeCodeThinking()}catch(e){}
+  try{this.saveCodeTranscript(true)}catch(e){}
+  // Only register the chat when the user actually sends a message
+  this._pendingCodeSession=true;
+  this._currentCodeId=null;
+  this._shownCodeId=null;
+  this.app.storage.set('currentCodeId',null);
   this.app.storage.set('codeMessages',[]);
   const box=$('#code-messages');
-  if(box){box.querySelectorAll('.code-msg').forEach(n=>n.remove());}
-  this.markCodeActive(s.id);
-  this.renderCodeHist();
-  this.renderCodeSessions&&this.renderCodeSessions();
-  toast('New code chat','success');
+  if(box)box.querySelectorAll('.code-msg').forEach(n=>n.remove());
+  const empty=$('#code-empty');if(empty)empty.classList.remove('hidden');
+  try{this.markCodeActive&&this.markCodeActive(null)}catch(e){}
+  try{this.renderCodeHist&&this.renderCodeHist()}catch(e){}
+  try{this.renderCodeSessions&&this.renderCodeSessions()}catch(e){}
+  toast('New code chat — send a message to start','info');
 }
 loadAgentSession(id){
   const s=this.agentSessions().find(x=>x.id===id);if(!s)return;
@@ -7623,9 +7628,9 @@ codeSessions(){return this.app.storage.get('codeSessions',[])||[]}
 currentCodeSession(){
   let list=this.codeSessions();
   let id=this._currentCodeId||this.app.storage.get('currentCodeId',null);
+  if(this._pendingCodeSession&&!id)return {id:null,title:'Code chat',messages:[],updated:Date.now(),titleLocked:false};
   if(!list.length){
-    const s={id:uid(),title:'Code chat',messages:[],updated:Date.now(),titleLocked:false};
-    list=[s];this.app.storage.set('codeSessions',list);this.app.storage.set('currentCodeId',s.id);this._currentCodeId=s.id;return s;
+    return {id:null,title:'Code chat',messages:[],updated:Date.now(),titleLocked:false};
   }
   const found=list.find(s=>String(s.id)===String(id));
   if(found){this._currentCodeId=found.id;return found}
@@ -7633,8 +7638,26 @@ currentCodeSession(){
   this.app.storage.set('currentCodeId',list[0].id);
   return list[0];
 }
+finalizeCodeThinking(){
+  try{
+    const box=$('#code-messages');if(!box)return;
+    box.querySelectorAll('.thought-process').forEach(tp=>{
+      try{
+        if(tp._workTimer){clearInterval(tp._workTimer);tp._workTimer=null}
+        const lab=tp.querySelector('.tp-label');
+        if(lab&&/^Working for/i.test(lab.textContent||'')){
+          const start=Number(tp.dataset.thinkStart||Date.now());
+          try{lab.textContent='Worked for '+formatDuration(Date.now()-start)}catch(e){lab.textContent='Done'}
+        }
+        const spin=tp.querySelector('.tp-spin');
+        if(spin&&typeof SVG!=='undefined'&&SVG.bulb){try{spin.outerHTML=SVG.bulb}catch(e){}}
+      }catch(e){}
+    });
+  }catch(e){}
+}
 saveCodeTranscript(force){
   try{
+    try{this.finalizeCodeThinking()}catch(e){}
     const box=$('#code-messages');if(!box)return;
     const els=[...box.querySelectorAll('.code-msg')];
     if(!els.length && !force)return;
@@ -7832,21 +7855,21 @@ renderCodeSessions(){
   }
 }
 newCodeSession(){
+  try{this.finalizeCodeThinking&&this.finalizeCodeThinking()}catch(e){}
   try{this.saveCodeTranscript(true)}catch(e){}
-  const s={id:uid(),title:'Code chat',messages:[],updated:Date.now(),projectId:this.activeProjectId?this.activeProjectId():null,titleLocked:false};
-  const list=(this.codeSessions()||[]).map(x=>({...x,messages:Array.isArray(x.messages)?x.messages.slice():[]}));
-  list.unshift(s);
-  this.persistCodeSessions?this.persistCodeSessions(list):this.app.storage.set('codeSessions',list);
-  this._currentCodeId=s.id;
-  this._shownCodeId=s.id;
-  this.app.storage.set('currentCodeId',s.id);
+  // Only register the chat when the user actually sends a message
+  this._pendingCodeSession=true;
+  this._currentCodeId=null;
+  this._shownCodeId=null;
+  this.app.storage.set('currentCodeId',null);
   this.app.storage.set('codeMessages',[]);
   const box=$('#code-messages');
   if(box)box.querySelectorAll('.code-msg').forEach(n=>n.remove());
-  this.markCodeActive&&this.markCodeActive(s.id);
-  this.renderCodeHist&&this.renderCodeHist();
-  this.renderCodeSessions&&this.renderCodeSessions();
-  toast('New code chat','success');
+  const empty=$('#code-empty');if(empty)empty.classList.remove('hidden');
+  try{this.markCodeActive&&this.markCodeActive(null)}catch(e){}
+  try{this.renderCodeHist&&this.renderCodeHist()}catch(e){}
+  try{this.renderCodeSessions&&this.renderCodeSessions()}catch(e){}
+  toast('New code chat — send a message to start','info');
 }
 loadCodeSession(id){
   if(!id)return;
@@ -8001,6 +8024,19 @@ async sendCode(){this.ensureAgent();
   if(sendBtn)sendBtn.style.display='none';
 
   const box=$('#code-messages');if(!box){toast('Code workspace missing','error');return}
+  try{
+    if(!this._currentCodeId||this._pendingCodeSession){
+      const s={id:uid(),title:String(text).replace(/\s+/g,' ').slice(0,40)||'Code chat',messages:[],updated:Date.now(),projectId:this.activeProjectId?this.activeProjectId():null,titleLocked:false};
+      const list=(this.codeSessions()||[]).map(x=>({...x,messages:Array.isArray(x.messages)?x.messages.slice():[]}));
+      list.unshift(s);
+      if(this.persistCodeSessions)this.persistCodeSessions(list);else this.app.storage.set('codeSessions',list);
+      this._currentCodeId=s.id;this._shownCodeId=s.id;this._pendingCodeSession=false;
+      this.app.storage.set('currentCodeId',s.id);
+      try{this.markCodeActive&&this.markCodeActive(s.id)}catch(e){}
+      try{this.renderCodeHist&&this.renderCodeHist()}catch(e){}
+      try{this.renderCodeSessions&&this.renderCodeSessions()}catch(e){}
+    }
+  }catch(e){console.warn('ensure code session',e)}
   const empty=$('#code-empty');if(empty)empty.classList.add('hidden');
   const who=this.userLabel();
   const userDiv=document.createElement('div');userDiv.className='code-msg user';
