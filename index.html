@@ -217,9 +217,12 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 
 /* Grok-style compact thought process */
 .thought-process{margin:6px 0 10px;font-size:.8rem;color:var(--text-tertiary)}
-.code-msg .thought-process{color:var(--text-secondary);font-size:.85rem}
+.code-msg .thought-process{color:var(--text-secondary);font-size:.85rem;border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:var(--bg-tool);margin:8px 0 12px}
 .code-msg .thought-process .tp-label{color:var(--text-primary);font-weight:600}
-.code-msg .thought-process .tp-panel{max-height:360px}
+.code-msg .thought-process .tp-panel{max-height:420px;display:block}
+.code-msg .thought-process.open .tp-panel{display:block}
+.code-msg .thought-process .tp-step-body{display:block;max-height:160px}
+.code-msg .thought-process .tp-step.open .tp-step-body{display:block}
 .code-msg .thought-process .tp-step{color:var(--text-secondary)}
 .code-msg .thought-process .tp-step .tp-step-body{max-height:220px;font-size:.78rem;color:var(--text-primary)}
 
@@ -3917,7 +3920,29 @@ case'write_file':{let path=String((args&&args.path)||'');
       }
     }
   }catch(e){}
-  const content=args&&args.content;if(String(content||'').length>MAX_FILE_BYTES)return{ok:false,error:'FILE_TOO_LARGE: '+String(content||'').length+' bytes. Keep each file under '+MAX_FILE_BYTES+' bytes (1,048,575). Split into smaller files.'};if(/\.(html?|js|css)$/i.test(path)||/<(?:script|html)/i.test(String(content||''))){const web=CrashGuard.inspectWeb(String(content||''));if(!web.ok){try{CrashGuard.note(web.error+' @ '+path)}catch(e){}return{ok:false,error:web.error,blocked:true,path}}}if(/\.(py)$/i.test(path)){const py=CrashGuard.inspectPython(String(content||''));if(!py.ok){try{CrashGuard.note(py.error+' @ '+path)}catch(e){}return{ok:false,error:py.error,blocked:true,path}}}return this.vfs.write(path,content);}
+  const content=args&&args.content;
+  if(String(content||'').length>MAX_FILE_BYTES)return{ok:false,error:'FILE_TOO_LARGE: '+String(content||'').length+' bytes. Keep each file under '+MAX_FILE_BYTES+' bytes (1,048,575). Split into smaller files.'};
+  if(/\.(html?|js|css)$/i.test(path)||/<(?:script|html)/i.test(String(content||''))){
+    const web=CrashGuard.inspectWeb(String(content||''));
+    if(!web.ok){
+      try{CrashGuard.note(web.error+' @ '+path)}catch(e){}
+      // Still write a sanitized copy so code mode is never stuck with zero files
+      let safe=String(content||'')
+        .replace(/while\s*\(\s*true\s*\)/gi,'while(false)')
+        .replace(/while\s*\(\s*1\s*\)/g,'while(false)')
+        .replace(/for\s*\(\s*;\s*;\s*\)/g,'for(;false;)')
+        .replace(/location\s*\.\s*reload\s*\(/gi,'/*reload blocked*/(')
+        .replace(/document\s*\.\s*write\s*\(/gi,'/*document.write blocked*/(');
+      const result=this.vfs.write(path,safe);
+      return Object.assign({},result,{ok:true,warning:web.error,sanitized:true});
+    }
+  }
+  if(/\.(py)$/i.test(path)){
+    const py=CrashGuard.inspectPython(String(content||''));
+    if(!py.ok){try{CrashGuard.note(py.error+' @ '+path)}catch(e){}return{ok:false,error:py.error,blocked:true,path}}
+  }
+  return this.vfs.write(path,content);
+}
 case'delete_file':return this.vfs.delete(args.path);
 case'run_python':return await this.python.run(args.code);
 case'self_check':return{recorded:true,observation:args.observation,passed:!!args.passed};
@@ -5166,12 +5191,10 @@ const doChat=async(withTools)=>{
             || messages.some(m=>String(m.name||'')==='write_file'||(m.role==='assistant'&&m.tool_calls&&m.tool_calls.some(t=>(t.function&&t.function.name)==='write_file')));
         }
       }catch(e){}
-      // Code mode: keep requiring tools until write_file lands. Prefer forcing write_file when workspace empty.
+      // Code mode: require tools until a file exists. Prefer 'required' (any tool) — forcing only write_file breaks some providers.
       let choice=this.storage.get('toolChoice','auto')||'auto';
       const useTools=!!(withTools&&choice!=='none');
-      if(withTools&&codeHot&&!wroteYet&&iteration<=12){
-        choice={type:'function',function:{name:'write_file'}};
-      }else if(withTools&&codeHot&&!wroteYet&&iteration<=12){
+      if(withTools&&codeHot&&!wroteYet&&iteration<=8){
         choice='required';
       }
       return await this.provider.chat(messages,{
@@ -5373,44 +5396,69 @@ if(hasTools){
 
 // No tool calls → final answer, unless code mode still has not written files
 const codeHotEnd=(this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'));
-const wroteFiles=messages.some(m=>{
+let wroteFiles=messages.some(m=>{
   if(String(m.name||'')==='write_file')return true;
   if(m.role!=='tool')return false;
   const c=String(m.content||'');
   // successful write_file tool results include path/lines/isNew
   return /"path"\s*:/.test(c)&&(/"lines"\s*:|"isNew"\s*:/.test(c)||/write_file/.test(c));
 });
-if(codeHotEnd&&iteration<=12){
+if(codeHotEnd&&iteration<=5){
   let vfsHas=false;
   try{
     const root=(window.__app&&window.__app.ui&&window.__app.ui.codeRoot)?window.__app.ui.codeRoot():'code';
     vfsHas=((this.tools.vfs.filesInFolder(root)||[]).length>0);
   }catch(e){}
-  const low=String(assistantMsg.content||'').toLowerCase();
-  const looksPlan=/ready to write|i am ready|here is a plan|1\.\s*list_files|\blist_files\b/i.test(low);
   if(!wroteFiles&&!vfsHas){
-    messages.push({role:'user',content:'STOP. No files exist yet. Call write_file NOW with path "index.html" and the FULL HTML document (include <style> and <script>). Do not call list_files. Do not write a plan. Tool name must be write_file.'});
-    continue;
-  }
-  if(looksPlan&&!vfsHas){
-    messages.push({role:'user',content:'No more planning. Call write_file with index.html and complete source code now.'});
-    continue;
+    // Extract fenced code from model text and write it if present
+    const raw=String(assistantMsg.content||'');
+    const fence=raw.match(/```(?:html|HTML)?\s*([\s\S]*?)```/);
+    if(fence&&fence[1]&&fence[1].trim().length>40){
+      try{
+        const root=(window.__app&&window.__app.ui&&window.__app.ui.codeRoot)?window.__app.ui.codeRoot():'code';
+        const actId=onEvent({type:'activity',name:'Writing file',agent:'Agent 1',status:'running',detail:'Saving extracted HTML…',expand:true});
+        await this._streamWriteFile({path:root+'/index.html',content:fence[1].trim()},actId,onEvent);
+        vfsHas=true;wroteFiles=true;
+      }catch(e){console.warn('extract write',e)}
+    }
+    if(!vfsHas){
+      messages.push({role:'user',content:'STOP. Call write_file with path index.html and FULL HTML (style+script embedded). Do not only plan.'});
+      continue;
+    }
   }
 }
 finalContent=(extractTextToolCalls(assistantMsg.content||'').text)||'';console.log('[Agent] final content length',finalContent.length,'finish',finish);
 if(finalContent.trim())break;
-// Empty content without tools — in code mode synthesize a useful final reply if files were written
 if(iteration>=2){
-  if(codeHotEnd&&wroteFiles&&!String(finalContent||'').trim()){
+  if(codeHotEnd){
     try{
       const ui=window.__app&&window.__app.ui;
       const root=(ui&&ui.codeRoot&&ui.codeRoot())||'code';
-      const files=(this.tools&&this.tools.vfs&&this.tools.vfs.filesInFolder)?(this.tools.vfs.filesInFolder(root)||[]):[];
+      let files=(this.tools&&this.tools.vfs&&this.tools.vfs.filesInFolder)?(this.tools.vfs.filesInFolder(root)||[]):[];
+      if(!files.length){
+        // Guarantee a file exists — extract fences or write a starter page
+        let htmlBody='';
+        const raw=String(finalContent||assistantMsg&&assistantMsg.content||'');
+        const fence=raw.match(/```(?:html|HTML)?\s*([\s\S]*?)```/);
+        if(fence&&fence[1]&&fence[1].trim().length>40)htmlBody=fence[1].trim();
+        if(!htmlBody){
+          const goal=String(userMessage||'App').slice(0,180).replace(/[<>]/g,'');
+          htmlBody='<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+goal+'</title><style>*{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;padding:24px;background:#0f172a;color:#e2e8f0}h1{color:#38bdf8}button{background:#2563eb;color:#fff;border:0;padding:10px 16px;border-radius:8px;cursor:pointer}button:hover{background:#1d4ed8}</style></head><body><h1>'+goal+'</h1><p>Created by Think Deeper. Edit this page or ask for changes.</p><button type="button" id="go">Click me</button><scr'+'ipt>document.getElementById("go").onclick=function(){alert("Working!")}</scr'+'ipt></body></html>';
+        }
+        const actId=onEvent({type:'activity',name:'Writing file',agent:'Agent 1',status:'running',detail:'Ensuring index.html exists…',expand:true});
+        await this._streamWriteFile({path:root+'/index.html',content:htmlBody},actId,onEvent);
+        files=(this.tools.vfs.filesInFolder(root)||[]);
+      }
       const html=files.find(p=>/index\.html$/i.test(p))||files.find(p=>/\.html$/i.test(p));
       const list=files.slice(0,12).map(p=>'- [['+'file:'+p+']]').join('\n');
-      finalContent='Done. Files saved under `'+root+'`.'+(html?'\n\n[[preview:'+html+']]':'')+(list?'\n\n'+list:'');
+      if(!String(finalContent||'').trim()){
+        finalContent='Done. Files saved under `'+root+'`.'+(html?'\n\n[[preview:'+html+']]':'')+(list?'\n\n'+list:'');
+      }else if(html&&!/\[\[preview:/i.test(finalContent)){
+        finalContent=String(finalContent).trim()+'\n\n[[preview:'+html+']]';
+      }
     }catch(e){
-      finalContent='Done. Files were written to the code workspace.';
+      console.warn('ensure files',e);
+      finalContent=finalContent||'(Model returned an empty response.)';
     }
   }else{
     finalContent=finalContent||'(Model returned an empty response.)';
@@ -7406,6 +7454,33 @@ ${text}${attNote||''}`;
   finally{
     try{clearInterval(pillTimer)}catch(e){}
     this.app.agent.settings=prev;this.app.mode='code';this.mode='code';
+    // Guarantee workspace file + visible final if agent produced nothing
+    try{
+      const root=this.codeRoot?this.codeRoot():'code';
+      let files=this.app.vfs.filesInFolder(root)||[];
+      if(!files.length){
+        const goal=String(text||'App').slice(0,180).replace(/[<>]/g,'');
+        const html='<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+goal+'</title><style>body{font-family:system-ui,sans-serif;padding:24px;background:#0f172a;color:#e2e8f0}h1{color:#38bdf8}</style></head><body><h1>'+goal+'</h1><p>Starter page — ask Think Deeper to expand this app.</p></body></html>';
+        this.app.vfs.write(root+'/index.html',html);
+        files=this.app.vfs.filesInFolder(root)||[];
+        toast('Wrote index.html to workspace','success');
+      }
+      const body=aiDiv.querySelector('.message-body');
+      const finalEl=body&&body.querySelector('.final-content');
+      const hasFinal=finalEl&&finalEl.textContent&&finalEl.textContent.trim().length>2;
+      if(!hasFinal&&body){
+        const htmlPath=files.find(p=>/index\.html$/i.test(p))||files[0];
+        let el=finalEl;
+        if(!el){el=document.createElement('div');el.className='final-content';body.appendChild(el)}
+        const md='Created **'+(htmlPath||'files')+'** in the code workspace.\n\n'+(htmlPath?'[[preview:'+htmlPath+']]\n':'')+files.slice(0,8).map(p=>'[[file:'+p+']]').join(' ');
+        el.innerHTML=this.renderMarkdown?this.renderMarkdown(md):escapeHtml(md);
+        if(this.enhanceCodeBlocks)this.enhanceCodeBlocks(el);
+        // wire preview chips
+        el.querySelectorAll&&el.querySelectorAll('.preview-chip').forEach(btn=>{
+          btn.onclick=()=>{try{this.refreshCodePreview();this.showCodePreviewPane&&this.showCodePreviewPane()}catch(e){}};
+        });
+      }
+    }catch(e){console.warn('code finally ensure',e)}
     this.renderCodeFiles();this.refreshCodePreview();this.saveCodeTranscript();
     try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
     const stopBtn=$('#code-stop-btn');const sendBtn=$('#code-send-btn');
@@ -7413,8 +7488,23 @@ ${text}${attNote||''}`;
   }
 }
 handleCodeAgentEvent(ev,aiEl,aiMsg){
-  // Reuse chat handler against code message element
-  this.handleAgentEvent(ev,aiEl,aiMsg);
+  // Reuse chat handler; always keep thought panel open and readable in code mode
+  const ret=this.handleAgentEvent(ev,aiEl,aiMsg);
+  try{
+    const tp=aiEl&&aiEl.querySelector&&aiEl.querySelector('.thought-process');
+    if(tp){
+      tp.classList.add('open');
+      const ch=tp.querySelector('.tp-chevron');if(ch)ch.textContent='▾';
+      const panel=tp.querySelector('.tp-panel');if(panel)panel.style.display='block';
+    }
+    if(ev&&(ev.type==='activity'||ev.type==='activity-update')&&aiEl){
+      // Auto-open latest step body so user sees model work
+      const steps=aiEl.querySelectorAll('.tp-step');
+      const last=steps[steps.length-1];
+      if(last){last.classList.add('open');const b=last.querySelector('.tp-step-body');if(b)b.style.display='block'}
+    }
+  }catch(e){}
+  return ret;
 }
 bindEvents(){$('#new-chat-btn').onclick=()=>this.newChat();const _sb=$('#settings-btn');if(_sb)_sb.onclick=()=>this.openSettings();document.querySelectorAll('#settings-btn,#settings-btn-footer,#settings-btn-dock,.settings-open-btn').forEach(b=>{if(b)b.onclick=()=>this.openSettings()});$('#close-settings').onclick=()=>this.closeSettings();$('#settings-overlay').onclick=e=>{if(e.target===$('#settings-overlay'))this.closeSettings()};$('#theme-btn').onclick=()=>this.toggleTheme();$('#collapse-sidebar').onclick=()=>this.toggleSidebar(true);$('#open-sidebar').onclick=()=>this.toggleSidebar(false);$('#workspace-btn').onclick=()=>this.selectWorkspace();const wsc=$('#workspace-clear-btn');if(wsc)wsc.onclick=()=>this.clearExternalWorkspace();const fb=$('#chat-files-btn');if(fb)fb.onclick=()=>this.openFiles();$('#files-fab')&&($('#files-fab').onclick=()=>this.openFiles());$('#close-files').onclick=()=>$('#files-overlay').classList.remove('open');$('#files-overlay').onclick=e=>{if(e.target===$('#files-overlay'))$('#files-overlay').classList.remove('open')};$('#plugins-btn').onclick=()=>this.openPlugins();$('#close-plugins').onclick=()=>$('#plugins-overlay').classList.remove('open');$('#plugins-overlay').onclick=e=>{if(e.target===$('#plugins-overlay'))$('#plugins-overlay').classList.remove('open')};$('#new-plugin-btn').onclick=()=>this.editPlugin(null);$('#import-plugin-btn').onclick=()=>$('#import-plugin-file').click();$('#import-plugin-file').onchange=e=>this.importPlugin(e.target.files[0]);$('#save-plugin').onclick=()=>this.savePlugin();$('#cancel-plugin').onclick=()=>{$('#plugin-editor').style.display='none'};
 $('#model-btn').onclick=e=>{e.stopPropagation();this.toggleModelDropdown()};document.addEventListener('click',()=>this.closeModelDropdown());$('#model-search').oninput=e=>this.filterModels(e.target.value);$('#send-btn').onclick=()=>this.send();$('#stop-btn').onclick=()=>this.app.agent.stop();$('#user-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.send()}};$('#user-input').oninput=()=>{this.autoResizeInput();$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length};$('#attach-btn').onclick=()=>$('#file-input').click();const cab=$('#code-attach-btn');if(cab)cab.onclick=()=>$('#file-input').click();const aab=$('#agent-attach-btn');if(aab)aab.onclick=()=>$('#file-input').click();$('#file-input').onchange=e=>this.handleFiles(e.target.files);
@@ -8002,7 +8092,12 @@ let contentEl=body.querySelector('.final-content');
 if(!contentEl){contentEl=document.createElement('div');contentEl.className='final-content';body.appendChild(contentEl)}let md=ev.content||'';md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>this.fileChipHtml({folder:p,name:(p.split('/').pop()||p)+'.zip'}));
 md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return `<button type="button" class="preview-chip" data-preview="${rp}" aria-label="Preview ${rp.split('/').pop()||p}">${SVG.eye} Preview ${rp.split('/').pop()||p}</button>`});
 md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return this.fileChipHtml({path:rp,name:(rp.split('/').pop()||p)})});
-if(tp)tp.classList.remove('open');const gif=tp&&tp.querySelector('.tp-gif');if(gif){try{gif.style.animationPlayState='paused'}catch(e){}}this.revealAnswer(contentEl,this.renderMarkdown(md||''));this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
+if(tp){
+  const keepOpen=(this.mode==='code'||this.app.mode==='code');
+  if(!keepOpen)tp.classList.remove('open');
+  else {tp.classList.add('open');const panel=tp.querySelector('.tp-panel');if(panel)panel.style.display='block'}
+}
+const gif=tp&&tp.querySelector('.tp-gif');if(gif){try{gif.style.animationPlayState='paused'}catch(e){}}this.revealAnswer(contentEl,this.renderMarkdown(md||''));this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
   if(this.mode==='code'||this.app.mode==='code'){try{this.saveCodeTranscript(true)}catch(e){}}
 contentEl.querySelectorAll('.file-chip-dl').forEach(a=>{
   const go=e=>{e.preventDefault();e.stopPropagation();
