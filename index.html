@@ -1347,7 +1347,7 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <button class="icon-btn" id="collapse-sidebar" aria-label="Collapse sidebar" title="Collapse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button></div>
 <div class="mode-tabs" id="mode-tabs">
 <button type="button" class="mode-tab active" data-mode="chat" id="mode-chat">Chat</button>
-<button type="button" class="mode-tab" data-mode="code" id="mode-code">Code</button>
+<button type="button" class="mode-tab" data-mode="code" id="mode-code" style="display:none" hidden aria-hidden="true">Code</button>
 <button type="button" class="mode-tab" data-mode="swarm" id="mode-swarm">Agent</button>
 </div>
 <div class="sidebar-section">Projects</div>
@@ -1993,6 +1993,40 @@ function isDevAccount(email){
     if(u&&u.email&&allow.includes(String(u.email).trim().toLowerCase()))return true;
   }catch(err){}
   return false;
+}
+// TEMPORARY: Code mode is under repair — only the two dev accounts can see/use it
+function canAccessCodeMode(){
+  try{
+    if(localStorage.getItem('td_code_mode_force')==='1')return true; // emergency override
+  }catch(e){}
+  return isDevAccount(currentAccountEmail());
+}
+function applyCodeModeVisibility(){
+  const on=!!canAccessCodeMode();
+  try{
+    const tab=document.getElementById('mode-code');
+    if(tab){tab.style.display=on?'':'none';tab.hidden=!on;tab.setAttribute('aria-hidden',on?'false':'true')}
+  }catch(e){}
+  try{
+    const sec=document.getElementById('code-hist-section');
+    if(sec)sec.style.display=on&&(window.__app&&window.__app.ui&&window.__app.ui.mode==='code')?'':'none';
+  }catch(e){}
+  try{
+    const list=document.getElementById('code-hist-list');
+    if(list&&!on)list.style.display='none';
+  }catch(e){}
+  try{
+    const cv=document.getElementById('code-view');
+    if(cv&&!on){cv.classList.remove('active');cv.style.display='none'}
+  }catch(e){}
+  // If a non-dev was stuck in code mode, bounce to chat
+  try{
+    if(!on&&window.__app&&window.__app.ui){
+      const m=window.__app.ui.mode||window.__app.mode||window.__app.storage.get('appMode','chat');
+      if(m==='code')window.__app.ui.setMode('chat');
+    }
+  }catch(e){}
+  return on;
 }
 
 function closeFloatMenu(){const m=document.getElementById('td-float-menu');if(m)m.classList.remove('open')}
@@ -6203,7 +6237,7 @@ init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;
     this.app.storage.set('currentProjectId',null);
     this._pendingProjectId=null;
   }catch(e){}
-  this.bindEvents();try{this.syncProjectBundles()}catch(e){}this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);this.newChat();
+  this.bindEvents();try{this.syncProjectBundles()}catch(e){}this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();try{applyCodeModeVisibility()}catch(e){}const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);this.newChat();
   window.addEventListener('beforeunload',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}try{this.app.conversations&&this.app.conversations.persist()}catch(e){}});
   window.addEventListener('pagehide',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}}});
@@ -7577,6 +7611,11 @@ async generateChatTitle(convId,userText,assistantText){
 
 setMode(mode){
   this.hideSelToolbar();
+  // TEMP: Code mode locked to dev accounts while under repair
+  if(mode==='code'&&typeof canAccessCodeMode==='function'&&!canAccessCodeMode()){
+    try{toast('Code mode is temporarily limited to developer accounts','info')}catch(e){}
+    mode='chat';
+  }
   if(this.isPhone&&this.isPhone()&&mode!=='canvas')this.toggleSidebar(true);
   this.mode=mode;this.app.mode=mode;
   try{this.app.storage.set('appMode',mode)}catch(e){}
@@ -8006,7 +8045,13 @@ renderCodeFiles(){
       }catch(e){this.explainApiError(e)}
     });
 }
-async sendCode(){this.ensureAgent();
+async sendCode(){
+  if(typeof canAccessCodeMode==='function'&&!canAccessCodeMode()){
+    toast('Code mode is temporarily limited to developer accounts','info');
+    try{this.setMode('chat')}catch(e){}
+    return;
+  }
+  this.ensureAgent();
   let text=($('#code-user-input')?.value||'').trim();
   if(this._pendingFixPayload){text=this._pendingFixPayload;this._pendingFixPayload=null;}
   if(this._referQuote){text='User referred to the following statement:\n"'+this._referQuote+'"\n\nUser response: '+text;const bar=$('#refer-bar');if(bar)bar.remove();this._referQuote=null}
@@ -9968,6 +10013,7 @@ renderAuth(){
   const user=this.app.storage.getActiveUser();
   const email=(user&&user.email)||'';
   const isDev=isDevAccount(email);
+  try{applyCodeModeVisibility()}catch(e){}
   const signed=!!(user&&user.id);
   const devBtn=$('#dev-panel-btn');
   if(devBtn){
