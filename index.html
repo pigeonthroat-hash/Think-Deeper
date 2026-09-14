@@ -1359,13 +1359,13 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 </div>
 <div class="agent-hist" id="code-hist-list" style="display:none"></div>
 <button type="button" class="sidebar-more-btn" id="sidebar-more-btn" aria-label="More tools">More</button>
-<div class="sidebar-footer-head">
+<div class="sidebar-footer-head is-collapsed">
 <button type="button" class="footer-arrow-btn" id="footer-toggle" aria-label="Toggle tools panel" title="Toggle tools">
 <svg class="footer-arrow-down" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
 <svg class="footer-arrow-up" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
 </button>
 </div>
-<div class="sidebar-footer open" id="sidebar-footer">
+<div class="sidebar-footer collapsed" id="sidebar-footer">
 <button id="plugins-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg> Plugins</button>
 <button id="workspace-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg> External Workspace</button>
 <button type="button" id="workspace-clear-btn" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg> Remove workspace</button>
@@ -8257,17 +8257,11 @@ newChat(){
     toast('New agent chat','success');
     return;
   }
-  // Create chat now so it belongs to the active project immediately
+  // Do NOT create a conversation until the user actually sends a message
   const pid=this.app.storage.get('currentProjectId',null);
   this._pendingProjectId=pid;
-  const conv=this.app.conversations.create();
-  if(pid){
-    conv.projectId=pid;
-    this.app.conversations.update(conv.id,{projectId:pid});
-    this.attachChatToProject(conv.id);
-  }
-  this.app.conversations.setCurrent(conv.id);
-  this.app.storage.set('currentConvId',conv.id);
+  this.app.conversations.currentId=null;
+  this.app.storage.set('currentConvId',null);
   try{this.fireAutomations('onNewChat',{})}catch(e){}
   this.renderConversations();
   this.renderProjects();
@@ -8275,7 +8269,7 @@ newChat(){
   const msgs=$('#messages');if(msgs)msgs.innerHTML='';
   if(pid){
     const p=(this.app.storage.get('projects',[])||[]).find(x=>String(x.id)===String(pid));
-    toast('New chat in '+(p&&p.name?p.name:'project'),'success');
+    toast(p?'Ready to chat in '+p.name:'New chat','info');
   }
 }
 loadConversation(id){this.hideSelToolbar();if(this.isPhone&&this.isPhone())this.toggleSidebar(true);if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>{if(m&&m.content){try{m.content=extractTextToolCalls(m.content).text}catch(e){}}if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);this.renderMessage(m,false)});this.scrollToBottom();this._loadingConv=null}
@@ -8448,7 +8442,22 @@ consumePendingAttachments(){
 }
 getThinkingHtml(){const gif=this.app.storage.get('thinkingGif','');if(gif)return`<div class="thinking-indicator"><img src="${escapeHtml(gif)}" alt="working"><span>Working…</span></div>`;return`<div class="thinking-indicator"><div class="dots"><span></span><span></span><span></span></div> Working…</div>`}
 async send(){this.ensureAgent();const text=$('#user-input').value.trim();if(!text&&!this.pendingAttachments.length)return;if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');this.openSettings();return}if(!this.app.provider.config.model){toast('Select a model','error');this.openSettings();return}
-this.hideEmpty();let conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv){conv=this.app.conversations.create();const pid=this._pendingProjectId||this.app.storage.get('currentProjectId',null);if(pid){conv.projectId=pid;this.app.conversations.update(conv.id,{projectId:pid});this.attachChatToProject(conv.id)}this._pendingProjectId=null;this.app.conversations.setCurrent(conv.id);this.renderConversations()}
+this.hideEmpty();let conv=this.app.conversations.get(this.app.conversations.currentId);
+if(!conv){
+  // Conversation is created only when the user sends a message
+  conv=this.app.conversations.create();
+  const pid=this._pendingProjectId||this.app.storage.get('currentProjectId',null);
+  if(pid){
+    conv.projectId=pid;
+    this.app.conversations.update(conv.id,{projectId:pid});
+    this.attachChatToProject(conv.id);
+  }
+  this._pendingProjectId=null;
+  this.app.conversations.setCurrent(conv.id);
+  this.app.storage.set('currentConvId',conv.id);
+  this.renderConversations();
+  this.renderProjects&&this.renderProjects();
+}
 let sendText=text;
   if(this._referQuote){sendText='User referred to the following statement:\n"'+this._referQuote+'"\n\nUser response: '+text;const bar=$('#refer-bar');if(bar)bar.remove();this._referQuote=null}
   const pinCtx=this.applyPinCtx?this.applyPinCtx('chat'):'';this.app.agent.userProfileCtx=this.profileCtx(!(conv.messages||[]).some(m=>m.role==='user'));
@@ -10354,11 +10363,14 @@ bindAccountUi(){
   const more=$('#sidebar-more-btn');if(more)more.onclick=()=>toggleToolsPanel();
   if(footerToggle)footerToggle.onclick=()=>toggleToolsPanel();
   try{
-    // Default open so Plugins / Workspace / Automations stay visible
+    // Default CLOSED — open via the tools arrow / More button
     const stored=this.app.storage.get('footerCollapsed',null);
-    const collapsed=false; /* tools stay visible */
+    const collapsed=(stored===null||stored===undefined)?true:!!stored;
     const f=$('#sidebar-footer');
-    if(f){if(collapsed){f.classList.add('collapsed');f.classList.remove('open')}else{f.classList.remove('collapsed');f.classList.add('open')}}
+    if(f){
+      if(collapsed){f.classList.add('collapsed');f.classList.remove('open')}
+      else{f.classList.remove('collapsed');f.classList.add('open')}
+    }
     this.app.storage.set('footerCollapsed',collapsed);
     syncFooterArrow();
   }catch(e){}
