@@ -5316,10 +5316,13 @@ const doChat=async(withTools)=>{
     }catch(e){
       if(e.name==='AbortError')throw e;
       if(e.rateLimit&&attempt<3){
-        const sec=Math.max(1,Math.min(20,e.waitSec||1));
+        const sec=Math.max(1,Math.min(25,e.waitSec||2));
+        this._rateHits=(this._rateHits||0)+1;
         onEvent({type:'status',text:`Rate limited — waiting ${sec}s then retrying…`});
-        try{this.provider._lastChatAt=Date.now()+sec*1000;this.provider.storage.set('apiMinGapMs',Math.min(2500,Math.max(900,(Number(this.provider.storage.get('apiMinGapMs',900))||900)+300)))}catch(e2){}
+        try{this.provider._lastChatAt=Date.now()+sec*1000;this.provider.storage.set('apiMinGapMs',Math.min(3000,Math.max(1200,(Number(this.provider.storage.get('apiMinGapMs',1200))||1200)+400)))}catch(e2){}
         await new Promise(r=>setTimeout(r,sec*1000));
+        // After repeated 429s, stop forcing tools so we can finish with what we have
+        if(this._rateHits>=2){try{this.storage.set('toolChoice','auto')}catch(e3){}}
         continue;
       }
       throw e;
@@ -5834,12 +5837,12 @@ async runTeamFollowups(n,goal,first,onEvent){
   }
 }
 _fileBrief(a){
-  const name=a.name||'file';
-  const path=a.vfsPath||('uploads/'+name);
-  const full=String(a.content||'');
-  try{if(!full && this.tools&&this.tools.vfs) { const c=this.tools.vfs.read(path); if(c) return this._fileBrief({name,vfsPath:path,content:c}); }}catch(e){}
-  if(!full)return '[File: '+name+' at '+path+']';
-  if(full.length<=4000)return '[File: '+name+' → '+path+' ('+full.length+' chars)]\n```\n'+full+'\n```';
+  const name=a.originalName||a.name||'file';
+  const path=a.vfsPath||('uploads/'+(a.name||name));
+  let full=String(a.content||'');
+  try{if((!full||full.startsWith('data:')) && this.tools&&this.tools.vfs) { const c=this.tools.vfs.read(path); if(c&&!String(c).startsWith('data:image')) full=String(c); }}catch(e){}
+  if(!full||full.startsWith('data:'))return '[Attached '+name+' saved at path "'+path+'" — call read_file path="'+path+'" or Python ws_read("'+path+'")]';
+  if(full.length<=4000)return '[Attached '+name+' at path "'+path+'"]\n```\n'+full+'\n```';
   const heads=[...full.matchAll(/<(h[1-3]|title)[^>]*>([^<]{1,80})/gi)].slice(0,12).map(m=>m[2].trim());
   const head=full.slice(0,1500);
   const tail=full.slice(-700);
@@ -8138,15 +8141,49 @@ autoResizeInput(){const ta=$('#user-input');ta.style.height='auto';ta.style.heig
 handleFiles(files){[...files].forEach(file=>{
   const reader=new FileReader();
   const isImg=String(file.type||'').startsWith('image/');
-  const isText=/text\/|json|javascript|xml|csv|markdown|svg/i.test(file.type||'')||/\.(txt|md|py|js|ts|json|csv|html|css|svg)$/i.test(file.name||'');
+  const isText=/text\/|json|javascript|xml|csv|markdown|svg/i.test(file.type||'')||/\.(txt|md|py|js|ts|json|csv|html|css|svg|xml|yml|yaml|toml|ini|log|r|rb|go|rs|java|c|cpp|h|hpp|sql|sh|bat)$/i.test(file.name||'');
   reader.onload=()=>{
-    if(isImg)this.pendingAttachments.push({name:file.name,type:file.type,dataUrl:reader.result,isImage:true});
-    else if(isText)this.pendingAttachments.push({name:file.name,type:file.type||'text/plain',content:reader.result});
-    else this.pendingAttachments.push({name:file.name,type:file.type||'application/octet-stream',dataUrl:reader.result});
+    let att;
+    if(isImg)att={name:file.name,type:file.type||'image/png',dataUrl:reader.result,isImage:true};
+    else if(isText)att={name:file.name,type:file.type||'text/plain',content:reader.result};
+    else att={name:file.name,type:file.type||'application/octet-stream',dataUrl:reader.result};
+    // Immediately persist into workspace so tools/Python can find it before send
+    try{att=this.persistAttachmentToWorkspace(att)}catch(e){console.warn('persist attach',e)}
+    this.pendingAttachments.push(att);
     this.renderAttachments();
+    if(att.vfsPath)toast('Attached → '+att.vfsPath,'success');
   };
   if(isImg||!isText)reader.readAsDataURL(file);else reader.readAsText(file);
 });const fi=$('#file-input');if(fi)fi.value=''}
+persistAttachmentToWorkspace(a){
+  if(!a||!a.name)return a;
+  const safe=String(a.name).replace(/[\\/:*?"<>|]+/g,'_').replace(/\s+/g,'_').slice(0,120)||'file';
+  let path='uploads/'+safe;
+  try{
+    // Avoid collisions: uploads/name, then uploads/name_2, …
+    if(this.app.vfs&&this.app.vfs.read&&this.app.vfs.read(path)!=null){
+      const dot=safe.lastIndexOf('.');
+      const base=dot>0?safe.slice(0,dot):safe;
+      const ext=dot>0?safe.slice(dot):'';
+      for(let n=2;n<50;n++){
+        const cand='uploads/'+base+'_'+n+ext;
+        if(this.app.vfs.read(cand)==null){path=cand;break}
+      }
+    }
+  }catch(e){}
+  const payload=(a.content!=null&&a.content!=='')?String(a.content):(a.dataUrl||'');
+  if(payload){
+    try{this.app.vfs.write(path,payload,{archiveOld:false})}catch(e){console.warn('vfs write attach',e)}
+  }
+  return Object.assign({},a,{
+    name:safe,
+    originalName:a.name,
+    vfsPath:path,
+    content:a.content!=null?String(a.content).slice(0,200000):a.content,
+    dataUrl:a.dataUrl,
+    isImage:!!a.isImage||String(a.type||'').startsWith('image/')
+  });
+}
 attachTargets(){return [$('#attachments'),$('#code-attachments'),$('#agent-attachments')].filter(Boolean)}
 renderAttachments(){
   const hosts=this.attachTargets();
@@ -8154,8 +8191,10 @@ renderAttachments(){
     el.querySelectorAll('.attachment:not(.pin-file)').forEach(n=>n.remove());
     this.pendingAttachments.forEach((a,i)=>{
       const div=document.createElement('div');div.className='attachment file-att';
-      if(a.dataUrl)div.innerHTML=`<img src="${a.dataUrl}" alt=""><button class="remove">×</button>`;
-      else div.innerHTML=`<div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div><button class="remove">×</button>`;
+      const pathLabel=a.vfsPath?(' · '+a.vfsPath):'';
+      if(a.isImage&&a.dataUrl)div.innerHTML=`<img src="${a.dataUrl}" alt="${escapeHtml(a.name||'')}"><div class="file-chip" style="font-size:.65rem;opacity:.85">${escapeHtml(a.name||'image')}${escapeHtml(pathLabel)}</div><button class="remove">×</button>`;
+      else div.innerHTML=`<div class="file-chip">${SVG.file} ${escapeHtml(a.name||'file')}<span style="opacity:.7;font-size:.72rem">${escapeHtml(pathLabel)}</span></div><button class="remove">×</button>`;
+      div.title=a.vfsPath||a.name||'';
       div.querySelector('.remove').onclick=()=>{this.pendingAttachments.splice(i,1);this.renderAttachments()};
       el.appendChild(div);
     });
@@ -8165,20 +8204,7 @@ renderAttachments(){
 }
 consumePendingAttachments(){
   const saved=(this.pendingAttachments||[]).slice().map(a=>{
-    try{
-      if(!a||!a.name)return a;
-      if(a.dataUrl){
-        const path='uploads/'+a.name;
-        try{this.app.vfs.write(path,a.dataUrl,{archiveOld:false})}catch(e){}
-        return {name:a.name,type:a.type||'application/octet-stream',vfsPath:path,dataUrl:a.dataUrl,isImage:String(a.type||'').startsWith('image/')};
-      }
-      if(a.content){
-        const path='uploads/'+a.name;
-        try{this.app.vfs.write(path,a.content,{archiveOld:false})}catch(e){}
-        return {name:a.name,type:a.type||'',vfsPath:path,content:String(a.content).slice(0,50000)};
-      }
-    }catch(e){}
-    return a;
+    try{return this.persistAttachmentToWorkspace(a)}catch(e){return a}
   });
   this.pendingAttachments=[];
   this.renderAttachments();
@@ -8193,22 +8219,17 @@ let sendText=text;
   const merr=this.readMonacoErrors?this.readMonacoErrors():[];
   if(merr.length)sendText+='\n\nEditor diagnostics:\n'+merr.join('\n');
   const savedAtt=this.pendingAttachments.slice().map(a=>{
-    try{
-      if(!a||!a.name)return a;
-      if(a.dataUrl&&String(a.type||'').startsWith('image/')){
-        // Keep full data URL for vision models; also store under uploads/ for tools
-        const path='uploads/'+a.name;
-        try{this.app.vfs.write(path,a.dataUrl,{archiveOld:false})}catch(e){}
-        return {name:a.name,type:a.type||'image/png',vfsPath:path,dataUrl:a.dataUrl,isImage:true};
-      }
-      if(a.content){
-        const path='uploads/'+a.name;
-        this.app.vfs.write(path,a.content,{archiveOld:false});
-        return {name:a.name,type:a.type||'',vfsPath:path,content:String(a.content).slice(0,50000)};
-      }
-    }catch(e){}
-    return a;
+    try{return this.persistAttachmentToWorkspace(a)}catch(e){return a}
   });
+  // Explicit paths for the model — stops list_files loops / 429 storms
+  if(savedAtt.length){
+    const lines=savedAtt.map(a=>{
+      const p=a.vfsPath||('uploads/'+(a.name||'file'));
+      const kind=a.isImage?'image':'file';
+      return '- '+kind+' "'+(a.originalName||a.name||'file')+'" → workspace path: '+p+' (Python: /workspace/'+p+')';
+    });
+    sendText=(sendText?sendText+'\n\n':'')+'ATTACHED FILES (already in the workspace — use read_file or run_python with these exact paths; do not search endlessly):\n'+lines.join('\n');
+  }
   const userMsg={id:uid(),role:'user',content:text,displayContent:text,attachments:savedAtt,ts:now()};this.app.conversations.addMessage(conv.id,userMsg);this.attachChatToProject(conv.id);try{const st=this.app.storage.get('autoStore',{})||{};st.lastUser=text;this.app.storage.set('autoStore',st);this.fireAutomations('onUserSend',{lastUser:text})}catch(e){}this.renderMessage(userMsg);this.renderConversations();
 $('#user-input').value='';this.pendingAttachments=[];this.renderAttachments();this.autoResizeInput();$('#send-btn').disabled=true;$('#stop-btn').classList.add('visible');$('#send-btn').style.display='none';
 const aiMsg={id:uid(),role:'assistant',content:'',activities:[],ts:now()};this.app.conversations.addMessage(conv.id,aiMsg);const aiEl=this.renderMessage(aiMsg,true);
