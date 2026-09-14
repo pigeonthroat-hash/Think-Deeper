@@ -2060,61 +2060,48 @@ function syncProjectBundles(storage,conversations){
   const projects=JSON.parse(JSON.stringify(storage.get('projects',[])||[]));
   const live=(conversations&&conversations.conversations)||storage.get('conversations',[])||[];
   const deleted=new Set((storage.get('deletedConversations',[])||[]).map(String));
+  // ONE-WAY: live conversations → project metadata only.
+  // Never inject project.chats snapshots back into the conversation list (that caused glitched chats on open/leave).
   const byId=new Map();
-  // Dedupe live conversations by id (keep richest copy); skip tombstoned
   (Array.isArray(live)?live:[]).forEach(c=>{
     if(!c||!c.id)return;
     const id=String(c.id);
     if(deleted.has(id))return;
     const L=byId.get(id);
-    if(!L){byId.set(id,c);return}
+    if(!L){byId.set(id,Object.assign({},c));return}
     const lm=(L.messages&&L.messages.length)||0,rm=(c.messages&&c.messages.length)||0;
     const lu=Number(L.updated||0),ru=Number(c.updated||0);
     if(rm>lm||(rm===lm&&ru>=lu))byId.set(id,Object.assign({},L,c));
   });
-  // Merge project chat snapshots ONLY when the live chat already exists or snapshot has messages.
-  // Never resurrect empty deleted placeholders (that inflated counts on open/close).
+  deleted.forEach(id=>byId.delete(id));
   projects.forEach(p=>{
     if(!p||!p.id)return;
-    (p.chats||[]).forEach(ch=>{
-      if(!ch||!ch.id)return;
-      const id=String(ch.id);
-      if(deleted.has(id))return;
-      const L=byId.get(id);
-      const msgN=(ch.messages&&ch.messages.length)||0;
-      if(!L){
-        if(msgN>0){ch.projectId=p.id;byId.set(id,ch)}
-        return;
-      }
-      const lu=Number(L.updated||0),ru=Number(ch.updated||0);
-      const lm=(L.messages&&L.messages.length)||0,rm=msgN;
-      if(ru>lu||(ru===lu&&rm>lm))byId.set(id,Object.assign({},L,ch,{projectId:p.id}));
-      else if(String(L.projectId||'')===String(p.id)||rm>0)L.projectId=L.projectId||p.id;
-    });
-  });
-  projects.forEach(p=>{
-    if(!p||!p.id)return;
-    // Unique chatIds that still exist in the conversation list
+    const pid=String(p.id);
     const ids=new Set();
-    (p.chatIds||[]).forEach(id=>{
-      const s=String(id);
-      if(byId.has(s))ids.add(s);
-    });
-    byId.forEach(c=>{
-      if(c&&String(c.projectId)===String(p.id))ids.add(String(c.id));
+    byId.forEach(c=>{if(c&&String(c.projectId||'')===pid)ids.add(String(c.id))});
+    (p.chatIds||[]).forEach(raw=>{
+      const id=String(raw);
+      if(!deleted.has(id)&&byId.has(id))ids.add(id);
     });
     p.chatIds=[...ids];
     p.chats=p.chatIds.map(id=>{
-      const snap=typeof snapshotChat==='function'?snapshotChat(byId.get(String(id))):byId.get(String(id));
-      if(snap){snap.projectId=p.id;return snap}
+      try{
+        const snap=typeof snapshotChat==='function'?snapshotChat(byId.get(id)):null;
+        if(snap){snap.projectId=p.id;return snap}
+      }catch(e){}
       return null;
     }).filter(Boolean);
-    // Do not bump updated on every sync — only when membership changed
   });
   const merged=[...byId.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0));
   storage.set('projects',projects);
-  storage.set('conversations',merged);
-  if(conversations)conversations.conversations=merged;
+  if(merged.length!==(Array.isArray(live)?live.length:0)){
+    storage.set('conversations',merged);
+    if(conversations)conversations.conversations=merged;
+  }else{
+    // Still write deduped projects; leave conversations as-is unless lengths differ
+    storage.set('conversations',merged);
+    if(conversations)conversations.conversations=merged;
+  }
   return projects;
 }
 function countProjectChats(p,allChats){
@@ -3387,10 +3374,26 @@ update(id,patch){const c=this.get(id);if(!c)return;Object.assign(c,patch,{update
 addMessage(id,msg){const c=this.get(id);if(!c)return;c.messages.push(msg);c.updated=now();if((!c.title||c.title==='New conversation')&&msg.role==='user'){c.title=this.draftTitle(msg.content);c.needsAiTitle=true}this.persist()}
 draftTitle(text){const t=String(text||'').replace(/\s+/g,' ').trim();if(!t)return'New conversation';const cut=t.slice(0,42);return cut+(t.length>42?'…':'')}
 setTitle(id,title){const c=this.get(id);if(!c||!title)return;c.title=String(title).replace(/[\n\r]/g,' ').trim().slice(0,60);c.updated=now();this.persist()}
-delete(id){this.conversations=this.conversations.filter(c=>c.id!==id);if(this.currentId===id)this.currentId=this.conversations[0]?.id||null;this.persist()}
+delete(id){const sid=String(id||'');this.conversations=this.conversations.filter(c=>c&&String(c.id)!==sid);if(String(this.currentId||'')===sid)this.currentId=this.conversations[0]?.id||null;try{const gone=this.storage.get('deletedConversations',[])||[];if(sid&&!gone.map(String).includes(sid)){gone.push(sid);this.storage.set('deletedConversations',gone.slice(-200))}}catch(e){}this.persist()}
 rename(id,t){this.update(id,{title:t})}
-setCurrent(id){if(this.currentId===id){this.storage.set('currentConvId',id);return}this.currentId=id;this.storage.set('currentConvId',id)}
-persist(){this.storage.set('conversations',this.conversations);this.storage.set('currentConvId',this.currentId);try{if(window.__app&&window.__app.ui&&window.__app.ui.syncProjectBundles)window.__app.ui.syncProjectBundles()}catch{}try{if(window.__app&&window.__app.cloud){window.__app.cloud.schedulePush(window.__app);window.__app.cloud.notifyTabs&&window.__app.cloud.notifyTabs()}}catch{}}}
+setCurrent(id){if(String(this.currentId||'')===String(id||'')){this.storage.set('currentConvId',id);return}this.currentId=id;this.storage.set('currentConvId',id)}
+persist(){
+  try{
+    const gone=new Set((this.storage.get('deletedConversations',[])||[]).map(String));
+    const map=new Map();
+    (this.conversations||[]).forEach(c=>{
+      if(!c||!c.id)return;
+      const id=String(c.id);
+      if(gone.has(id))return;
+      if(!map.has(id))map.set(id,c);
+    });
+    this.conversations=[...map.values()];
+  }catch(e){}
+  this.storage.set('conversations',this.conversations);
+  this.storage.set('currentConvId',this.currentId);
+  try{if(window.__app&&window.__app.ui&&window.__app.ui.syncProjectBundles)window.__app.ui.syncProjectBundles()}catch{}
+  try{if(window.__app&&window.__app.cloud){window.__app.cloud.schedulePush(window.__app);window.__app.cloud.notifyTabs&&window.__app.cloud.notifyTabs()}}catch{}
+}}
 
 class ProviderManager{constructor(s){this.storage=s;this.config=s.get('apiConfig',{baseUrl:'https://api.openai.com/v1',apiKey:'',model:'',org:'',project:'',rememberKey:false,fallbackBaseUrl:'',fallbackApiKey:'',fallbackModel:''});this.models=s.get('discoveredModels',[])}
 save(c){this.config={...this.config,...c};if(this.config.baseUrl)this.config.baseUrl=this.normalizeBaseUrl(this.config.baseUrl);if(this.config.fallbackBaseUrl)this.config.fallbackBaseUrl=this.normalizeBaseUrl(this.config.fallbackBaseUrl);const t={...this.config};if(!t.rememberKey&&!t._fromSystem)t.apiKey='';this.storage.set('apiConfig',t)}
@@ -6408,6 +6411,7 @@ leaveProject(){
   const p=prev?(this.app.storage.get('projects',[])||[]).find(x=>String(x.id)===String(prev)):null;
   this.app.storage.set('currentProjectId',null);
   this._pendingProjectId=null;
+  try{this.purgeGhostConversations()}catch(e){}
   this.renderProjects();
   this.renderConversations();
   try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
@@ -6433,7 +6437,7 @@ normalizeProjectMembership(projects,allChats){
         if(!ch||!ch.id)return false;
         const id=String(ch.id);
         if(seen.has(id))return false;
-        if(!liveIds.has(id)&&!(ch.messages&&ch.messages.length))return false;
+        if(!liveIds.has(id))return false;
         seen.add(id);
         return true;
       });
@@ -6504,8 +6508,7 @@ deleteProject(id){
 createProject(){this.openProjectSetup()}
 selectProject(id){
   if(!id)return;
-  // Always OPEN the project on click (do not toggle-close — that felt inverted).
-  // Leave only via "← All chats" / leaveProject().
+  try{this.purgeGhostConversations()}catch(e){}
   const already=String(this.app.storage.get('currentProjectId',null)||'')===String(id);
   this.app.storage.set('currentProjectId',id);
   this._pendingProjectId=id;
@@ -6514,11 +6517,27 @@ selectProject(id){
   this.renderConversations();
   try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
   try{this.renderCodeHist&&this.renderCodeHist()}catch(e){}
-  if(already){
-    toast('In project: '+(p&&p.name?p.name:'…'),'info');
-  }else if(p){
-    toast('Opened project: '+p.name,'success');
-  }
+  if(already)toast('In project: '+(p&&p.name?p.name:'…'),'info');
+  else if(p)toast('Opened project: '+p.name,'success');
+}
+purgeGhostConversations(){
+  try{
+    const gone=new Set((this.app.storage.get('deletedConversations',[])||[]).map(String));
+    const map=new Map();
+    (this.app.conversations.conversations||[]).forEach(c=>{
+      if(!c||!c.id)return;
+      const id=String(c.id);
+      if(gone.has(id))return;
+      const msgs=c.messages||[];
+      if(!msgs.length&&(!c.title||c.title==='New conversation'))return;
+      if(!map.has(id))map.set(id,c);
+    });
+    const clean=[...map.values()];
+    if(clean.length!==(this.app.conversations.conversations||[]).length){
+      this.app.conversations.conversations=clean;
+      this.app.storage.set('conversations',clean);
+    }
+  }catch(e){}
 }
 ensureSwarm(){
   if(!this.app.swarm)this.app.swarm=new SwarmKernel(this.app);
@@ -6643,22 +6662,44 @@ _renameSession(kind,id,title){
 }
 wipeConversation(id){
   if(!id)return;
-  try{this.app.conversations.delete(id)}catch(e){}
+  const sid=String(id);
+  try{this.app.conversations.delete(sid)}catch(e){}
+  try{
+    const gone=this.app.storage.get('deletedConversations',[])||[];
+    if(!gone.map(String).includes(sid)){gone.push(sid);this.app.storage.set('deletedConversations',gone.slice(-200))}
+  }catch(e){}
   try{
     const projects=this.app.storage.get('projects',[])||[];
-    let dirty=false;
     projects.forEach(p=>{
-      if(p&&Array.isArray(p.chatIds)&&p.chatIds.includes(id)){p.chatIds=p.chatIds.filter(x=>x!==id);dirty=true}
+      if(!p)return;
+      p.chatIds=(p.chatIds||[]).filter(x=>String(x)!==sid);
+      if(Array.isArray(p.chats))p.chats=p.chats.filter(ch=>ch&&String(ch.id)!==sid);
     });
-    if(dirty)this.app.storage.set('projects',projects);
+    this.app.storage.set('projects',projects);
+  }catch(e){}
+  try{this.app.storage.set('pins',(this.app.storage.get('pins',[])||[]).filter(p=>!p||String(p.convId||'')!==sid))}catch(e){}
+  try{
+    const crs=this.app.storage.get('chatRunState',null);
+    if(crs&&String(crs.convId||'')===sid)this.app.storage.set('chatRunState',null);
   }catch(e){}
   try{
-    const pins=(this.app.storage.get('pins',[])||[]).filter(p=>p&&p.convId!==id&&p.from!=='chat'|| (p.from==='chat'&&p.convId&&p.convId!==id) || (p.from&&p.from!=='chat'));
-    // drop pins tied to this chat id
-    this.app.storage.set('pins',(this.app.storage.get('pins',[])||[]).filter(p=>!p||p.convId!==id));
+    const list=(this.app.conversations.conversations||[]).filter(c=>c&&String(c.id)!==sid);
+    this.app.conversations.conversations=list;
+    this.app.storage.set('conversations',list);
+    if(String(this.app.conversations.currentId||'')===sid){
+      this.app.conversations.currentId=list[0]?.id||null;
+      this.app.storage.set('currentConvId',this.app.conversations.currentId);
+    }
   }catch(e){}
   try{this.renderPins&&this.renderPins()}catch(e){}
-  try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+  try{this.renderConversations&&this.renderConversations()}catch(e){}
+  try{this.renderProjects&&this.renderProjects()}catch(e){}
+  try{
+    if(this.app.cloud){
+      if(this.app.cloud.schedulePush)this.app.cloud.schedulePush(this.app);
+      if(this.app.cloud.pushNow)this.app.cloud.pushNow(this.app);
+    }
+  }catch(e){}
 }
 archiveCodeSessionFiles(id){
   if(!id||!this.app.vfs)return;
@@ -8280,11 +8321,22 @@ newChat(){
   }
 }
 loadConversation(id){this.hideSelToolbar();if(this.isPhone&&this.isPhone())this.toggleSidebar(true);if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>{if(m&&m.content){try{m.content=extractTextToolCalls(m.content).text}catch(e){}}if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);this.renderMessage(m,false)});this.scrollToBottom();this._loadingConv=null}
-renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>String(p.id)===String(pid)):null;let chats=this.app.conversations.list()||[];
-  // When a project is open, ONLY its chats (never the global list)
+renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>String(p.id)===String(pid)):null;
+  const gone=new Set((this.app.storage.get('deletedConversations',[])||[]).map(String));
+  let chats=this.app.conversations.list()||[];
+  const seen=new Set();
+  chats=chats.filter(c=>{
+    if(!c||!c.id)return false;
+    const id=String(c.id);
+    if(gone.has(id)||seen.has(id))return false;
+    seen.add(id);
+    const msgs=c.messages||[];
+    if(!msgs.length&&(!c.title||c.title==='New conversation'))return false;
+    return true;
+  });
   if(proj){
     const set=new Set((proj.chatIds||[]).map(String));
-    chats=chats.filter(c=>c&&(set.has(String(c.id))||String(c.projectId)===String(pid)));
+    chats=chats.filter(c=>set.has(String(c.id))||String(c.projectId||'')===String(pid));
   }
   const q=(this._convQuery||'').trim().toLowerCase();
   if(q){chats=chats.filter(c=>{
