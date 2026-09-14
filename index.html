@@ -5270,7 +5270,7 @@ _pickModel(deepThink){const c=this.provider.config;const roles=this.storage.get(
 }
 _memoryContext(){try{const bits=[];try{if(typeof window!=='undefined'&&window.__app&&window.__app.ui&&window.__app.ui.supervisorMemoryContext){const extra=window.__app.ui.supervisorMemoryContext();if(extra)bits.push(extra)}}catch(e){}const paths=this.tools.vfs.list('memory/')||[];for(const p of paths.slice(0,16)){try{const c=this.tools.vfs.read(p);if(c)bits.push('### '+p+'\n'+String(c).slice(0,900))}catch{}}if(!bits.length)return '';return '\n\nSHARED MEMORY (files, chats, agent thinking — keep these facts across chat and agent mode):\n'+bits.join('\n\n').slice(0,10000)}catch{return ''}}
 getSystemPrompt(deepThink=false){const personality=this.storage.get('personality','')||'';const pluginsOn=this.storage.get('pluginsGlobal',true)!==false;const pluginInj=pluginsOn?this.plugins.getSystemInjection():'';
-const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector (always on): After you write or edit JS/TS/HTML/CSS/Python, call check_code. If it returns errors, fix them before the final answer. If it returns no errors, say so in your thinking.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nFILES: Attached and matching workspace files are listed in the user message. You MUST open them with read_file/search_file or run_python (ws_read/ws_search/ws_list under /workspace/…) when the user talks about their content — never ignore shared files. Uploads stay available across turns under uploads/ and /workspace/uploads/.\nLarge files: page with read_file start/length, search_file(query), or Python ws_search then ws_read. Converted models live in models/*.onnx (run_onnx).\nTHINKING: Keep all work in this single reply. When Python runs, pause other steps until it finishes, then continue.\n';
+const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector (always on): After you write or edit JS/TS/HTML/CSS/Python, call check_code. If it returns errors, fix them before the final answer. If it returns no errors, say so in your thinking.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nFILES: Only treat files as attached if THIS user message lists them (or [[path]] / tool results in this turn). Do NOT assume uploads/ from older chats are attached. If the user did not attach a file on this message, do not claim they did.\nWhen they do attach or name a file, open it with read_file/search_file or run_python (ws_read/ws_search under /workspace/…).\nAfter write_file, always give a short final reply summarizing what you saved (path + brief description). Never end on an empty message after tools.\nTHINKING: Keep all work in this single reply. When Python runs, pause other steps until it finishes, then continue.\n';
 const deep=deepThink?`
 DEEP THINK MODE IS ON.
 - Keep working until the problem is FULLY solved and verified.
@@ -5609,6 +5609,12 @@ if(hasTools){
     const lastTool=(assistantMsg.tool_calls&&assistantMsg.tool_calls.length)?(assistantMsg.tool_calls[assistantMsg.tool_calls.length-1].function||{}).name:'';
     await new Promise(r=>setTimeout(r,lastTool==='run_python'?600:350));
   }catch(e){}
+  // If the assistant message had no text, remind the model to answer after tools (once)
+  try{
+    if(!(assistantMsg.content||'').trim()&&!messages.some(m=>m.role==='user'&&/short final reply/i.test(String(m.content||'')))){
+      messages.push({role:'user',content:'Tools finished. Reply to the user now with a short final reply summarizing what you did (include file paths if you wrote any). Do not call more tools unless required.'});
+    }
+  }catch(e){}
   // Continue loop — same response; do not treat empty assistant content as final when tools ran
   continue;
 }
@@ -5648,6 +5654,25 @@ if(codeHotEnd&&iteration<=5){
 }
 finalContent=(extractTextToolCalls(assistantMsg.content||'').text)||'';console.log('[Agent] final content length',finalContent.length,'finish',finish);
 if(finalContent.trim())break;
+// After tools (e.g. write_file), synthesize a reply if the model returned empty — avoids silent ends in normal chat
+if(!String(finalContent||'').trim()){
+  const wrotePaths=[];
+  try{
+    messages.forEach(m=>{
+      if(m.role!=='tool')return;
+      if(String(m.name||'')!=='write_file'&&!/"path"\s*:/.test(String(m.content||'')))return;
+      try{
+        const j=typeof m.content==='string'?JSON.parse(m.content):m.content;
+        if(j&&j.path&&!j.error)wrotePaths.push(String(j.path));
+      }catch(e){}
+    });
+  }catch(e){}
+  if(wrotePaths.length){
+    const uniq=[...new Set(wrotePaths)];
+    finalContent='Done. Saved file'+(uniq.length>1?'s':'')+':\n'+uniq.map(p=>'- [['+'file:'+p+']]').join('\n');
+    break;
+  }
+}
 if(iteration>=2){
   if(codeHotEnd){
     try{
@@ -5935,7 +5960,7 @@ _buildUserContent(text,attachments){
   const att=attachments||[];
   const imgs=att.filter(isImage);
   const files=att.filter(a=>a&&!isImage(a));
-  // Always attach matched workspace files + open uploads so the model inspects them
+  // Only this message's attachments / explicit file references — never prior-chat uploads
   let contextBlock='';
   try{contextBlock=this._relevantFileContext(text,att)||''}catch(e){}
   if(imgs.length){
@@ -5970,40 +5995,34 @@ _relevantFileContext(text,attachments){
         +(s.length<=6000?s:(s.slice(0,5000)+'\n…[truncated '+s.length+' chars; use read_file/search_file or Python ws_read]')) );
     }catch(e){}
   };
-  // Explicit attachments
-  (attachments||[]).forEach(a=>{
+  // ONLY files attached on THIS message — never prior chats / leftover uploads/
+  const att=attachments||[];
+  att.forEach(a=>{
     const p=a&&(a.vfsPath||(a.name?('uploads/'+a.name):''));
-    if(p)addPath(p,'attached');
+    if(p)addPath(p,'attached this message');
   });
-  // Recent uploads always visible to the model
-  try{
-    const ups=(vfs.filesInFolder&&vfs.filesInFolder('uploads'))||(vfs.list&&vfs.list('uploads/'))||[];
-    ups.slice(0,12).forEach(p=>addPath(p,'upload'));
-  }catch(e){}
-  // Keyword match against workspace filenames + light content scan
-  const q=String(text||'').toLowerCase();
-  const tokens=q.split(/[^a-z0-9_.-]{2,}/).map(t=>t.trim()).filter(t=>t.length>=3).slice(0,16);
-  if(tokens.length){
+  // Keyword match only if the user clearly refers to a file (not on every new chat)
+  const raw=String(text||'');
+  const refersToFile=/\b(file|files|upload|uploaded|attached|attachment|document|spreadsheet|csv|pdf|the\s+[\w.-]+\.(txt|md|csv|json|py|js|ts|html|css|pdf|xlsx?))\b/i.test(raw);
+  if(refersToFile&&!att.length){
+    const q=raw.toLowerCase();
+    const tokens=q.split(/[^a-z0-9_.-]{2,}/).map(t=>t.trim()).filter(t=>t.length>=4).slice(0,12);
+    // Prefer explicit filenames in the message
+    const named=[...raw.matchAll(/[\w.-]+\.(txt|md|csv|json|py|js|ts|html|css|pdf|xlsx?)/gi)].map(m=>m[0].toLowerCase());
     try{
-      const all=Object.keys(vfs.files||{}).filter(p=>!p.includes('/archive/')).slice(0,400);
+      const all=Object.keys(vfs.files||{}).filter(p=>!p.includes('/archive/')).slice(0,300);
       for(const p of all){
         if(seen.has(p))continue;
         const pl=p.toLowerCase();
-        const nameHit=tokens.some(t=>pl.includes(t));
-        let bodyHit=false;
-        if(!nameHit){
-          try{
-            const c=String(vfs.read(p)||'').slice(0,8000).toLowerCase();
-            bodyHit=tokens.filter(t=>t.length>=4).some(t=>c.includes(t));
-          }catch(e){}
-        }
-        if(nameHit||bodyHit)addPath(p,nameHit?'name match':'content match');
-        if(bits.length>=8)break;
+        const leaf=pl.split('/').pop();
+        if(named.some(n=>leaf===n||pl.endsWith('/'+n)))addPath(p,'named in message');
+        else if(tokens.some(t=>leaf.includes(t)&&t.length>=5))addPath(p,'name match');
+        if(bits.length>=6)break;
       }
     }catch(e){}
   }
   if(!bits.length)return '';
-  return 'RELEVANT WORKSPACE FILES (inspect these with tools or Python — do not ignore them when the user refers to their content):\n'+bits.join('\n\n');
+  return 'FILES ATTACHED OR REFERENCED IN THIS MESSAGE (not from older chats):\n'+bits.join('\n\n');
 }
 async _streamWriteFile(args,actId,onEvent){
   // Normalize path into the active code session workspace when in code mode
