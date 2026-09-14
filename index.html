@@ -6314,7 +6314,7 @@ renderProjects(){
   el.innerHTML=projects.map(p=>{
     const set=new Set((p.chatIds||[]).map(String));
     const n=allChats.filter(c=>c&&(String(c.projectId)===String(p.id)||set.has(String(c.id)))).length;
-    return `<div class="project-item ${p.id===cur?'active':''}" data-id="${p.id}" title="Open project · drop a chat here to add it">
+    return `<div class="project-item ${String(p.id)===String(cur||'')?'active':''}" data-id="${p.id}" title="Open project · drop a chat here to add it">
       ${SVG.folder} <span class="proj-name">${escapeHtml(p.name)}</span>
       <span class="proj-count">${n}</span>
       <button type="button" class="proj-del" data-del="${p.id}" title="Delete project (asks for name)">${SVG.trash}</button>
@@ -6346,18 +6346,23 @@ updateProjectFilterBar(){
   const pid=this.app.storage.get('currentProjectId',null);
   const p=pid?(this.app.storage.get('projects',[])||[]).find(x=>String(x.id)===String(pid)):null;
   if(bar)bar.classList.toggle('visible',!!p);
-  if(nameEl)nameEl.textContent=p?('In project: '+p.name):'';
+  if(nameEl)nameEl.textContent=p?('In project: '+p.name):'All conversations';
   const sec=$('#chat-list-section span');
-  if(sec)sec.textContent=p?('Chats · '+p.name):'Conversations';
+  if(sec)sec.textContent=p?('In project · '+p.name):'Conversations';
+  // Button label always means leave
+  const leave=$('#project-leave-btn');
+  if(leave)leave.textContent='← All chats';
 }
 leaveProject(){
+  const prev=this.app.storage.get('currentProjectId',null);
+  const p=prev?(this.app.storage.get('projects',[])||[]).find(x=>String(x.id)===String(prev)):null;
   this.app.storage.set('currentProjectId',null);
   this._pendingProjectId=null;
   this.renderProjects();
   this.renderConversations();
   try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
   try{this.renderCodeHist&&this.renderCodeHist()}catch(e){}
-  toast('Showing all chats','success');
+  toast(p?'Left project: '+p.name+' — showing all chats':'Showing all chats','success');
 }
 moveChatToProject(chatId,projectId){
   if(!chatId)return;
@@ -6417,17 +6422,22 @@ deleteProject(id){
 }
 createProject(){this.openProjectSetup()}
 selectProject(id){
-  const cur=this.app.storage.get('currentProjectId',null);
-  if(String(cur)===String(id)){
-    this.leaveProject();
-    return;
-  }
+  if(!id)return;
+  // Always OPEN the project on click (do not toggle-close — that felt inverted).
+  // Leave only via "← All chats" / leaveProject().
+  const already=String(this.app.storage.get('currentProjectId',null)||'')===String(id);
   this.app.storage.set('currentProjectId',id);
+  this._pendingProjectId=id;
   const p=(this.app.storage.get('projects',[])||[]).find(x=>String(x.id)===String(id));
-  if(p)toast('Project: '+p.name+' — new chats go here. Drag chats onto a project to move them.','success');
-  this.renderProjects();this.renderConversations();
+  this.renderProjects();
+  this.renderConversations();
   try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
   try{this.renderCodeHist&&this.renderCodeHist()}catch(e){}
+  if(already){
+    toast('In project: '+(p&&p.name?p.name:'…'),'info');
+  }else if(p){
+    toast('Opened project: '+p.name,'success');
+  }
 }
 ensureSwarm(){
   if(!this.app.swarm)this.app.swarm=new SwarmKernel(this.app);
@@ -8194,13 +8204,22 @@ newChat(){
   }
 }
 loadConversation(id){this.hideSelToolbar();if(this.isPhone&&this.isPhone())this.toggleSidebar(true);if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>{if(m&&m.content){try{m.content=extractTextToolCalls(m.content).text}catch(e){}}if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);this.renderMessage(m,false)});this.scrollToBottom();this._loadingConv=null}
-renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>String(p.id)===String(pid)):null;let chats=this.app.conversations.list();if(proj){const set=new Set((proj.chatIds||[]).map(String));chats=chats.filter(c=>set.has(String(c.id))||String(c.projectId)===String(pid))}
+renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>String(p.id)===String(pid)):null;let chats=this.app.conversations.list()||[];
+  // When a project is open, ONLY its chats (never the global list)
+  if(proj){
+    const set=new Set((proj.chatIds||[]).map(String));
+    chats=chats.filter(c=>c&&(set.has(String(c.id))||String(c.projectId)===String(pid)));
+  }
   const q=(this._convQuery||'').trim().toLowerCase();
   if(q){chats=chats.filter(c=>{
     if((c.title||'').toLowerCase().includes(q))return true;
     return (c.messages||[]).some(m=>String(m.content||'').toLowerCase().includes(q));
   })}
   this.updateProjectFilterBar&&this.updateProjectFilterBar();
+  if(proj&&!chats.length){
+    list.innerHTML='<div style="padding:10px 12px;font-size:.78rem;color:var(--text-tertiary)">No chats in this project yet. Click <b>New chat</b> or drag a conversation onto the project.</div>';
+    return;
+  }
   chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+(c.id===this.app.conversations.currentId?' active':'');div.draggable=true;div.dataset.chatId=c.id;
   const projMenu=projects.length?('<button type="button" data-act="to-project">Move to project…</button>'+(c.projectId?'<button type="button" data-act="leave-project">Remove from project</button>':'')):'';
   div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button>${projMenu}<button type="button" data-act="delete">Delete</button></div>`;
