@@ -1184,7 +1184,19 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 
 
 .conv-list{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
-.agent-hist,#agent-hist-list,#code-hist-list{max-height:160px;overflow-y:auto;overflow-x:hidden}
+.agent-hist,/* Same vertical space as chat conv-list so tools footer stays at the same height in all modes */
+#agent-hist-list,#code-hist-list{
+  flex:1;
+  min-height:0;
+  max-height:none;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding:4px 8px 16px;
+}
+#agent-hist-section,#code-hist-section{flex-shrink:0}
+.sidebar-footer-head,.sidebar-footer{flex-shrink:0}
+.sidebar-footer.collapsed{flex-shrink:0}
+
 #td-float-menu{
   position:fixed;z-index:40000;min-width:148px;padding:6px;
   background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px;
