@@ -2993,6 +2993,14 @@ class CloudSync{
   _vfsDocId(path){
     return encodeURIComponent(String(path||'file')).replace(/\./g,'_dot_');
   }
+  async pushVfsPath(app,path,meta){
+    try{
+      if(!this.ready||!this.ensureUid||!this.ensureUid())return;
+      const base=this.db.collection('users').doc(this.uid);
+      const files={};files[path]=meta||(app&&app.vfs&&app.vfs.files&&app.vfs.files[path])||{};
+      await this.pushVfs(base,files);
+    }catch(e){console.warn('[CloudSync] pushVfsPath',e)}
+  }
   async pushVfs(base,files){
     if(!base||!files)return;
     if(!this._vfsHash)this._vfsHash={};
@@ -3139,7 +3147,16 @@ class CloudSync{
     ['apiConfig','agentSettings','plugins','vfs','pins','modelRoles','forceTemp','toolChoice','intensity','githubToken','githubOwner','githubUser','googleClientId','thinkingGif','theme','personality','pluginsGlobal','appMode','discoveredModels','codeMessages','profile','siteMockups','deletedAutomations','deletedConversations','agentSessions','agentQuality','uiLanguage','uiTextSize','appVersion','versionLog'].forEach(k=>{
       if(data[k]===undefined||data[k]===null)return;
       if(k==='vfs'&&data.vfs&&typeof data.vfs==='object'){
-        s.set('vfs',Object.assign({},s.get('vfs',{})||{},data.vfs));
+        const merged=Object.assign({},s.get('vfs',{})||{},data.vfs);
+        // Prefer newer local content when timestamps conflict
+        const local=s.get('vfs',{})||{};
+        Object.keys(local).forEach(p=>{
+          const L=local[p],R=merged[p];
+          if(L&&R&&Number(L.updated||0)>Number(R.updated||0))merged[p]=L;
+          else if(L&&!R)merged[p]=L;
+        });
+        s.set('vfs',merged);
+        try{if(window.__app&&window.__app.vfs)window.__app.vfs.files=merged}catch(e){}
         return;
       }
       s.set(k,data[k]);
@@ -3293,12 +3310,19 @@ class StorageManager{
       if(this.isGuest()){
         this.guestMem[k]=v;
         if(this._guestDurable.has(k)){
-          try{localStorage.setItem(this._key(k),JSON.stringify(v))}catch(e){}
+          try{localStorage.setItem(this._key(k),JSON.stringify(v))}
+          catch(e){
+            if(k==='vfs')throw e; // let VFS prune & retry
+            console.warn('[storage] guest durable set failed',k,e);
+          }
         }
         return;
       }
       localStorage.setItem(this._key(k),JSON.stringify(v));
-    }catch(e){}
+    }catch(e){
+      if(k==='vfs')throw e;
+      console.warn('[storage] set failed',k,e);
+    }
   }
   remove(k){
     if(this.isGuest()){delete this.guestMem[k];return}
@@ -3385,13 +3409,106 @@ read(p){
   return f.content
 }
 write(p,c,{archiveOld=true}={}){
+  p=String(p||'').replace(/^\/+/,'').trim();
+  if(!p)throw new Error('write_file requires a path');
   let text=c==null?'':String(c);
   if(text.length>MAX_FILE_BYTES){
-    throw new Error('FILE_TOO_LARGE: '+p+' is '+text.length+' bytes. Firebase/Think Deeper limit is '+MAX_FILE_BYTES+' bytes. Split the file or shorten it, then write again.');
+    throw new Error('FILE_TOO_LARGE: '+p+' is '+text.length+' bytes. Limit is '+MAX_FILE_BYTES+' bytes. Split the file or shorten it.');
   }
-  const old=this.files[p];const ln=countLines(text);let added=ln,removed=0;if(old){const lo=old.lines||countLines(old.content);added=Math.max(0,ln-lo);removed=Math.max(0,lo-ln);if(archiveOld){const ap=`archive/${p.replace(/\//g,'__')}_${Date.now()}.bak`;this.files[ap]={...old,archivedFrom:p,archivedAt:now()}}}this.files[p]={content:text,updated:now(),version:(old?.version||0)+1,lines:ln};this.persist();return{path:p,added,removed,lines:ln,isNew:!old}}
-delete(p){if(!this.files[p])throw new Error('File not found');const lines=this.files[p].lines||0;const ap=`archive/${p.replace(/\//g,'__')}_${Date.now()}_deleted.bak`;this.files[ap]={...this.files[p],archivedFrom:p,archivedAt:now()};delete this.files[p];this.persist();return{path:p,removed:lines}}
-persist(){this.storage.set('vfs',this.files);try{if(window.__app&&window.__app.cloud)window.__app.cloud.schedulePush(window.__app)}catch(e){}}
+  if(!this.files||typeof this.files!=='object')this.files={};
+  const old=this.files[p];
+  const ln=countLines(text);
+  let added=ln,removed=0;
+  if(old){
+    const lo=old.lines||countLines(old.content);
+    added=Math.max(0,ln-lo);
+    removed=Math.max(0,lo-ln);
+    if(archiveOld){
+      const ap=`archive/${p.replace(/\//g,'__')}_${Date.now()}.bak`;
+      this.files[ap]={...old,archivedFrom:p,archivedAt:now()};
+    }
+  }
+  this.files[p]={content:text,updated:now(),version:(old?.version||0)+1,lines:ln};
+  const ok=this.persist(true);
+  if(!this.files[p])throw new Error('Write failed — file was not kept in workspace: '+p);
+  // Push this path to cloud immediately so account Files stay in sync
+  try{
+    if(window.__app&&window.__app.cloud&&window.__app.cloud.pushVfsPath){
+      window.__app.cloud.pushVfsPath(window.__app,p,this.files[p]);
+    }else if(window.__app&&window.__app.cloud&&window.__app.cloud.schedulePush){
+      window.__app.cloud.schedulePush(window.__app);
+    }
+  }catch(e){}
+  return{path:p,added,removed,lines:ln,isNew:!old,ok:true,exists:true,persisted:ok!==false};
+}
+delete(p){
+  p=String(p||'').replace(/^\/+/,'').trim();
+  if(!this.files[p])throw new Error('File not found');
+  const lines=this.files[p].lines||0;
+  const ap=`archive/${p.replace(/\//g,'__')}_${Date.now()}_deleted.bak`;
+  this.files[ap]={...this.files[p],archivedFrom:p,archivedAt:now()};
+  delete this.files[p];
+  this.persist(true);
+  return{path:p,removed:lines};
+}
+persist(forcePush){
+  try{
+    if(!this.files||typeof this.files!=='object')this.files={};
+    // Drop empty placeholder keys
+    Object.keys(this.files).forEach(k=>{
+      if(!k||this.files[k]==null)delete this.files[k];
+    });
+    let saved=false;
+    const trySave=()=>{
+      try{
+        this.storage.set('vfs',this.files);
+        // Round-trip check: ensure storage can hold vfs
+        const check=this.storage.get('vfs',null);
+        if(check&&typeof check==='object'){
+          // Re-merge: keep in-memory as source of truth, but confirm key exists
+          saved=true;
+          // If storage returned a different object, keep writing to this.files
+          if(check!==this.files){
+            // Ensure our written paths exist in stored copy next time by rewriting full files
+            this.storage.set('vfs',this.files);
+          }
+        }else{
+          saved=false;
+        }
+      }catch(e){
+        saved=false;
+        throw e;
+      }
+    };
+    try{
+      trySave();
+    }catch(e){
+      // Quota exceeded — prune oldest archive backups and retry
+      const archives=Object.keys(this.files).filter(k=>String(k).startsWith('archive/'))
+        .sort((a,b)=>(Number(this.files[a]?.archivedAt||this.files[a]?.updated||0))-(Number(this.files[b]?.archivedAt||this.files[b]?.updated||0)));
+      let pruned=0;
+      while(archives.length&&pruned<40){
+        delete this.files[archives.shift()];
+        pruned++;
+      }
+      try{trySave()}catch(e2){
+        console.warn('[VFS] persist failed after prune',e2);
+        try{if(typeof toast==='function')toast('Storage full — file kept in session but may not survive refresh. Delete old files.','error')}catch(e3){}
+        saved=false;
+      }
+    }
+    try{
+      if(window.__app&&window.__app.cloud){
+        if(forcePush&&window.__app.cloud.pushNow)window.__app.cloud.pushNow(window.__app);
+        else if(window.__app.cloud.schedulePush)window.__app.cloud.schedulePush(window.__app);
+      }
+    }catch(e){}
+    return saved;
+  }catch(e){
+    console.warn('[VFS] persist error',e);
+    return false;
+  }
+}
 tree(){const root={name:'',children:{},files:[]};for(const path of Object.keys(this.files).sort()){const parts=path.split('/');let node=root;for(let i=0;i<parts.length-1;i++){const p=parts[i];if(!node.children[p])node.children[p]={name:p,children:{},files:[]};node=node.children[p]}node.files.push({name:parts[parts.length-1],path,meta:this.files[path]})}return root}}
 
 class PluginManager{constructor(s){this.storage=s;this.plugins=s.get('plugins',[])}
@@ -4174,19 +4291,35 @@ case'write_file':{
     }
     const result=this.vfs.write(path,content);
     const finalPath=result.path||path;
+    const exists=!!(this.vfs.files&&this.vfs.files[finalPath]);
+    if(!exists){
+      // Force one more write into memory map
+      this.vfs.files[finalPath]={content:String(content),updated:Date.now(),version:1,lines:countLines(String(content))};
+      this.vfs.persist(true);
+    }
+    const really=!!(this.vfs.files&&this.vfs.files[finalPath]);
+    try{
+      if(window.__app&&window.__app.ui){
+        if(window.__app.ui.renderFileTree)window.__app.ui.renderFileTree();
+        if(window.__app.ui.updateWorkspaceBadge)window.__app.ui.updateWorkspaceBadge();
+      }
+    }catch(e){}
     return Object.assign({},result,{
-      ok:true,
-      exists:true,
+      ok:really,
+      exists:really,
       path:finalPath,
       lines:result.lines,
       isNew:!!result.isNew,
-      message:(result.isNew?'Created ':'Updated ')+finalPath+' ('+(result.lines||0)+' lines). File EXISTS at this path — use read_file or [[file:'+finalPath+']].'
+      persisted:result.persisted!==false,
+      message:really
+        ?((result.isNew?'Created ':'Updated ')+finalPath+' ('+(result.lines||0)+' lines). File is in your Files workspace — open Files or use [[file:'+finalPath+']].')
+        :('Write reported but file missing from workspace: '+finalPath)
     });
   }catch(err){
-    // Last resort: still try bare write
     try{
       const result=this.vfs.write(path,content,{archiveOld:false});
-      return Object.assign({},result,{ok:true,exists:true,path:result.path||path,message:'Created '+(result.path||path)});
+      const finalPath=result.path||path;
+      return Object.assign({},result,{ok:true,exists:true,path:finalPath,message:'Created '+finalPath});
     }catch(e2){
       return{ok:false,error:String((err&&err.message)||err),path};
     }
@@ -8860,9 +8993,15 @@ else if(ev.type==='activity'){
   return id;
 }
 else if(ev.type==='file-saved'&&ev.path){
+  try{
+    // Confirm file is really in VFS
+    const hit=this.app.vfs&&this.app.vfs.files&&this.app.vfs.files[ev.path];
+    if(!hit)try{this.app.vfs.persist&&this.app.vfs.persist(true)}catch(e){}
+  }catch(e){}
   try{this.updateWorkspaceBadge&&this.updateWorkspaceBadge()}catch(e){}
   try{this.renderFileTree&&this.renderFileTree()}catch(e){}
-  try{toast('Saved '+ev.path,'success')}catch(e){}
+  try{this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}
+  try{toast('Saved '+ev.path+' — open Files to view','success')}catch(e){}
 }
 if(ev.type==='activity-update'){
   const step=this.activityMap.get(ev.id);
