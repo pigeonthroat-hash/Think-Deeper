@@ -5063,13 +5063,15 @@ class AgentManager{
           const goal=String(this.k.goal||'').toLowerCase();
           const prior=this.list().filter(x=>x.role!=='supervisor'&&x.result).map(x=>String(x.result)).join('\n').toLowerCase();
           const ans=answer.toLowerCase();
-          const tooShort=ans.length<40;
+          const tooShort=ans.length<80;
           const restates=goal&&ans.length>20&&(goal.includes(ans.slice(0,80))||ans.includes(goal.slice(0,80)));
-          const noNew=/\b(unknown|unsolved|open problem|cannot (be )?solved|as stated|restate)\b/i.test(answer)&&!/\b(theorem|proof|counterexample|computed|found|shows that)\b/i.test(answer);
+          const noNew=/\b(unknown|unsolved|open problem|cannot (be )?solved|as stated|restate|still open)\b/i.test(answer)&&!/\b(theorem|proof|counterexample|computed|found|shows that|we prove|closed form)\b/i.test(answer);
           const overlapsPrior=prior&&ans.length>30&&prior.includes(ans.slice(0,100));
-          if(tooShort||restates||noNew||overlapsPrior){
+          const noTests=!/\b(test|verif|check|run_python|computed|simulation|edge case|confirm)\b/i.test(answer);
+          const notAllAgents=this.list().filter(x=>x.role!=='supervisor').some(x=>!(x.result||(x.thoughts&&x.thoughts.length)));
+          if(tooShort||restates||noNew||overlapsPrior||noTests||notAllAgents){
             a.thoughts=a.thoughts||[];
-            a.thoughts.push({name:'Thought',detail:'SOLVED rejected — not enough new content. Continuing swarm.',status:'running'});
+            a.thoughts.push({name:'Thought',detail:'SOLVED rejected — need every agent, verification tests, novelty, and end-of-budget timing. Continected — not enough new content. Continuing swarm.',status:'running'});
             a.rounds=(a.rounds||0); // keep going
             const workers=this.list().filter(x=>x.role!=='supervisor');
             let next=workers.find(x=>x.status==='idle'&&!x.ended)||workers.find(x=>x.status==='completed'||x.status==='idle')||workers[0];
@@ -5205,14 +5207,23 @@ class AgentManager{
     return true;
   }
   _mysteryMinWorkDone(){
-    // Require real multi-step work before any final is accepted
+    // Require: every agent used, verification work, and time near end of budget
     try{
       const workers=this.list().filter(x=>x.role!=='supervisor');
+      if(!workers.length)return false;
       const finished=workers.filter(x=>x.result||(x.thoughts&&x.thoughts.length));
-      const toolish=workers.reduce((n,x)=>n+((x.thoughts||[]).filter(t=>/python|search|write|check|tool/i.test(String(t.name||t.detail||''))).length),0);
+      // EVERY agent must have been called / produced work
+      if(finished.length<workers.length)return false;
+      const toolish=workers.reduce((n,x)=>n+((x.thoughts||[]).filter(t=>/python|search|write|check|tool|test|verif/i.test(String(t.name||t.detail||''))).length),0);
       const rounds=(this.get('coordinator')&&this.get('coordinator').rounds)||0;
-      if(rounds<3 && finished.length<2)return false;
-      if(toolish<1 && finished.length<2)return false;
+      if(rounds<workers.length+2)return false;
+      if(toolish<2)return false;
+      // Near end of time budget (last ~20%)
+      if(this.k.deadline&&this.k.budgetMs){
+        const left=this.k.deadline-Date.now();
+        const frac=left/Math.max(1,this.k.budgetMs);
+        if(frac>0.20&&left>0)return false;
+      }
       return true;
     }catch(e){return false}
   }
@@ -5221,7 +5232,7 @@ class AgentManager{
     const thoughts=this.list().map(x=>x.id+': '+((x.thoughts||[]).slice(-3).map(t=>String(t.detail||'')).join(' | '))).join('\n');
     try{
       const data=await this.k.app.provider.chat([
-        {role:'system',content:'You are the Supervisor writing the FINAL mathematical-mystery conclusion for the human. Goal: present the best SOLUTION obtained. Use headings:\n## What was solved\n## Solution\n## Evidence\nOptional ## Why it is new. Do NOT add a Limits section that excuses failure or claims the problem is impossible. Be concrete with proofs, formulas, or numbers. Do not address agents.'},
+        {role:'system',content:'You are the Supervisor writing the FINAL mathematical-mystery conclusion after the full team effort near the end of the time budget. Every agent contributed; the result must be something not found before and verified by further tests. Use headings:\n## What was solved\n## Solution (the new result)\n## Evidence & tests\n## Why it is new\nDo NOT add a Limits section that excuses failure or claims the problem is impossible. Be concrete with proofs, formulas, or numbers. Do not address agents.'},
         {role:'user',content:'Goal:\n'+String(this.k.goal||'')+'\n\nWorker notes:\n'+notes+'\n\nThoughts:\n'+thoughts.slice(0,4000)}
       ],{temperature:0.2,maxTokens:2500});
       const txt=((data&&data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'').trim();
@@ -5255,7 +5266,7 @@ class AgentManager{
       if(!answer)return {ok:false,error:'answer is required'};
       if(this.k.mystery){
         if(!this._mysteryMinWorkDone()){
-          return {ok:false,error:'TOO_EARLY: Mystery mode requires multiple worker rounds with run_python and/or web_search before createfinalresponse. Assign workers again. Do not finalize yet.'};
+          return {ok:false,error:'TOO_EARLY: Mystery mode requires (1) contacting EVERY agent at least once, (2) further verification tests (run_python / checks), (3) waiting until near the END of the time budget, and (4) a concrete NEW result. Assign remaining agents, run tests, keep working — do not finalize yet.'};
         }
         if(!this._mysteryShapeOk(answer)){
           return {ok:false,error:'MYSTERY_FINAL_REQUIRED: rewrite with ## What was solved, ## Solution, ## Evidence (real content). Do not use a Limits section to excuse an unsolved problem. Then call createfinalresponse again.'};
@@ -5366,9 +5377,16 @@ class Coordinator{
     const groupMode=!!this.k.groupMode;
     let supPrompt='You are the Supervisor (coordinator). Never speak to the human directly. Call contact_agent to assign work and createfinalresponse when fully solved. ENVIRONMENT SAFETY: this is a browser tab. Never assign while True, unbounded loops, os.system, subprocess, threading, eval, location.reload, or huge allocations. If a tool returns CRASH_BLOCKED, rewrite smaller. Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nCRITICAL RULE: Do NOT output SOLVED until the goal is completely solved to the user\'s standard — partial progress is not enough. Keep assigning workers until the work is finished. Only then synthesize the final answer from all agent results (prefer majority when they agree). When workers submit Python, you optimize it for maximum Pyodide speed (all modules available) before execution; agents stay idle until that returns. In your own notes use short thoughts only — no titles/headings; LaTeX math is fine.';
     if(mystery){
-      supPrompt+='\nMYSTERY MODE (HARD RULES): Your ONLY goal is to SOLVE the mathematical mystery. Never tell the user the problem is impossible, out of scope, or blocked by time/budget — keep working. Use the full time budget. Do NOT createfinalresponse or SOLVED in the first few rounds. Minimum: several contact_agent rounds, run_python verification, and web_search for prior art. Finish only with a CONCRETE result: proof, closed form, numerical resolution, or rigorous counterexample. Progress reports are NOT finished. createfinalresponse MUST use:\n## What was solved\n## Solution\n## Evidence\n(Optional: ## Why it is new). Do NOT include a ## Limits section that excuses failure. If a draft is weak, RUN another worker. Reuse workers. Never stop to be polite.';
+      supPrompt+='\nMYSTERY MODE (HARD RULES):\n'
+        +'Your ONLY goal is to SOLVE the mathematical mystery — find something never found before (a new proof step, closed form, counterexample, computation, or rigorous relation), then VERIFY it.\n'
+        +'TIME BUDGET: Do NOT output SOLVED / createfinalresponse until near the END of the time budget (last ~15–20% of the clock). Spend almost the entire budget on exploration, agent assignments, and testing. Early finals are forbidden.\n'
+        +'EVERY AGENT: Before any final answer you MUST contact EVERY worker agent at least once with a useful subtask. Do not finalize after using only one agent. Cycle all agents: assign → collect → reassign for critique and tests.\n'
+        +'NOVELTY: The conclusion must contain a concrete NEW mathematical result relative to the goal and prior worker notes — not a restatement, not "still open", not generic advice.\n'
+        +'VERIFICATION: After a theory is proposed, run FURTHER TESTS (run_python checks, edge cases, independent recalculation, web_search for contradictions/prior art). Only finalize when tests support the claim.\n'
+        +'createfinalresponse format:\n## What was solved\n## Solution (the new result)\n## Evidence & tests\n## Why it is new\n'
+        +'Never invent a Limits section that excuses failure. If evidence is weak, RUN another worker. Reuse every agent. Never stop to be polite.';
     }
-    if(groupMode){
+if(groupMode){
       supPrompt+='\nGROUP MODE: First create groups by assigning roles like "leader-A", "member-A". Group leaders may message their members; members report to their leader; leaders report to you. Still only ONE live RUN at a time.';
     }
     if(this.k.intentNote)supPrompt+='\nUSER INTENT: '+this.k.intentNote;
@@ -5398,7 +5416,7 @@ class Coordinator{
           ?(' You are group leader of '+meta.group+'. Coordinate members of '+meta.group+' via swarm_send, then report a group summary to the Supervisor.')
           :(' You are a member of '+meta.group+'. Discuss only with your leader and Supervisor. Use your agent id only.');
       }
-      const workerPrompt='You are '+('w'+String(i+1).padStart(4,'0'))+', role '+role+'. Stay in scope. Speak only to the Supervisor (and your group leader if any) by agent id. Never address the human user by name. Never claim other agents used a human name for you. Use tools only if permitted. SAFETY: no infinite loops, while True, os/subprocess, or location.reload. Bound every loop. If you see CRASH_BLOCKED, shrink the work. THINKING STYLE: write a short plain thought only — no titles or headings. Math may use LaTeX. Do not echo the user message. Use tools (especially run_python) when the task needs computation or verification — do not only restate the task.'+extra+(mystery?' Mystery mode: your job is to SOLVE the mystery (or a clear subgoal). Deliver a concrete result: computation, proof step, closed form, or counterexample. Never say it is impossible or limited by time. Never only restate the problem. Use run_python heavily.':'');
+      const workerPrompt='You are '+('w'+String(i+1).padStart(4,'0'))+', role '+role+'. Stay in scope. Speak only to the Supervisor (and your group leader if any) by agent id. Never address the human user by name. Never claim other agents used a human name for you. Use tools only if permitted. SAFETY: no infinite loops, while True, os/subprocess, or location.reload. Bound every loop. If you see CRASH_BLOCKED, shrink the work. THINKING STYLE: write a short plain thought only — no titles or headings. Math may use LaTeX. Do not echo the user message. Use tools (especially run_python) when the task needs computation or verification — do not only restate the task.'+extra+(mystery?' Mystery mode: push toward a result never found before for this goal. Deliver a concrete artifact: computation, proof step, closed form, or counterexample. Then propose tests to verify it. Never say it is impossible or limited by time. Never only restate the problem. Use run_python heavily.':'');
       this.k.agents.register({
         id:'w'+String(i+1).padStart(4,'0'),
         role,
