@@ -5058,8 +5058,8 @@ class AgentManager{
       const timedOut=this.k.deadline&&Date.now()>this.k.deadline;
       if(done){
         const answer=txt.replace(/^SOLVED\s*:\s*/i,'').trim();
-        // Mystery novelty gate: refuse empty/restatement answers
         if(this.k.mystery){
+          const tooEarly=!this._mysteryMinWorkDone();
           const goal=String(this.k.goal||'').toLowerCase();
           const prior=this.list().filter(x=>x.role!=='supervisor'&&x.result).map(x=>String(x.result)).join('\n').toLowerCase();
           const ans=answer.toLowerCase();
@@ -5069,38 +5069,28 @@ class AgentManager{
           const overlapsPrior=prior&&ans.length>30&&prior.includes(ans.slice(0,100));
           const noTests=!/\b(test|verif|check|run_python|computed|simulation|edge case|confirm)\b/i.test(answer);
           const notAllAgents=this.list().filter(x=>x.role!=='supervisor').some(x=>!(x.result||(x.thoughts&&x.thoughts.length)));
-          if(tooShort||restates||noNew||overlapsPrior||noTests||notAllAgents){
+          const leftMs=this._mysteryTimeLeftMs?this._mysteryTimeLeftMs():0;
+          const reject=tooEarly||tooShort||restates||noNew||overlapsPrior||noTests||notAllAgents||!this._mysteryShapeOk(answer)||!this._mysteryHasNew(answer);
+          if(reject){
             a.thoughts=a.thoughts||[];
-            a.thoughts.push({name:'Thought',detail:'SOLVED rejected — need every agent, verification tests, novelty, and end-of-budget timing. Continected — not enough new content. Continuing swarm.',status:'running'});
-            a.rounds=(a.rounds||0); // keep going
+            const why=tooEarly
+              ?('TOO EARLY — '+Math.ceil(leftMs/60000)+'m still on the clock. Keep every agent working until ~80% of the budget is used.')
+              :('SOLVED rejected — need every agent, verification tests, and a concrete NEW result. Budget left ~'+Math.ceil(leftMs/60000)+'m.');
+            a.thoughts.push({name:'Thought',detail:why,status:'running'});
             const workers=this.list().filter(x=>x.role!=='supervisor');
-            let next=workers.find(x=>x.status==='idle'&&!x.ended)||workers.find(x=>x.status==='completed'||x.status==='idle')||workers[0];
-            if(next&&(a.rounds||0)<(this.k.mustFullySolve!==false?48:12)){
-              next.task='Mystery continuation: previous conclusion lacked novelty. Produce a NEW concrete result (proof step, computation, bound, or counterexample) for: '+(this.k.goal||'').slice(0,800);
-              next.status='idle';next.result=null;next.thoughts=[];
+            let next=workers.find(x=>x.status==='idle')||workers.find(x=>x.status==='completed'||x.status==='failed')||workers[0];
+            if(next){
+              next.task=(tooEarly?'TIME BUDGET STILL RUNNING. ':'')+'Previous draft was not accepted:\n'+answer.slice(0,1000)+'\n\nGoal: '+(this.k.goal||'')+'\nCall every agent, run verification tests, and only finalize near the end of the budget. Deliver a NEW concrete result (proof step, computation, closed form, or counterexample).';
+              next.status='idle';next.result=null;next.ended=null;next.thoughts=[];
               a.status='waiting';
               this.k.scheduler.enqueue(next.id,'mystery-continue');
               this.k.events.emit('agent.wait',{id:a.id,why:'mystery-continue'});
               return a.result;
             }
-          }
-        }
-        if(this.k.mystery && (!this._mysteryMinWorkDone() || !this._mysteryShapeOk(answer) || !this._mysteryHasNew(answer))){
-          a.thoughts=a.thoughts||[];
-          a.thoughts.push({name:'Thought',detail:'Conclusion rejected (too early or not a solid new result). Swarm continues for the full budget.',status:'running'});
-          const workers=this.list().filter(x=>x.role!=='supervisor');
-          let next=workers.find(x=>x.status==='idle')||workers.find(x=>x.status==='completed'||x.status==='failed')||workers[0];
-          if(next){
-            next.task='NOT NEW YET / TOO EARLY. Previous draft:\n'+answer.slice(0,1200)+'\n\nYou still have time budget. Produce a CONCRETE NEW mathematical result for: '+(this.k.goal||'')+'\nRequired: run_python and/or web_search. Deliver proof steps, closed form, numbers, or a counterexample — not a restatement.';
-            next.status='idle';next.result=null;next.ended=null;next.thoughts=[];
-            a.status='waiting';
-            this.k.scheduler.enqueue(next.id,'keep-seeking');
+            a.status='idle';
+            this.k.scheduler.enqueue('coordinator','mystery-nudge');
             return a.result;
           }
-          // No worker available — nudge coordinator instead of accepting weak SOLVED
-          a.status='idle';
-          this.k.scheduler.enqueue('coordinator','mystery-nudge');
-          return a.result;
         }
         this.k.solved=answer;this.k.alive=false;return a.result;
       }
@@ -5122,6 +5112,30 @@ class AgentManager{
               this.k.scheduler.enqueue(next.id,'mystery-extend');
               return a.result;
             }
+          }
+        }
+        // Mystery: never stop before the real wall-clock budget is used up
+        if(this.k.mystery){
+          const budget=Math.max(Number(this.k.budgetMs)||0,60*1000);
+          const start=Number(this.k.budgetStart)|| (Number(this.k.deadline)||Date.now())-budget;
+          const left=(start+budget)-Date.now();
+          if(left>1000){
+            this.k._mysteryExt=(this.k._mysteryExt||0)+1;
+            a.rounds=Math.max(0,(a.rounds||0)-8);
+            a.thoughts=a.thoughts||[];
+            a.thoughts.push({name:'Thought',detail:'Clock still has ~'+Math.ceil(left/60000)+'m — continuing all agents (wave '+(this.k._mysteryExt)+').',status:'running'});
+            const workers=this.list().filter(x=>x.role!=='supervisor');
+            const next=workers[(this.k._mysteryExt-1)%Math.max(workers.length,1)]||workers[0];
+            if(next){
+              next.task='Budget still running (~'+Math.ceil(left/60000)+'m left). Continue searching for a NEW verified result on: '+(this.k.goal||'')+'. Use run_python / web_search. Do not wrap up yet.';
+              next.status='idle';next.result=null;next.ended=null;next.thoughts=[];
+              a.status='waiting';
+              this.k.scheduler.enqueue(next.id,'mystery-budget');
+              return a.result;
+            }
+            a.status='idle';
+            this.k.scheduler.enqueue('coordinator','mystery-budget');
+            return a.result;
           }
         }
         this.k.solved=(txt||'').replace(/^SOLVED\s*:\s*/i,'').trim()||'Time or round limit reached before a complete solution. Partial notes:\n'+this.list().filter(x=>x.result).map(x=>x.id+': '+String(x.result).slice(0,400)).join('\n');
@@ -5207,25 +5221,30 @@ class AgentManager{
     return true;
   }
   _mysteryMinWorkDone(){
-    // Require: every agent used, verification work, and time near end of budget
+    // Require: every agent used, verification work, and MOST of the time budget used
     try{
       const workers=this.list().filter(x=>x.role!=='supervisor');
       if(!workers.length)return false;
       const finished=workers.filter(x=>x.result||(x.thoughts&&x.thoughts.length));
-      // EVERY agent must have been called / produced work
       if(finished.length<workers.length)return false;
       const toolish=workers.reduce((n,x)=>n+((x.thoughts||[]).filter(t=>/python|search|write|check|tool|test|verif/i.test(String(t.name||t.detail||''))).length),0);
       const rounds=(this.get('coordinator')&&this.get('coordinator').rounds)||0;
       if(rounds<workers.length+2)return false;
-      if(toolish<2)return false;
-      // Near end of time budget (last ~20%)
-      if(this.k.deadline&&this.k.budgetMs){
-        const left=this.k.deadline-Date.now();
-        const frac=left/Math.max(1,this.k.budgetMs);
-        if(frac>0.20&&left>0)return false;
-      }
+      if(toolish<1)return false;
+      const budget=Math.max(Number(this.k.budgetMs)||0, 60*1000);
+      const start=Number(this.k.budgetStart)|| (Number(this.k.deadline)||Date.now())-budget;
+      const elapsed=Date.now()-start;
+      // Must consume at least 80% of the user time budget before any final is allowed
+      if(elapsed < budget*0.80)return false;
       return true;
     }catch(e){return false}
+  }
+  _mysteryTimeLeftMs(){
+    try{
+      const budget=Math.max(Number(this.k.budgetMs)||0,0);
+      const start=Number(this.k.budgetStart)|| (Number(this.k.deadline)||Date.now())-budget;
+      return Math.max(0, (start+budget)-Date.now());
+    }catch(e){return 0}
   }
   async _composeMysteryFinal(){
     const notes=this.list().filter(x=>x.role!=='supervisor').map(x=>x.id+' ('+x.role+'): '+String(x.result||x.error||'').slice(0,1800)).join('\n\n');
@@ -5266,7 +5285,10 @@ class AgentManager{
       if(!answer)return {ok:false,error:'answer is required'};
       if(this.k.mystery){
         if(!this._mysteryMinWorkDone()){
-          return {ok:false,error:'TOO_EARLY: Mystery mode requires (1) contacting EVERY agent at least once, (2) further verification tests (run_python / checks), (3) waiting until near the END of the time budget, and (4) a concrete NEW result. Assign remaining agents, run tests, keep working — do not finalize yet.'};
+          const left=this._mysteryTimeLeftMs?this._mysteryTimeLeftMs():0;
+          const budget=Math.max(Number(this.k.budgetMs)||0,0);
+          const used=Math.max(0,budget-left);
+          return {ok:false,error:'TOO_EARLY: only ~'+Math.round(used/60000)+'m of ~'+Math.round(budget/60000)+'m budget used (~'+Math.round(left/60000)+'m left). Mystery mode forbids a final answer until ~80% of the clock is used, every agent has been contacted, and verification tests exist. Keep assigning agents — do not finalize yet.'};
         }
         if(!this._mysteryShapeOk(answer)){
           return {ok:false,error:'MYSTERY_FINAL_REQUIRED: rewrite with ## What was solved, ## Solution, ## Evidence (real content). Do not use a Limits section to excuse an unsolved problem. Then call createfinalresponse again.'};
@@ -5451,8 +5473,14 @@ class SwarmKernel{
     this.mustFullySolve=opts&&opts.mustFullySolve!==false;this.quality=(opts&&opts.quality)||'auto';
     this.intent=opts&&opts.intent||'other';
     this.intentNote=opts&&opts.intentNote||'';
-    this.deadline=opts&&opts.deadline||0;
-    this.budgetMs=opts&&opts.budgetMs||0;
+    // Budget clock: budgetMs is authoritative; never trust a stale deadline alone
+    this.budgetMs=Math.max(Number(opts&&opts.budgetMs)||0, 0);
+    if(!this.budgetMs)this.budgetMs=10*60*1000;
+    // Mystery must respect the user-set clock (min 1 minute)
+    if(this.mystery)this.budgetMs=Math.max(this.budgetMs, 60*1000);
+    this.budgetStart=Date.now();
+    this.deadline=this.budgetStart+this.budgetMs;
+    this._mysteryExt=0;
     this.scheduler.conc=1;
     return this.coordinator.start(goal,Number(opts&&opts.count)||4);
   }
@@ -7418,15 +7446,18 @@ async startSwarm(opts){
   const mystery=opts.mystery!=null?!!opts.mystery:(opts.intent==='mystery');
   const group=opts.group!=null?!!opts.group:!!$('#swarm-group')?.checked;
   const intent=opts.intent||'other';
-  const budgetMs=opts.budgetMs||10*60*1000;
+  let budgetMs=Number(opts.budgetMs)||10*60*1000;
+  const mysteryMode=!!(opts.mystery||opts.intent==='mystery');
+  // quality presets (never shrink mystery / user-set budgets)
+  const q=this._agentQuality||this.app.storage.get('agentQuality','auto')||'auto';
+  if(q==='fast'&&!mysteryMode){opts.count=Math.min(opts.count||3,3);budgetMs=Math.min(budgetMs,3*60*1000)}
+  else if(q==='expert'){opts.count=Math.max(opts.count||5,5)}
+  else if(q==='heavy'){opts.count=Math.max(opts.count||8,8);budgetMs=Math.max(budgetMs,20*60*1000)}
+  else if(q==='auto'){/* supervisor decides via prompt */}
+  if(mysteryMode)budgetMs=Math.max(budgetMs,60*1000);
+  opts.budgetMs=budgetMs;
   this._agentStartedAt=Date.now();
   this._agentDeadline=Date.now()+budgetMs;
-  // quality presets
-  const q=this._agentQuality||this.app.storage.get('agentQuality','auto')||'auto';
-  if(q==='fast'){opts.count=Math.min(opts.count||3,3);opts.budgetMs=Math.min(budgetMs,3*60*1000)}
-  else if(q==='expert'){opts.count=Math.max(opts.count||5,5)}
-  else if(q==='heavy'){opts.count=Math.max(opts.count||8,8);opts.budgetMs=Math.max(budgetMs,20*60*1000)}
-  else if(q==='auto'){/* supervisor decides via prompt */}
   {
     const reuse=!!this._currentAgentSessionId && !this._wantNewAgentChat;
     const sid=reuse?this._currentAgentSessionId:uid();
@@ -7479,7 +7510,7 @@ async startSwarm(opts){
   const intentNote={mystery:'Mathematical mystery — SOLVE it. Deliver What was solved / Solution / Evidence. Never claim the problem is impossible or limited by time; keep computing and proving until solved.',code:'Advanced code — implement fully with verification.',document:'Fancy document — polished complete deliverable.',other:'General task — complete solution required.'}[intent]||'';
   const prior=(opts.followup&&this._currentAgentSessionId)?(this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{}).messages:[];
   const historyNote=(prior&&prior.length)?('\n\nPRIOR TURNS IN THIS AGENT CHAT:\n'+prior.slice(-8).map(m=>(m.role+': '+String(m.content||'').slice(0,800))).join('\n')):'';
-  await k.start(goal+historyNote,{count,conc:1,live,debate,mystery,group,intent,intentNote,budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto'});
+  await k.start(goal+historyNote,{count,conc:1,live,debate,mystery,group,intent,intentNote,budgetMs:opts.budgetMs||budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto'});
   this._agentFollowupReady=true;
   this.renderSwarm();
 }
