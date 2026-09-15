@@ -3085,7 +3085,12 @@ class CloudSync{
         if(!L){map.set(id,r);return}
         const lu=Number(L.updated||0),ru=Number(r.updated||0);
         const lm=(L.messages&&L.messages.length)||0,rm=(r.messages&&r.messages.length)||0;
-        if(ru>lu||(ru===lu&&rm>lm))map.set(id,r);
+        // Prefer whichever has more complete message content (never drop a longer local reply)
+        const lChars=(L.messages||[]).reduce((n,m)=>n+String(m&&m.content||'').length,0);
+        const rChars=(r.messages||[]).reduce((n,m)=>n+String(m&&m.content||'').length,0);
+        if(rm>lm&&rChars>=lChars&&ru>=lu)map.set(id,r);
+        else if(ru>lu+2000&&rm>=lm)map.set(id,r);
+        // else keep local L
       });
       s.set('conversations',[...map.values()].sort((a,b)=>(Number(b.updated)||0)-(Number(a.updated)||0)));
       if(deleted.has(String(s.get('currentConvId',null)||'')))s.set('currentConvId',null);
@@ -3384,14 +3389,28 @@ exists(p){return !!(p&&this.files[p])}
 resolve(p){
   const raw=String(p||'').replace(/^\/+/,'').trim();
   if(!raw)return raw;
-  if(this.files[raw])return raw;
+  if(this.files&&this.files[raw])return raw;
+  const files=this.files||{};
+  // Match by trailing path / basename among LIVE (non-archive) files
+  const base=raw.split('/').pop();
   let best=null,bestTs=-1;
+  for(const [path,meta] of Object.entries(files)){
+    if(!path||String(path).startsWith('archive/'))continue;
+    if(path===raw||path.endsWith('/'+raw)||path.endsWith('/'+base)||path===base){
+      const ts=Number((meta&&meta.updated)||0);
+      // Prefer exact-ish + newer
+      const score=ts+(path===raw?1e15:path.endsWith('/'+raw)?1e12:0);
+      if(score>=bestTs){best=path;bestTs=score}
+    }
+  }
+  if(best)return best;
+  // Last resort: archived copy
   const needle=raw.replace(/\//g,'__');
-  for(const [path,meta] of Object.entries(this.files||{})){
+  best=null;bestTs=-1;
+  for(const [path,meta] of Object.entries(files)){
     if(!String(path).startsWith('archive/'))continue;
     const from=String((meta&&meta.archivedFrom)||'');
-    const nameOk=path.indexOf(needle)>=0;
-    if(from===raw||from==='/'+raw||nameOk){
+    if(from===raw||from.endsWith('/'+base)||path.indexOf(needle)>=0||path.indexOf(base)>=0){
       const ts=Number((meta&&(meta.archivedAt||meta.updated))||0);
       if(ts>=bestTs){best=path;bestTs=ts}
     }
@@ -3553,8 +3572,18 @@ persist(){
     });
     this.conversations=[...map.values()];
   }catch(e){}
-  this.storage.set('conversations',this.conversations);
-  this.storage.set('currentConvId',this.currentId);
+  // Deep-clone so later mutations can't empty what was written to storage
+  let payload=[];
+  try{
+    payload=JSON.parse(JSON.stringify(this.conversations||[]));
+  }catch(e){
+    payload=(this.conversations||[]).map(c=>({
+      ...c,
+      messages:(c.messages||[]).map(m=>({...m,content:m&&m.content!=null?String(m.content):''}))
+    }));
+  }
+  try{this.storage.set('conversations',payload)}catch(e){console.warn('conversations persist',e)}
+  try{this.storage.set('currentConvId',this.currentId)}catch(e){}
   try{if(window.__app&&window.__app.ui&&window.__app.ui.syncProjectBundles)window.__app.ui.syncProjectBundles()}catch{}
   try{if(window.__app&&window.__app.cloud){window.__app.cloud.schedulePush(window.__app);window.__app.cloud.notifyTabs&&window.__app.cloud.notifyTabs()}}catch{}
 }}
@@ -6381,7 +6410,9 @@ init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;
     this.app.storage.set('currentProjectId',null);
     this._pendingProjectId=null;
   }catch(e){}
-  this.bindEvents();try{this.syncProjectBundles()}catch(e){}this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();try{applyCodeModeVisibility()}catch(e){}const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);this.newChat();
+  this.bindEvents();try{this.syncProjectBundles()}catch(e){}this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();try{applyCodeModeVisibility()}catch(e){}
+try{this.rehydrateVfsFromStorage&&this.rehydrateVfsFromStorage()}catch(e){}
+const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);this.newChat();
   window.addEventListener('beforeunload',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}try{this.app.conversations&&this.app.conversations.persist()}catch(e){}});
   window.addEventListener('pagehide',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}}});
@@ -7088,8 +7119,18 @@ markCodeActive(id){
   });
 }
 persistCodeSessions(list){
-  const next=Array.isArray(list)?list.slice(0,40):this.codeSessions();
+  let next=Array.isArray(list)?list.slice(0,40):this.codeSessions();
+  next=(next||[]).map(s=>s?Object.assign({},s,{type:'code',mode:'code'}):s).filter(Boolean);
   this.app.storage.set('codeSessions',next);
+  // Keep normal chat list free of code session ids
+  try{
+    const ids=new Set(next.map(s=>s&&String(s.id)).filter(Boolean));
+    if(this.app.conversations&&Array.isArray(this.app.conversations.conversations)){
+      const before=this.app.conversations.conversations.length;
+      this.app.conversations.conversations=this.app.conversations.conversations.filter(c=>c&&!ids.has(String(c.id))&&c.type!=='code'&&c.mode!=='code');
+      if(this.app.conversations.conversations.length!==before)this.app.conversations.persist();
+    }
+  }catch(e){}
   try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
 }
 loadCodeSession(id){
@@ -8215,10 +8256,18 @@ async sendCode(){
   const box=$('#code-messages');if(!box){toast('Code workspace missing','error');return}
   try{
     if(!this._currentCodeId||this._pendingCodeSession){
-      const s={id:uid(),title:String(text).replace(/\s+/g,' ').slice(0,40)||'Code chat',messages:[],updated:Date.now(),projectId:this.activeProjectId?this.activeProjectId():null,titleLocked:false};
-      const list=(this.codeSessions()||[]).map(x=>({...x,messages:Array.isArray(x.messages)?x.messages.slice():[]}));
+      const s={id:uid(),type:'code',mode:'code',title:String(text).replace(/\s+/g,' ').slice(0,40)||'Code chat',messages:[],updated:Date.now(),projectId:this.activeProjectId?this.activeProjectId():null,titleLocked:false};
+      const list=(this.codeSessions()||[]).map(x=>({...x,type:x.type||'code',mode:'code',messages:Array.isArray(x.messages)?x.messages.slice():[]}));
       list.unshift(s);
       if(this.persistCodeSessions)this.persistCodeSessions(list);else this.app.storage.set('codeSessions',list);
+      // Scrub any accidental normal-chat entry with this id
+      try{
+        const convs=(this.app.conversations.list&&this.app.conversations.list())||[];
+        if(convs.some(c=>c&&String(c.id)===String(s.id))){
+          this.app.conversations.conversations=convs.filter(c=>c&&String(c.id)!==String(s.id));
+          this.app.conversations.persist&&this.app.conversations.persist();
+        }
+      }catch(e){}
       this._currentCodeId=s.id;this._shownCodeId=s.id;this._pendingCodeSession=false;
       this.app.storage.set('currentCodeId',s.id);
       try{this.markCodeActive&&this.markCodeActive(s.id)}catch(e){}
@@ -8571,8 +8620,51 @@ updateWorkspaceBadge(){
   }
   if(clearBtn)clearBtn.style.display=name?'':'none';
 }
-openFiles(){this.hideSelToolbar();this.renderFileTree();$('#file-preview-wrap').style.display='none';$('#files-overlay').classList.add('open')}
-renderFileTree(){const tree=this.app.vfs.tree();const el=$('#file-tree');el.innerHTML='';
+openFiles(){
+  this.hideSelToolbar();
+  try{this.rehydrateVfsFromStorage()}catch(e){}
+  try{this.renderFileTree()}catch(e){console.warn('file tree',e)}
+  const prev=$('#file-preview-wrap');if(prev)prev.style.display='none';
+  const ov=$('#files-overlay');if(ov)ov.classList.add('open');
+}
+rehydrateVfsFromStorage(){
+  try{
+    if(!this.app||!this.app.vfs)return;
+    const stored=this.app.storage.get('vfs',null);
+    if(stored&&typeof stored==='object'){
+      const live=this.app.vfs.files||{};
+      const merged={};
+      // Union of all paths
+      const paths=new Set([...Object.keys(stored),...Object.keys(live)]);
+      paths.forEach(p=>{
+        if(!p)return;
+        const S=stored[p],L=live[p];
+        if(L&&!S){merged[p]=L;return}
+        if(S&&!L){merged[p]=S;return}
+        if(!S&&!L)return;
+        const lc=String((L&&L.content)!=null?L.content:'').length;
+        const sc=String((S&&S.content)!=null?S.content:'').length;
+        const lu=Number((L&&L.updated)||0),su=Number((S&&S.updated)||0);
+        // Prefer non-empty + newer
+        if(lc>0&&sc===0)merged[p]=L;
+        else if(sc>0&&lc===0)merged[p]=S;
+        else if(lu>=su)merged[p]=L;
+        else merged[p]=S;
+      });
+      this.app.vfs.files=merged;
+    }
+    if(!this.app.vfs.files||typeof this.app.vfs.files!=='object')this.app.vfs.files={};
+  }catch(e){console.warn('rehydrate vfs',e)}
+}
+renderFileTree(){
+  try{this.rehydrateVfsFromStorage()}catch(e){}
+  const el=$('#file-tree');
+  if(!el)return;
+  el.innerHTML='';
+  if(!this.app||!this.app.vfs){el.innerHTML='<div class="hint">Workspace not ready</div>';return}
+  const keys=Object.keys(this.app.vfs.files||{});
+  if(!keys.length){el.innerHTML='<div class="hint" style="padding:12px;color:var(--text-tertiary)">No files yet. Ask the AI to create one, or upload a file.</div>';return}
+  const tree=this.app.vfs.tree();
 const render=(node,depth=0,parent,basePath='')=>{
   Object.values(node.children).forEach(f=>{
     const folderPath=basePath?basePath+'/'+f.name:f.name;
@@ -8682,11 +8774,16 @@ loadConversation(id){this.hideSelToolbar();if(this.isPhone&&this.isPhone())this.
 renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>String(p.id)===String(pid)):null;
   const gone=new Set((this.app.storage.get('deletedConversations',[])||[]).map(String));
   let chats=this.app.conversations.list()||[];
+  // Never show code-mode sessions in the normal chat list
+  const codeIds=new Set();
+  try{(this.codeSessions?this.codeSessions():(this.app.storage.get('codeSessions',[])||[])).forEach(s=>{if(s&&s.id)codeIds.add(String(s.id))})}catch(e){}
   const seen=new Set();
   chats=chats.filter(c=>{
     if(!c||!c.id)return false;
     const id=String(c.id);
     if(gone.has(id)||seen.has(id))return false;
+    if(codeIds.has(id))return false;
+    if(c.type==='code'||c.mode==='code'||c.source==='code'||c.kind==='code')return false;
     seen.add(id);
     const msgs=c.messages||[];
     if(!msgs.length&&(!c.title||c.title==='New conversation'))return false;
@@ -8694,7 +8791,8 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
   });
   if(proj){
     const set=new Set((proj.chatIds||[]).map(String));
-    chats=chats.filter(c=>set.has(String(c.id))||String(c.projectId||'')===String(pid));
+    // chatIds may accidentally include code session ids — only keep real conversations
+    chats=chats.filter(c=>(set.has(String(c.id))||String(c.projectId||'')===String(pid))&&!codeIds.has(String(c.id)));
   }
   const q=(this._convQuery||'').trim().toLowerCase();
   if(q){chats=chats.filter(c=>{
@@ -9049,20 +9147,37 @@ else if(ev.type==='final'){
       try{this.refreshCodePreview&&this.refreshCodePreview()}catch(e){}
       try{this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}
     }
-    const conv=(this.mode==='code'||this.app.mode==='code')?null:this.app.conversations.get(this.app.conversations.currentId);
-    if(conv){
-      const m=(conv.messages||[]).find(x=>x.id===aiMsg.id);
-      if(m)m.content=ev.content;
-      conv.updated=Date.now();
-    }
-    this.snapshotThoughts(aiMsg,aiEl);try{if(this.app.cloud&&this.app.cloud.pushNow)this.app.cloud.pushNow(this.app,this.app.conversations.currentId)}catch(e){}
-    const live=this.app.conversations.get(this.app.conversations.currentId);
-    if(live){
-      const m=(live.messages||[]).find(x=>x.id===aiMsg.id);
-      if(m){m.activities=aiMsg.activities||[];m.thinkMs=aiMsg.thinkMs||0;m.content=ev.content;}
-    }
-    this.app.conversations.persist();
-    if(this.app.cloud)this.app.cloud.pushNow(this.app,this.app.conversations.currentId);
+    // Always persist the final AI text into the conversation so refresh keeps it
+    try{
+      if(!(this.mode==='code'||this.app.mode==='code')){
+        let conv=this.app.conversations.get(this.app.conversations.currentId);
+        if(!conv&&this.app.conversations.currentId){
+          // recover from storage if in-memory list desynced
+          const list=this.app.storage.get('conversations',[])||[];
+          conv=list.find(c=>c&&String(c.id)===String(this.app.conversations.currentId));
+          if(conv){
+            this.app.conversations.conversations=list;
+          }
+        }
+        if(conv){
+          if(!Array.isArray(conv.messages))conv.messages=[];
+          let m=conv.messages.find(x=>x&&String(x.id)===String(aiMsg.id));
+          if(!m){
+            m={id:aiMsg.id||uid(),role:'assistant',content:'',ts:Date.now()};
+            conv.messages.push(m);
+          }
+          m.content=String(ev.content||aiMsg.content||m.content||'');
+          m.activities=aiMsg.activities||m.activities||[];
+          m.thinkMs=aiMsg.thinkMs||m.thinkMs||0;
+          m.ts=m.ts||Date.now();
+          conv.updated=Date.now();
+          aiMsg.content=m.content;
+        }
+      }
+    }catch(e){console.warn('save final content',e)}
+    this.snapshotThoughts(aiMsg,aiEl);
+    try{this.app.conversations.persist()}catch(e){}
+    try{if(this.app.cloud&&this.app.cloud.pushNow)this.app.cloud.pushNow(this.app,this.app.conversations.currentId)}catch(e){}
     const st=this.app.storage.get('autoStore',{})||{};st.lastAi=ev.content||'';this.app.storage.set('autoStore',st);this.fireAutomations('onAiReply',{lastAi:ev.content||''});
   }catch{}
 
@@ -9118,7 +9233,11 @@ if(tp){
     try{lab.textContent='Worked for '+formatDuration(Date.now()-start)}catch(e){lab.textContent='Done'}
   }
 }
-const gif=tp&&tp.querySelector('.tp-gif');if(gif){try{gif.style.animationPlayState='paused'}catch(e){}}this.revealAnswer(contentEl,this.renderMarkdown(md||''));this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
+const gif=tp&&tp.querySelector('.tp-gif');if(gif){try{gif.style.animationPlayState='paused'}catch(e){}}
+// Keep raw [[file:]] tokens in markdown path — renderMarkdown expands them to download chips
+this.revealAnswer(contentEl,this.renderMarkdown(ev.content||md||''));
+this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
+try{this.wireFileChips(contentEl)}catch(e){}
   if(this.mode==='code'||this.app.mode==='code'){
     try{this.saveCodeTranscript(true)}catch(e){}
     try{this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}
@@ -9676,10 +9795,30 @@ deleteAiTurn(msgId){
 forgetAiTurn(msgId){this.deleteAiTurn(msgId)} /* alias */
 renderMessage(msg,isStreaming=false){const container=$('#messages');const div=document.createElement('div');div.className=`message ${msg.role}`;div.dataset.id=msg.id;const who=this.userLabel();const roleLabel=msg.role==='user'?who.label:'Think Deeper';const avatarText=msg.role==='user'?who.initial:'TD';let attachHtml='';if(msg.attachments?.length){attachHtml='<div class="attachments">';msg.attachments.forEach(a=>{if(a.dataUrl)attachHtml+=`<div class="attachment"><img src="${a.dataUrl}" alt=""></div>`;else attachHtml+=`<div class="attachment"><div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div></div>`});attachHtml+='</div>'}
 const bodyContent=msg.role==='user'?escapeHtml(this.visibleUserText(msg)).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
-div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.activities&&msg.activities.length){try{this.hydrateThoughts(div,msg)}catch(e){console.warn('hydrate',e)}}this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb)}if(msg.role==='assistant'&&msg.content&&!isStreaming)this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'assistant',text:msg.content});if(msg.role==='user')this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'user',text:msg.content||''});if(msg.role==='assistant')this.hydrateThoughts(div,msg);this.setupMessageSelection(div);this.scrollToBottom();return div}
+div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.activities&&msg.activities.length){try{this.hydrateThoughts(div,msg)}catch(e){console.warn('hydrate',e)}}this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);try{this.wireFileChips(mb)}catch(e){}}if(msg.role==='assistant'&&msg.content&&!isStreaming)this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'assistant',text:msg.content});if(msg.role==='user')this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'user',text:msg.content||''});if(msg.role==='assistant')this.hydrateThoughts(div,msg);this.setupMessageSelection(div);this.scrollToBottom();return div}
 renderMarkdown(text){
   if(!text)return '';
   let t=String(text);
+  // Special tokens → placeholders (so markdown parsers never strip chips into plain paths)
+  const chips=[];
+  const pushChip=(html)=>{chips.push(html);return '%%CHIP'+(chips.length-1)+'%%'};
+  try{
+    t=t.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>{
+      try{return pushChip(this.fileChipHtml({folder:p,name:(String(p).split('/').pop()||p)+'.zip'}))}catch(e){return _}
+    });
+    t=t.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{
+      try{
+        const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;
+        return pushChip('<button type="button" class="preview-chip" data-preview="'+escapeHtml(rp)+'">'+((SVG&&SVG.eye)||'')+' Preview '+escapeHtml((rp.split('/').pop()||p))+'</button>');
+      }catch(e){return _}
+    });
+    t=t.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>{
+      try{
+        const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;
+        return pushChip(this.fileChipHtml({path:rp,name:(rp.split('/').pop()||p)}));
+      }catch(e){return _}
+    });
+  }catch(e){}
   t=t.replace(/!\[([^\]]*)\]\((generated\/[^)]+)\)/g,(m,alt,path)=>{
     try{
       const file=this.app.vfs.read(path);
@@ -9715,6 +9854,7 @@ renderMarkdown(text){
     }else out=this.builtinMarkdown(t);
   }catch(e){out=this.builtinMarkdown(t)}
   out=out.replace(/%%MATH(\d+)%%/g,(_,n)=>this._katexHTML(maths[Number(n)]));
+  out=String(out||'').replace(/%%CHIP(\d+)%%/g,(_,n)=>chips[Number(n)]||'');
   return out;
 }
 builtinMarkdown(src){
@@ -11832,6 +11972,46 @@ async runSilentAutomation(a){
   }catch(e){console.warn('automation',e)}
 }
 
+wireFileChips(root){
+  if(!root)return;
+  root.querySelectorAll('.file-chip-dl').forEach(a=>{
+    if(a.dataset.wired==='1')return;
+    a.dataset.wired='1';
+    const go=e=>{
+      e.preventDefault();e.stopPropagation();
+      if(a.dataset.folder){try{this.downloadFolderZip(a.dataset.folder)}catch(err){toast(err.message||'Download failed','error')}return}
+      let p=a.dataset.path;
+      if(!p){toast('Missing file path','error');return}
+      try{
+        try{this.rehydrateVfsFromStorage&&this.rehydrateVfsFromStorage()}catch(e){}
+        if(this.app.vfs.resolve)p=this.app.vfs.resolve(p)||p;
+        let c='';
+        try{c=this.app.vfs.read(p)}catch(err){
+          // Basename search already in resolve; try list match
+          const base=(p.split('/').pop()||'');
+          const hit=Object.keys(this.app.vfs.files||{}).find(k=>!k.startsWith('archive/')&&(k===base||k.endsWith('/'+base)));
+          if(hit){p=hit;c=this.app.vfs.read(hit)}
+          else throw err;
+        }
+        const name=(p.split('/').pop()||'file');
+        const blob=new Blob([c],{type:'application/octet-stream'});
+        const url=URL.createObjectURL(blob);
+        const link=document.createElement('a');
+        link.href=url;link.download=name;link.click();
+        setTimeout(()=>URL.revokeObjectURL(url),2000);
+        toast('Downloading '+name,'success');
+      }catch(err){toast(err.message||('File not found: '+p),'error')}
+    };
+    a.addEventListener('click',go);
+    a.querySelector('.dl-btn')?.addEventListener('click',go);
+    a.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')go(e)});
+  });
+  root.querySelectorAll('.preview-chip').forEach(btn=>{
+    if(btn.dataset.wired==='1')return;
+    btn.dataset.wired='1';
+    btn.onclick=e=>{e.preventDefault();try{this.openHtmlPreview(btn.dataset.preview)}catch(err){toast(err.message||'Preview failed','error')}};
+  });
+}
 fileChipHtml({path,folder,name}){
   if(path&&this.app&&this.app.vfs&&this.app.vfs.resolve)path=this.app.vfs.resolve(path);
   if(folder&&this.app&&this.app.vfs&&this.app.vfs.resolve)folder=this.app.vfs.resolve(folder);
@@ -11846,18 +12026,24 @@ fileChipHtml({path,folder,name}){
   else if(images.has(ext)){kind='Image';ico=SVG.file}
   else if(media.has(ext)){kind='Media';ico=SVG.doc||SVG.file}
   else if(code.has(ext)){kind='Document';ico=SVG.doc||SVG.file}
+  // Resolve to real workspace path so download hits the file that exists in Files
+  if(path&&this.app&&this.app.vfs&&this.app.vfs.resolve){
+    try{path=this.app.vfs.resolve(path)||path}catch(e){}
+  }
+  const exists=!!(path&&this.app&&this.app.vfs&&this.app.vfs.files&&this.app.vfs.files[path]);
   const attr=folder?('data-folder="'+escapeHtml(folder)+'"'):('data-path="'+escapeHtml(path||'')+'"');
   let preview='';
-  if(kind==='Image' && path){
+  if(kind==='Image' && path&&exists){
     try{
       const file=this.app.vfs.read(path);
       const src=String(file||'').startsWith('data:image')||/^https?:/.test(String(file||''))?file:null;
       if(src)preview='<img class="gen-preview" src="'+escapeHtml(src)+'" alt="">';
     }catch(e){}
   }
-  return `<div class="file-chip-dl${folder?' folder-chip':''}" ${attr} role="button" tabindex="0" aria-label="Download ${escapeHtml(n)}">
+  const metaLabel=folder?kind:(exists?kind:(kind+' · in Files'));
+  return `<div class="file-chip-dl${folder?' folder-chip':''}" ${attr} role="button" tabindex="0" title="${escapeHtml(path||folder||n)}" aria-label="Download ${escapeHtml(n)}">
     ${preview||('<span class="fc-ico">'+ico+'</span>')}
-    <span class="fc-text"><span class="fc-name">${escapeHtml(n)}</span><span class="fc-meta">${kind}</span></span>
+    <span class="fc-text"><span class="fc-name">${escapeHtml(n)}</span><span class="fc-meta">${escapeHtml(metaLabel)}</span></span>
     <span class="dl-btn" aria-hidden="true">${SVG.dl||''}</span>
   </div>`;
 }
