@@ -50,8 +50,8 @@
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="docs/screenshots/03-code-workspace.png" alt="Code workspace with live preview" width="100%">
-      <br><sub><b>Code workspace</b> — preview, file tree, Monaco</sub>
+      <img src="docs/screenshots/03-projects.png" alt="Code workspace with live preview" width="100%">
+      <br><sub><b>Projects</b> — preview, file tree, Monaco</sub>
     </td>
     <td align="center" width="50%">
       <img src="docs/screenshots/04-agent-team.png" alt="Supervisor agent team" width="100%">
@@ -117,14 +117,6 @@ It is a single HTML application. No build step required to open it. Conversation
 - Live **HTML/CSS/JS preview** and a side editor with Run / Fix / Revert
 - Sandboxed **Python** tool with helpers to page through large workspace files
 - Optional **external folder** as a second workspace (`external:` paths)
-
-### Code mode
-
-- Split workspace: agent chat on the left, **Preview + Code** on the right
-- Inline **Monaco Editor** and a file tree under `code/`
-- Skills drawer: TDD, review, refactor, debug, architecture, GitHub ship, frontend, docs, and more
-- Connect **GitHub** — create a repo, commit `code/` files, enable Pages
-- Phone preview overlay for checking layouts on a small canvas
 
 ### Multi-agent “Agent” mode
 
@@ -261,7 +253,7 @@ The provider talks to any **OpenAI-compatible** Chat Completions endpoint. Gemin
 This project is designed to run as static files.
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/think-deeper.git
+git clone https://github.com/pigeonthroat-hash/think-deeper.git
 cd think-deeper
 ```
 
@@ -281,10 +273,12 @@ Then visit `http://localhost:8080`.
 
 1. Open **Settings → API**
 2. Pick a preset — OpenAI, Groq, OpenRouter, Gemini, or Custom
-3. Paste a base URL and API key
+3. Paste a base URL and API key, (e.g https://generativelanguage.googleapis.com)
 4. Set a main model ID (example: `gpt-4o-mini`)
 5. Optionally add more IDs to the **model library** so they appear in the header picker
 6. Save
+
+- You can also simply use the current model built-in to the site.
 
 Optional extras in the same panel:
 
@@ -292,69 +286,6 @@ Optional extras in the same panel:
 - Image API base, key, and model
 - “When building a website, offer 5 layout previews first”
 - Import a local `.onnx` / `.pt` / `.gguf` file into the workspace (the browser runs ONNX; PyTorch weights need an external runtime)
-
-### 3. Optional cloud login
-
-To persist chats across devices:
-
-1. Create a Firebase project
-2. Enable **Google** in Authentication
-3. Create a Firestore database
-4. Put the config in `config.local.js` (not committed):
-
-```js
-window.__THINK_DEEPER_CONFIG = {
-  googleClientId: "xxxxx.apps.googleusercontent.com",
-  firebaseConfig: {
-    apiKey: "...",
-    authDomain: "...",
-    projectId: "...",
-    storageBucket: "...",
-    messagingSenderId: "...",
-    appId: "..."
-  }
-};
-```
-
-Without Firebase, Google Identity Services can still create a **local-only** account bucket on this device.
-
----
-
-## Suggested repository layout
-
-```text
-.
-├── index.html                 # the app
-├── README.md
-├── LICENSE
-├── apple-touch-icon.png
-├── Anthropic Serif.woff2      # optional display font
-├── Anthropic Sans.woff2
-├── config.local.js            # gitignored secrets
-├── locales/
-│   ├── en.json
-│   └── …
-└── docs/
-    ├── brand/
-    │   └── icon.png           # 512×512 app icon
-    └── screenshots/
-        ├── 01-chat.png
-        ├── 02-agent-tools.png
-        ├── 03-code-workspace.png
-        ├── 04-agent-team.png
-        ├── 05-automations.png
-        ├── 06-themes.png
-        ├── 07-mobile.png
-        ├── 08-files.png
-        └── 09-plugins.png
-```
-
-Add to `.gitignore`:
-
-```gitignore
-config.local.js
-.DS_Store
-```
 
 ---
 
@@ -370,14 +301,6 @@ The UI is Claude-inspired by default: warm paper in light mode, ink in dark mode
 | Text size | Settings → UI |
 
 Custom properties live on `:root` / `[data-theme=dark]` (`--accent`, `--bg-primary`, `--font-display`, `--font-body`, …).
-
----
-
-## Internationalization
-
-Settings → UI → Language. Catalog files are `locales/<lang>.json`. Missing keys fall back to English.
-
-Bundled options include English, Spanish, French, German, Portuguese, Simplified / Traditional Chinese, Japanese, Korean, Russian, Arabic, Hindi, Italian, Dutch, Polish, Turkish, Ukrainian, Vietnamese, Indonesian, and Swedish.
 
 ---
 
@@ -404,7 +327,7 @@ Not promises — useful places to extend the project:
 - [ ] Export / import a full workspace as a zip
 - [ ] Real `torch.onnx.export` pipeline instead of the identity ONNX stub
 - [ ] More Auth providers than Google
-- [ ] Automated screenshot set for this README
+- [ ] A special code mode to make files easier and more efficently
 
 ---
 
@@ -434,10 +357,8 @@ You are free to run, fork, and embed Think Deeper. Please do not present a thin 
 
 <div align="center">
 
-<img src="docs/brand/icon.png" alt="" width="36" height="36">
+<img src="icon.png" alt="" width="36" height="36">
 
 **Think Deeper** — time, tools, and self-correction in the browser.
-
-<sub>Replace `docs/brand/icon.png` and `docs/screenshots/*.png` before you publish the repo.</sub>
 
 </div>
