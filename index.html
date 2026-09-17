@@ -1472,6 +1472,18 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
   .agent-chat-body{flex:1;min-height:0;overflow:auto}
   .agent-chat-input-area{flex-shrink:0}
 }
+
+.header-files-btn{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:var(--radius-md);
+  border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);
+  font-size:.82rem;font-weight:500;cursor:pointer;flex-shrink:0;white-space:nowrap;
+}
+.header-files-btn:hover{border-color:var(--accent);background:var(--accent-soft)}
+@media(max-width:768px){
+  .header-files-btn span{display:none}
+  .header-files-btn{padding:8px}
+  .mode-pop.open{right:auto!important}
+}
 </style>
 </head>
 <body>
@@ -1529,6 +1541,10 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 <button class="model-btn" id="model-btn" aria-label="Select model"><span id="model-label">Select model</span><svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></button>
 <div class="model-dropdown" id="model-dropdown"><div class="model-search"><input type="text" id="model-search" placeholder="Search models…"></div><div class="model-list" id="model-list"></div></div>
 </div>
+<button type="button" class="header-files-btn" id="header-files-btn" title="AI file system" aria-label="Open files">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+  <span>Files</span>
+</button>
 <div class="header-right"><span class="workspace-badge" id="workspace-status">No external workspace</span>
 <div id="auth-area" style="display:flex;gap:6px;align-items:center">
 <button type="button" class="auth-btn" id="btn-login">Log in</button>
@@ -5621,7 +5637,7 @@ class SwarmKernel{
     this.router=new ModelRouter(app,this);this.tasks=new TaskManager(this);
     this.scheduler=new Scheduler(this);this.agents=new AgentManager(this);this.coordinator=new Coordinator(this);
   }
-  reset(){this.alive=false;this.usage.reset();this.agents.map.clear();this.tasks.map.clear();this.bus.log=[];this.events.hist=[];this.scheduler.q=[];this.scheduler.inflight.clear()}
+  reset(){this.alive=false;this.usage.reset();this.agents.map.clear();this.tasks.map.clear();this.bus.log=[];this.events.hist=[];try{this.scheduler.q=[];this.scheduler.inflight.clear();this.scheduler._pumping=false;if(this.scheduler._pumpTimer){clearTimeout(this.scheduler._pumpTimer);this.scheduler._pumpTimer=null}}catch(e){}}
   async start(goal,opts){
     this.reset();this.alive=true;this._abort=new AbortController();this.liveApi=!!(opts&&opts.live);this.debate=!!(opts&&opts.debate);
     this.mystery=!!(opts&&opts.mystery);this.groupMode=!!(opts&&opts.group);
@@ -7088,19 +7104,29 @@ ensureSwarm(){
   return this.app.swarm;
 }
 initSwarmUi(){
-  const _first=!this._swarmBound;this._swarmBound=true;if(!_first){const send=$('#swarm-send-btn');if(send)send.onclick=()=>this.openAgentSetup();const stop=$('#swarm-stop');if(stop)stop.onclick=()=>this.stopAgentRun();return;}
   const k=this.ensureSwarm();
-  k.events.on('*',ev=>this.renderSwarm(ev));
-  try{this.bindScrollLock&&this.bindScrollLock()}catch(e){}
+  if(!this._swarmBound){
+    this._swarmBound=true;
+    k.events.on('*',ev=>this.renderSwarm(ev));
+    try{this.bindScrollLock&&this.bindScrollLock()}catch(e){}
+  }
   const stop=$('#swarm-stop');if(stop)stop.onclick=()=>this.stopAgentRun();
-  const send=$('#swarm-send-btn');if(send)send.onclick=()=>this.openAgentSetup();
+  const send=$('#swarm-send-btn');
+  if(send){send.onclick=(e)=>{try{e&&e.preventDefault&&e.preventDefault()}catch(err){} this.openAgentSetup()};send.disabled=false;send.style.pointerEvents='auto'}
   const goalEl=$('#swarm-goal');
-  if(goalEl){
+  if(goalEl&&!goalEl._tdBound){
+    goalEl._tdBound=true;
     goalEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.openAgentSetup()}});
     goalEl.addEventListener('input',()=>{goalEl.style.height='auto';goalEl.style.height=Math.min(160,goalEl.scrollHeight)+'px'});
   }
-  document.querySelectorAll('.agent-suggest').forEach(b=>b.onclick=()=>{
-    const t=$('#swarm-goal');if(t){t.value=b.dataset.prompt||'';t.dispatchEvent(new Event('input'));this.openAgentSetup()}
+  // Always rebind starter chips
+  document.querySelectorAll('.agent-suggest').forEach(b=>{
+    b.onclick=()=>{
+      const t=$('#swarm-goal');
+      if(t){t.value=b.dataset.prompt||'';t.dispatchEvent(new Event('input'));}
+      this._wantNewAgentChat=true;
+      this.openAgentSetup();
+    };
   });
   // setup sheet
   const ov=$('#agent-setup-overlay');
@@ -7499,7 +7525,23 @@ openAgentSetup(){
     this._agentFollowupReady=true;
     return this.confirmAgentSetup(true);
   }
-  // Start immediately with form defaults so phone Send always runs the supervisor
+  // First message: show agent settings panel (team size, time, intent)
+  const ov=$('#agent-setup-overlay');
+  if(ov){
+    ov.classList.add('open');
+    ov.setAttribute('aria-hidden','false');
+    ov.style.display='flex';
+    ov.style.zIndex='12050';
+    try{
+      // Ensure defaults visible
+      if($('#swarm-count')&&!$('#swarm-count').value)$('#swarm-count').value='5';
+      if($('#swarm-mins')&&!$('#swarm-mins').value)$('#swarm-mins').value='10';
+    }catch(e){}
+    // Re-bind Start so it always works
+    const go=$('#agent-setup-go');
+    if(go)go.onclick=()=>this.confirmAgentSetup(false);
+    return;
+  }
   return this.confirmAgentSetup(false);
   }catch(err){console.error('openAgentSetup',err);toast(err.message||'Could not start agent','error')}
 }
@@ -7668,6 +7710,7 @@ async startSwarm(opts){
     this._agentSession=this.saveAgentSession({id:sid,title:(prev&&prev.title)||goal.slice(0,40),messages});
     this._currentAgentSessionId=this._agentSession.id;
     k.sessionId=this._currentAgentSessionId;
+    try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
     if(!reuse) this.generateSessionTitle('agent',this._currentAgentSessionId,goal);
   }
 
@@ -7711,6 +7754,14 @@ async startSwarm(opts){
   const historyNote=(prior&&prior.length)?('\n\nPRIOR TURNS IN THIS AGENT CHAT:\n'+prior.slice(-8).map(m=>(m.role+': '+String(m.content||'').slice(0,800))).join('\n')):'';
   try{
     await k.start(goal+historyNote,{count,conc:1,live,debate,mystery,group,intent,intentNote,budgetMs:opts.budgetMs||budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto'});
+    // Ensure coordinator actually runs (pump can stick after reset)
+    try{
+      if(k.scheduler){
+        k.scheduler._pumping=false;
+        if(!k.scheduler.q.includes('coordinator'))k.scheduler.enqueue('coordinator','kick');
+        else k.scheduler.schedulePump&&k.scheduler.schedulePump();
+      }
+    }catch(e){console.warn('kick',e)}
   }catch(err){
     console.error('swarm start',err);
     this.setAgentRunningUi(false);
@@ -7718,6 +7769,7 @@ async startSwarm(opts){
     toast((err&&err.message)||'Agent failed to start','error');
   }
   this._agentFollowupReady=true;
+  try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
   try{this.renderSwarm()}catch(e){}
 }
 _setAgentStatus(t){
@@ -8759,7 +8811,7 @@ handleCodeAgentEvent(ev,aiEl,aiMsg){
   }catch(e){}
   return ret;
 }
-bindEvents(){$('#new-chat-btn').onclick=()=>this.newChat();const _sb=$('#settings-btn');if(_sb)_sb.onclick=()=>this.openSettings();document.querySelectorAll('#settings-btn,#settings-btn-footer,#settings-btn-dock,.settings-open-btn').forEach(b=>{if(b)b.onclick=()=>this.openSettings()});$('#close-settings').onclick=()=>this.closeSettings();$('#settings-overlay').onclick=e=>{if(e.target===$('#settings-overlay'))this.closeSettings()};$('#theme-btn').onclick=()=>this.toggleTheme();$('#collapse-sidebar').onclick=()=>this.toggleSidebar(true);$('#open-sidebar').onclick=()=>this.toggleSidebar(false);$('#workspace-btn').onclick=()=>this.selectWorkspace();const wsc=$('#workspace-clear-btn');if(wsc)wsc.onclick=()=>this.clearExternalWorkspace();const fb=$('#chat-files-btn');if(fb)fb.onclick=()=>this.openFiles();$('#files-fab')&&($('#files-fab').onclick=()=>this.openFiles());$('#close-files').onclick=()=>$('#files-overlay').classList.remove('open');$('#files-overlay').onclick=e=>{if(e.target===$('#files-overlay'))$('#files-overlay').classList.remove('open')};$('#plugins-btn').onclick=()=>this.openPlugins();$('#close-plugins').onclick=()=>$('#plugins-overlay').classList.remove('open');$('#plugins-overlay').onclick=e=>{if(e.target===$('#plugins-overlay'))$('#plugins-overlay').classList.remove('open')};$('#new-plugin-btn').onclick=()=>this.editPlugin(null);$('#import-plugin-btn').onclick=()=>$('#import-plugin-file').click();$('#import-plugin-file').onchange=e=>this.importPlugin(e.target.files[0]);$('#save-plugin').onclick=()=>this.savePlugin();$('#cancel-plugin').onclick=()=>{$('#plugin-editor').style.display='none'};
+bindEvents(){$('#new-chat-btn').onclick=()=>this.newChat();const _sb=$('#settings-btn');if(_sb)_sb.onclick=()=>this.openSettings();document.querySelectorAll('#settings-btn,#settings-btn-footer,#settings-btn-dock,.settings-open-btn').forEach(b=>{if(b)b.onclick=()=>this.openSettings()});$('#close-settings').onclick=()=>this.closeSettings();$('#settings-overlay').onclick=e=>{if(e.target===$('#settings-overlay'))this.closeSettings()};$('#theme-btn').onclick=()=>this.toggleTheme();$('#collapse-sidebar').onclick=()=>this.toggleSidebar(true);$('#open-sidebar').onclick=()=>this.toggleSidebar(false);$('#workspace-btn').onclick=()=>this.selectWorkspace();const wsc=$('#workspace-clear-btn');if(wsc)wsc.onclick=()=>this.clearExternalWorkspace();const fb=$('#chat-files-btn');if(fb)fb.onclick=()=>this.openFiles();$('#files-fab')&&($('#files-fab').onclick=()=>this.openFiles());const hfb=$('#header-files-btn');if(hfb)hfb.onclick=()=>this.openFiles();$('#close-files').onclick=()=>$('#files-overlay').classList.remove('open');$('#files-overlay').onclick=e=>{if(e.target===$('#files-overlay'))$('#files-overlay').classList.remove('open')};$('#plugins-btn').onclick=()=>this.openPlugins();$('#close-plugins').onclick=()=>$('#plugins-overlay').classList.remove('open');$('#plugins-overlay').onclick=e=>{if(e.target===$('#plugins-overlay'))$('#plugins-overlay').classList.remove('open')};$('#new-plugin-btn').onclick=()=>this.editPlugin(null);$('#import-plugin-btn').onclick=()=>$('#import-plugin-file').click();$('#import-plugin-file').onchange=e=>this.importPlugin(e.target.files[0]);$('#save-plugin').onclick=()=>this.savePlugin();$('#cancel-plugin').onclick=()=>{$('#plugin-editor').style.display='none'};
 $('#model-btn').onclick=e=>{e.stopPropagation();this.toggleModelDropdown()};document.addEventListener('click',()=>this.closeModelDropdown());$('#model-search').oninput=e=>this.filterModels(e.target.value);$('#send-btn').onclick=()=>this.send();$('#stop-btn').onclick=()=>this.app.agent.stop();$('#user-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.send()}};$('#user-input').oninput=()=>{this.autoResizeInput();$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length};$('#attach-btn').onclick=()=>$('#file-input').click();const cab=$('#code-attach-btn');if(cab)cab.onclick=()=>$('#file-input').click();const aab=$('#agent-attach-btn');if(aab)aab.onclick=()=>$('#file-input').click();$('#file-input').onchange=e=>this.handleFiles(e.target.files);
 $$('.suggestion').forEach(btn=>{btn.onclick=()=>{$('#user-input').value=btn.dataset.prompt;$('#send-btn').disabled=false;this.autoResizeInput();this.send()}});
 $$('.preset-btn').forEach(btn=>{btn.onclick=()=>this.applyPreset(btn.dataset.preset)});
@@ -11083,7 +11135,7 @@ bindModeMini(){
   };
   const bindBtn=(btnId,popId)=>{
     const btn=document.getElementById(btnId);const pop=document.getElementById(popId);if(!btn||!pop)return;
-    btn.onclick=e=>{e.stopPropagation();const open=!pop.classList.contains('open');document.querySelectorAll('.mode-pop').forEach(p=>p.classList.remove('open'));if(open){fill(pop);pop.classList.add('open');try{const r=btn.getBoundingClientRect();const vh=window.innerHeight||600;const spaceBelow=vh-r.bottom;const spaceAbove=r.top;pop.style.position='fixed';pop.style.left=Math.max(8,Math.min(r.left,window.innerWidth-220))+'px';pop.style.right='auto';pop.style.width=Math.min(280,window.innerWidth-16)+'px';pop.style.maxHeight=Math.min(360,Math.max(160,Math.max(spaceAbove,spaceBelow)-12))+'px';pop.style.overflowY='auto';pop.style.zIndex='12000';if(spaceBelow<180&&spaceAbove>spaceBelow){pop.style.bottom=(vh-r.top+6)+'px';pop.style.top='auto'}else{pop.style.top=(r.bottom+6)+'px';pop.style.bottom='auto'}}catch(err){}}};
+    btn.onclick=e=>{e.stopPropagation();const open=!pop.classList.contains('open');document.querySelectorAll('.mode-pop').forEach(p=>p.classList.remove('open'));if(open){fill(pop);pop.classList.add('open');try{const r=btn.getBoundingClientRect();const vw=window.innerWidth||400;const vh=window.innerHeight||600;const w=Math.min(280,vw-16);pop.style.position='fixed';pop.style.width=w+'px';pop.style.maxHeight=Math.min(380,vh-24)+'px';pop.style.overflowY='auto';pop.style.zIndex='12000';pop.style.right='auto';pop.style.bottom='auto';const left=Math.max(8,Math.min(r.right-w,vw-w-8));pop.style.left=left+'px';const openUp=r.top>Math.min(320,vh*0.45);if(openUp){pop.style.top='auto';pop.style.bottom=(vh-r.top+6)+'px'}else{pop.style.top=(r.bottom+6)+'px';pop.style.bottom='auto'}}catch(err){}}};
   };
   bindBtn('mode-mini-btn','mode-mini-pop');
   bindBtn('mode-mini-btn-code','mode-mini-pop-code');
