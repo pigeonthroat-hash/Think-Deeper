@@ -6388,7 +6388,7 @@ if(iteration>=2){
       if(!String(finalContent||'').trim()){
         finalContent='Done. Files saved under `'+root+'`.'+(html?'\n\n[[preview:'+html+']]':'')+(list?'\n\n'+list:'');
       }else if(html&&!/\[\[preview:/i.test(finalContent)){
-        finalContent=String(finalContent).trim()+'\n\n[[preview:'+html+']]';
+        if(html){this._lastPreviewPath=html;this._lastWrittenHtml=html;if(!/\[\[preview:/i.test(String(finalContent||'')))finalContent=String(finalContent).trim()+'\n\n[[preview:'+html+']]';}
       }
     }catch(e){
       console.warn('ensure files',e);
@@ -6470,7 +6470,7 @@ try{
       const html=paths.find(p=>/index\.html$/i.test(p))||paths.find(p=>/\.html$/i.test(p));
       const links=paths.slice(0,12).map(p=>'[[file:'+p+']]').join(' ');
       if(!/\[\[(file|preview):/i.test(String(finalContent||''))){
-        finalContent=String(finalContent||'Done.').trim()+'\n\n'+(html?'[[preview:'+html+']]\n':'')+links;
+        if(html){this._lastPreviewPath=html;this._lastWrittenHtml=html;}finalContent=String(finalContent||'Done.').trim()+'\n\n'+(html&&!/\[\[preview:/i.test(String(finalContent||''))?'[[preview:'+html+']]\n':'')+links;
       }
     }else if(!String(finalContent||'').trim()){
       finalContent='No files were written to the code workspace. Please try again and ask to create the app (files are saved with write_file).';
@@ -6791,6 +6791,7 @@ async _streamWriteFile(args,actId,onEvent){
   const ok=!(result&&(result.error||result.blocked||result.ok===false));
   if(actId){
     onEvent({type:'activity-update',id:actId,status:ok?'done':'error',detail:ok?('Wrote '+savedPath+' ('+total+' lines) — file ready'):(result&&(result.error||result.message))||'Write failed',delta:{added,removed,lines:total,shown:total,total},full:content.length>20000?content.slice(0,20000)+'\n…':content,stream:false,expand:true,previewHtml:isHtml?content:undefined});
+    if(ok&&isHtml&&savedPath){try{const ui=window.__app&&window.__app.ui;if(ui){ui._lastWrittenHtml=savedPath;ui._lastPreviewPath=savedPath}this._lastWrittenHtml=savedPath;this._lastPreviewPath=savedPath}catch(e){}}
   }
   onEvent({type:'status',text:ok?('Saved '+savedPath):('Write failed: '+((result&&(result.error||result.message))||''))});
   // Emit a file link event so the chat can show a chip
@@ -7033,10 +7034,14 @@ persistLiveAgent(force){
       let messages=Array.isArray(prev.messages)?prev.messages.slice():[];
       if(k.solved){
         const finalTxt=this.sanitizeSupervisorFinal?this.sanitizeSupervisorFinal(k.solved):String(k.solved);
+        messages=messages.filter(m=>!(m&&(m.ephemeral||/^\[in-progress\]/i.test(String(m.content||'')))));
         const last=messages[messages.length-1];
         if(!(last&&last.role==='assistant'&&String(last.content||'')===finalTxt)){
-          messages=messages.filter(m=>!(m&&m.ephemeral));
-          messages=messages.concat([{role:'assistant',speaker:'Supervisor',content:finalTxt,id:uid(),ts:Date.now()}]);
+          let workHtml='';
+          try{const wb=$('#agent-work-body');if(wb)workHtml=String(wb.innerHTML||'').slice(0,50000)}catch(e){}
+          messages=messages.concat([{role:'assistant',speaker:'Supervisor',content:finalTxt,id:uid(),ts:Date.now(),thoughts:thoughts,workHtml:workHtml}]);
+        } else if(last&&!last.thoughts){
+          last.thoughts=thoughts;
         }
       } else if(force && k.alive){
         const partial=thoughts.map(t=>t.id+' ('+t.role+'): '+(t.thoughts||[]).slice(-2).join(' | ')).filter(Boolean).join('\n').slice(0,4000);
@@ -7632,7 +7637,7 @@ renderAgentHist(){
     return '<div class="agent-hist-item hist-item-wrap'+(s.id===this._currentAgentSessionId?' active':'')+'" data-id="'+s.id+'"><div class="conv-main"><span class="ah-title">'+escapeHtml(s.title||'Agent chat')+'</span>'+(tlab?'<span class="conv-ts">Created '+escapeHtml(tlab)+'</span>':'')+'</div><button type="button" class="ah-more" data-act="menu" aria-label="Menu">⁝</button><div class="hist-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div></div>';
   }).join('')||'<div class="hint" style="padding:8px">No agent chats yet</div>';
   listEl.querySelectorAll('.agent-hist-item').forEach(el=>el.onclick=e=>this._histMenuClick(e,el,'agent'));
-  const nb=$('#agent-new-btn');if(nb)nb.onclick=()=>{this.resetAgentChatView();toast('New agent chat','success')};
+  const nb=$('#agent-new-btn');if(nb)nb.onclick=()=>{this.resetAgentChatView()};
 }
 renderCodeHist(){
   const sec=$('#code-hist-section'),listEl=$('#code-hist-list');
@@ -7687,10 +7692,12 @@ loadCodeSession(id){
   this.app.storage.set('codeMessages',Array.isArray(s.messages)?s.messages.slice(-40):[]);
   this.app.storage.set('currentCodeId',s.id);
   this.markCodeActive(s.id);
+  this._lastPreviewPath=null;this._lastWrittenHtml=null;
   if(this.mode!=='code')this.setMode('code');
   try{this.restoreCodeTranscript(s)}catch(e){console.warn('restore code',e)}
   this.renderCodeHist();
   this.renderCodeSessions&&this.renderCodeSessions();
+  try{this.refreshCodePreview()}catch(e){}
 }
 newCodeSession(){
   try{this.finalizeCodeThinking&&this.finalizeCodeThinking()}catch(e){}
@@ -7701,13 +7708,15 @@ newCodeSession(){
   this._shownCodeId=null;
   this.app.storage.set('currentCodeId',null);
   this.app.storage.set('codeMessages',[]);
+  this._lastPreviewPath=null;this._lastWrittenHtml=null;
+  try{this.resetCodePreview&&this.resetCodePreview()}catch(e){}
   const box=$('#code-messages');
   if(box)box.querySelectorAll('.code-msg').forEach(n=>n.remove());
   const empty=$('#code-empty');if(empty)empty.classList.remove('hidden');
   try{this.markCodeActive&&this.markCodeActive(null)}catch(e){}
   try{this.renderCodeHist&&this.renderCodeHist()}catch(e){}
   try{this.renderCodeSessions&&this.renderCodeSessions()}catch(e){}
-  toast('New code chat — send a message to start','info');
+  /* new code chat — silent */
 }
 loadAgentSession(id){
   const s=this.agentSessions().find(x=>x.id===id);if(!s)return;
@@ -7716,16 +7725,30 @@ loadAgentSession(id){
   const box=$('#swarm-think');if(!box)return;
   box.innerHTML='';
   const who=this.userLabel();
-  // Repair spam: collapse consecutive identical assistant messages
+  // Drop ephemeral / in-progress noise; collapse consecutive identical assistant messages
   let cleaned=[];
   for(const m of (s.messages||[])){
+    if(!m)continue;
+    if(m.ephemeral||/^\[in-progress\]/i.test(String(m.content||'')))continue;
+    // Thinking-only blobs that were wrongly saved as the response
+    if(m.role==='assistant'&&!String(m.content||'').trim()&&!(m.thoughts&&m.thoughts.length))continue;
     const prev=cleaned[cleaned.length-1];
-    if(prev&&prev.role===m.role&&prev.role!=='user'&&String(prev.content||'')===String(m.content||''))continue;
-    cleaned.push(m);
+    if(prev&&prev.role===m.role&&prev.role!=='user'&&String(prev.content||'')===String(m.content||'')){
+      // Merge thoughts into the kept message instead of duplicating Supervisor bubbles
+      if(m.thoughts&&m.thoughts.length&&!(prev.thoughts&&prev.thoughts.length))prev.thoughts=m.thoughts;
+      if(m.workHtml&&!prev.workHtml)prev.workHtml=m.workHtml;
+      continue;
+    }
+    cleaned.push(Object.assign({},m));
+  }
+  // Attach session-level thoughts to last assistant if missing
+  if(s.thoughts&&s.thoughts.length){
+    const last=[...cleaned].reverse().find(m=>m.role==='assistant');
+    if(last&&!(last.thoughts&&last.thoughts.length))last.thoughts=s.thoughts;
   }
   if(cleaned.length!==(s.messages||[]).length){
     s.messages=cleaned;
-    try{this.saveAgentSession({id:s.id,title:s.title,messages:cleaned,runAlive:false})}catch(e){}
+    try{this.saveAgentSession({id:s.id,title:s.title,messages:cleaned,thoughts:s.thoughts,workHtml:s.workHtml,runAlive:false})}catch(e){}
   }
   cleaned.forEach(m=>{
     if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);
@@ -7733,24 +7756,57 @@ loadAgentSession(id){
     div.className='agent-msg '+(m.role==='user'?'user':'assistant')+(m.speaker==='Supervisor'||m.role==='assistant'?' supervisor':'');
     const role=m.role==='user'?who.label:(m.speaker||'Supervisor');
     const av=m.role==='user'?(who.img||who.initial):'S';
-    let body=m.role==='user'?escapeHtml(m.content||''):(this.renderMarkdown?this.renderMarkdown(m.content||''):escapeHtml(m.content||''));
-    if(m.thoughts&&m.thoughts.length){
-      body+='<details class="agent-saved-thoughts" style="margin-top:8px;font-size:.8rem;color:var(--text-secondary)"><summary>Saved thinking</summary>'+
-        m.thoughts.map(t=>'<div style="margin:6px 0"><strong>'+escapeHtml(t.id)+'</strong><pre style="white-space:pre-wrap;margin:4px 0">'+escapeHtml((t.thoughts||[]).join('\n'))+'</pre></div>').join('')+
-        '</details>';
-    }
     if(!m.id)m.id=uid();
     div.dataset.mid=m.id;
-    div.innerHTML='<div class="agent-msg-head"><div class="avatar">'+(av)+'</div><span class="agent-msg-role">'+escapeHtml(role)+'</span></div><div class="agent-msg-body">'+body+'</div>';
+    const bodyWrap=document.createElement('div');
+    bodyWrap.className='agent-msg-body';
+    // Collapsible thinking ABOVE the final answer (re-openable)
+    const thoughts=m.thoughts||[];
+    const hasThink=Array.isArray(thoughts)&&thoughts.some(t=>(t.thoughts&&t.thoughts.length)||t.detail);
+    if(m.role!=='user'&&(hasThink||m.workHtml)){
+      const tp=document.createElement('div');
+      tp.className='thought-process';
+      const dur=m.thinkMs?('Worked for '+formatDuration(m.thinkMs)):'Thinking';
+      tp.innerHTML='<div class="tp-toggle">'+(SVG.bulb||'')+'<span class="tp-chevron">▸</span> <span class="tp-label">'+escapeHtml(dur)+'</span></div><div class="tp-panel"></div>';
+      tp.querySelector('.tp-toggle').onclick=()=>{
+        tp.classList.toggle('open');
+        const ch=tp.querySelector('.tp-chevron');if(ch)ch.textContent=tp.classList.contains('open')?'▾':'▸';
+      };
+      const panel=tp.querySelector('.tp-panel');
+      if(hasThink){
+        thoughts.forEach(t=>{
+          const bits=(t.thoughts&&t.thoughts.length)?t.thoughts:(t.detail?[t.detail]:[]);
+          if(!bits.length)return;
+          const step=document.createElement('div');step.className='tp-step';
+          const title=escapeHtml((t.id||t.role||'Agent')+(t.role&&t.id?' · '+t.role:''));
+          step.innerHTML='<div class="tp-step-head"><span class="tp-step-title">'+title+'</span></div><div class="tp-step-body"></div>';
+          step.querySelector('.tp-step-body').textContent=bits.join('\n').slice(0,6000);
+          step.querySelector('.tp-step-head').onclick=()=>step.classList.toggle('open');
+          panel.appendChild(step);
+        });
+      }else if(m.workHtml){
+        const step=document.createElement('div');step.className='tp-step open';
+        step.innerHTML='<div class="tp-step-head"><span class="tp-step-title">Supervisor</span></div><div class="tp-step-body"></div>';
+        step.querySelector('.tp-step-body').innerHTML=m.workHtml;
+        panel.appendChild(step);
+      }
+      bodyWrap.appendChild(tp);
+    }
+    const final=document.createElement('div');
+    final.className='final-content';
+    if(m.role==='user')final.innerHTML=escapeHtml(m.content||'');
+    else{
+      try{final.innerHTML=this.renderMarkdown?this.renderMarkdown(m.content||''):escapeHtml(m.content||'')}
+      catch(e){final.textContent=m.content||''}
+    }
+    bodyWrap.appendChild(final);
+    div.innerHTML='<div class="agent-msg-head"><div class="avatar">'+av+'</div><span class="agent-msg-role">'+escapeHtml(role)+'</span></div>';
+    div.appendChild(bodyWrap);
     box.appendChild(div);
     if(this._renderMath)try{this._renderMath(div)}catch(e){}
-    this.paintMsgActions(div,{kind:'agent',id:m.id,role:m.role==='user'?'user':'assistant',text:m.content||''});
+    try{this.wireFileChips&&this.wireFileChips(final)}catch(e){}
+    this.paintMsgActions(div,{kind:'agent',id:m.id,role:m.role==='user'?'user':'assistant',text:m.content||'',thinking:hasThink?'1':''});
   });
-  // restore last work panel if saved
-  if(s.workHtml){
-    const wb=$('#agent-work-body');
-    if(wb&&!wb.innerHTML.trim())wb.innerHTML=s.workHtml;
-  }
   this.renderAgentHist();
 }
 resetAgentChatView(){
@@ -8214,15 +8270,21 @@ renderSwarm(ev){
         // renderSwarm runs on every event while k.solved is true — only save once
         const sig=String(this._currentAgentSessionId)+'::'+finalTxt.length+'::'+finalTxt.slice(0,240);
         if(this._lastSavedSolvedSig!==sig){
-          const msgs=(s.messages||[]).slice();
+          const msgs=(s.messages||[]).slice().filter(m=>!(m&&(m.ephemeral||/^\[in-progress\]/i.test(String(m.content||'')))));
           while(msgs.length){
             const last=msgs[msgs.length-1];
             if(last&&last.role==='assistant'&&String(last.content||'')===finalTxt)msgs.pop();
             else break;
           }
-          msgs.push({role:'assistant',speaker:'Supervisor',content:finalTxt,id:uid()});
+          let thoughts=[];
+          try{thoughts=k.agents.list().map(a=>({id:a.id,role:a.role,status:a.status,thoughts:(a.thoughts||[]).map(t=>String(t.detail||t.name||'')).filter(Boolean).slice(-12)}))}catch(e){}
+          let workHtml='';
+          try{const wb=$('#agent-work-body');if(wb)workHtml=String(wb.innerHTML||'').slice(0,50000)}catch(e){}
+          let thinkMs=0;
+          try{thinkMs=Math.max(0,Date.now()-(this._agentStartedAt||Date.now()))}catch(e){}
+          msgs.push({role:'assistant',speaker:'Supervisor',content:finalTxt,id:uid(),thoughts:thoughts,workHtml:workHtml,thinkMs:thinkMs,ts:Date.now()});
           this._lastSavedSolvedSig=sig;
-          this.saveAgentSession({id:s.id,title:s.title||'Agent chat',messages:msgs,runAlive:false});
+          this.saveAgentSession({id:s.id,title:s.title||'Agent chat',messages:msgs,thoughts:thoughts,workHtml:workHtml,runAlive:false});
         }
       }
     }catch(e){}
@@ -8647,7 +8709,7 @@ restoreCodeTranscript(session){
         let md=mdSrc;
         try{
           md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>this.fileChipHtml({folder:p,name:(p.split('/').pop()||p)+'.zip'}));
-          md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return '<button type="button" class="preview-chip" data-preview="'+escapeHtml(rp)+'">'+((SVG&&SVG.eye)||'')+' Preview '+(escapeHtml((rp.split('/').pop()||p)))+'</button>'});
+          {const seenPrev=new Set();md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;const key=String(rp||p);if(seenPrev.has(key))return '';seenPrev.add(key);if(rp)this._lastPreviewPath=rp;return '<button type="button" class="preview-chip" data-preview="'+escapeHtml(rp)+'">'+((SVG&&SVG.eye)||'')+' Preview '+(escapeHtml((rp.split('/').pop()||p)))+'</button>'});}
           md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return this.fileChipHtml({path:rp,name:(rp.split('/').pop()||p)})});
         }catch(e){}
         try{final.innerHTML=this.renderMarkdown?this.renderMarkdown(md):escapeHtml(md)}catch(e){final.textContent=mdSrc}
@@ -8686,10 +8748,17 @@ wireCodeMessageChips(root){
     a.addEventListener('click',go);
   });
   root.querySelectorAll('.preview-chip').forEach(btn=>{
-    btn.onclick=e=>{e.preventDefault();
+    if(btn.dataset.wiredPreview==='1')return;
+    btn.dataset.wiredPreview='1';
+    btn.onclick=e=>{e.preventDefault();e.stopPropagation();
       const p=btn.dataset.preview;
-      try{this.refreshCodePreview();this.showCodePreviewPane&&this.showCodePreviewPane()}catch(e){}
-      try{if(p)this.openHtmlPreview(p)}catch(e){}
+      if(p)this._lastPreviewPath=p;
+      const inCode=(this.mode==='code'||this.app.mode==='code');
+      if(inCode){
+        try{this.refreshCodePreview(p);this.showCodePreviewPane&&this.showCodePreviewPane()}catch(err){}
+      }else{
+        try{if(p)this.openHtmlPreview(p)}catch(err){}
+      }
     };
   });
 }
@@ -8720,37 +8789,6 @@ renderCodeSessions(){
     });
   }
 }
-newCodeSession(){
-  try{this.finalizeCodeThinking&&this.finalizeCodeThinking()}catch(e){}
-  try{this.saveCodeTranscript(true)}catch(e){}
-  // Only register the chat when the user actually sends a message
-  this._pendingCodeSession=true;
-  this._currentCodeId=null;
-  this._shownCodeId=null;
-  this.app.storage.set('currentCodeId',null);
-  this.app.storage.set('codeMessages',[]);
-  const box=$('#code-messages');
-  if(box)box.querySelectorAll('.code-msg').forEach(n=>n.remove());
-  const empty=$('#code-empty');if(empty)empty.classList.remove('hidden');
-  try{this.markCodeActive&&this.markCodeActive(null)}catch(e){}
-  try{this.renderCodeHist&&this.renderCodeHist()}catch(e){}
-  try{this.renderCodeSessions&&this.renderCodeSessions()}catch(e){}
-  toast('New code chat — send a message to start','info');
-}
-loadCodeSession(id){
-  if(!id)return;
-  try{this.saveCodeTranscript()}catch(e){}
-  const list=this.codeSessions();
-  const s=list.find(x=>String(x.id)===String(id));
-  if(!s){toast('Code chat not found','error');return}
-  this._currentCodeId=s.id;
-  this.app.storage.set('currentCodeId',s.id);
-  this.markCodeActive&&this.markCodeActive(s.id);
-  if(this.mode!=='code')this.setMode('code');
-  try{this.restoreCodeTranscript(s)}catch(e){console.warn('restore code',e)}
-  this.renderCodeHist&&this.renderCodeHist();
-  this.renderCodeSessions&&this.renderCodeSessions();
-}
 setCodePane(pane){
   document.querySelectorAll('.crt').forEach(b=>b.classList.toggle('active',b.dataset.pane===pane));
   const prev=$('#code-preview-wrap'),ed=$('#code-edit-wrap');
@@ -8774,14 +8812,39 @@ codeRoot(){
   const id=this.app.storage.get('currentCodeId','default')||'default';
   return 'code/'+id;
 }
-refreshCodePreview(){
+refreshCodePreview(forcePath){
   const frame=$('#code-preview-frame');const empty=$('#code-preview-empty');if(!frame)return;
   const root=this.codeRoot?this.codeRoot():'code';
   const scoped=(this.app.vfs.filesInFolder(root)||[]);
-  const all=(this.app.vfs.filesInFolder('code')||[]);
-  const pool=scoped.concat(all.filter(p=>scoped.indexOf(p)<0));
-  const htmlPath=scoped.find(p=>/index\.html$/i.test(p))||scoped.find(p=>/\.html$/i.test(p))||all.find(p=>/index\.html$/i.test(p))||all.find(p=>/\.html$/i.test(p));
+  // Prefer paths in the CURRENT code session only — never another session's HTML
+  const pool=scoped.slice();
+  let htmlPath=null;
+  const want=forcePath||this._lastPreviewPath||this._lastWrittenHtml||null;
+  if(want){
+    let p=String(want);
+    try{if(this.app.vfs.resolve)p=this.app.vfs.resolve(p)||p}catch(e){}
+    // Only accept if it lives under this session root (or is the exact forced path)
+    if(scoped.includes(p)||scoped.some(x=>x===p||x.endsWith('/'+p.split('/').pop()))){
+      htmlPath=scoped.find(x=>x===p)||scoped.find(x=>x.endsWith('/'+p.split('/').pop()))||p;
+    }else if(forcePath){
+      // Explicit user/AI preview request — allow absolute workspace path even outside session
+      try{if(this.app.vfs.read(p)!=null)htmlPath=p}catch(e){}
+    }
+  }
+  if(!htmlPath){
+    // Newest HTML in this session (by vfs updated time), prefer index.html names
+    const htmls=scoped.filter(p=>/\.html?$/i.test(p));
+    htmls.sort((a,b)=>{
+      const ia=/index\.html$/i.test(a)?0:1, ib=/index\.html$/i.test(b)?0:1;
+      if(ia!==ib)return ia-ib;
+      const ta=(this.app.vfs.files[a]&&this.app.vfs.files[a].updated)||0;
+      const tb=(this.app.vfs.files[b]&&this.app.vfs.files[b].updated)||0;
+      return tb-ta;
+    });
+    htmlPath=htmls[0]||null;
+  }
   if(!htmlPath){if(empty)empty.style.display='flex';frame.removeAttribute('srcdoc');return}
+  this._lastPreviewPath=htmlPath;
   if(empty)empty.style.display='none';
   try{
     let html=String(this.app.vfs.read(htmlPath)||'');
@@ -9073,11 +9136,12 @@ ${text}${attNote||''}`;
           const htmlPath=files.find(p=>/index\.html$/i.test(p))||files.find(p=>/\.html$/i.test(p))||files[0];
           let el=finalEl;
           if(!el){el=document.createElement('div');el.className='final-content';body.appendChild(el)}
-          const md='Saved to the code workspace.\n\n'+(htmlPath?'[[preview:'+htmlPath+']]\n':'')+files.slice(0,12).map(p=>'[[file:'+p+']]').join(' ');
+          if(htmlPath){this._lastPreviewPath=htmlPath;this._lastWrittenHtml=htmlPath;}const md='Saved to the code workspace.\n\n'+(htmlPath?'[[preview:'+htmlPath+']]\n':'')+files.slice(0,12).map(p=>'[[file:'+p+']]').join(' ');
           el.innerHTML=this.renderMarkdown?this.renderMarkdown(md):escapeHtml(md);
           if(this.enhanceCodeBlocks)this.enhanceCodeBlocks(el);
           el.querySelectorAll&&el.querySelectorAll('.preview-chip').forEach(btn=>{
-            btn.onclick=()=>{try{this.refreshCodePreview();this.showCodePreviewPane&&this.showCodePreviewPane()}catch(e){}};
+            btn.dataset.wiredPreview='1';
+            btn.onclick=e=>{e.preventDefault();const p=btn.dataset.preview;if(p)this._lastPreviewPath=p;try{this.refreshCodePreview(p);this.showCodePreviewPane&&this.showCodePreviewPane()}catch(err){}};
           });
         }
       }else if(codeAborted&&!files.length){
@@ -9407,7 +9471,10 @@ newChat(){
   if(this.mode==='swarm'){
     this.resetAgentChatView();
     try{document.querySelectorAll('.agent-hist-item.active,.hist-item-wrap.active').forEach(n=>n.classList.remove('active'))}catch(e){}
-    toast('New agent chat','success');
+    return;
+  }
+  if(this.mode==='code'){
+    try{this.newCodeSession&&this.newCodeSession()}catch(e){}
     return;
   }
   // Do NOT create a conversation until the user actually sends a message
@@ -9416,15 +9483,10 @@ newChat(){
   this.app.conversations.currentId=null;
   this.app.storage.set('currentConvId',null);
   try{document.querySelectorAll('.conv-item.active').forEach(n=>n.classList.remove('active'))}catch(e){}
-  try{this.fireAutomations('onNewChat',{})}catch(e){}
   this.renderConversations();
   this.renderProjects();
   this.showEmpty();
   const msgs=$('#messages');if(msgs)msgs.innerHTML='';
-  if(pid){
-    const p=(this.app.storage.get('projects',[])||[]).find(x=>String(x.id)===String(pid));
-    toast(p?'Ready to chat in '+p.name:'New chat','info');
-  }
 }
 loadConversation(id){this.hideSelToolbar();if(this.isPhone&&this.isPhone())this.toggleSidebar(true);if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>{if(m&&m.content){try{m.content=extractTextToolCalls(m.content).text}catch(e){}}if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);this.renderMessage(m,false)});this.scrollToBottom();this._loadingConv=null}
 renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>String(p.id)===String(pid)):null;
@@ -9895,7 +9957,7 @@ let contentEl=body.querySelector('.final-content');
 if(!contentEl){contentEl=document.createElement('div');contentEl.className='final-content';body.appendChild(contentEl)}
 try{contentEl.dataset.md=String(ev.content||'');if(aiEl)aiEl.dataset.md=String(ev.content||'')}catch(e){}
 let md=ev.content||'';md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>this.fileChipHtml({folder:p,name:(p.split('/').pop()||p)+'.zip'}));
-md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return `<button type="button" class="preview-chip" data-preview="${rp}" aria-label="Preview ${rp.split('/').pop()||p}">${SVG.eye} Preview ${rp.split('/').pop()||p}</button>`});
+{const seenPrev=new Set();md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;const key=String(rp||p);if(seenPrev.has(key))return '';seenPrev.add(key);if(rp)this._lastPreviewPath=rp;return `<button type="button" class="preview-chip" data-preview="${rp}" aria-label="Preview ${rp.split('/').pop()||p}">${SVG.eye} Preview ${rp.split('/').pop()||p}</button>`});}
 md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return this.fileChipHtml({path:rp,name:(rp.split('/').pop()||p)})});
 if(tp){
   tp.classList.remove('open');
@@ -9928,7 +9990,15 @@ contentEl.querySelectorAll('.file-chip-dl').forEach(a=>{
   a.querySelector('.dl-btn')?.addEventListener('click',go);
   a.addEventListener('click',go);
 });
-contentEl.querySelectorAll('.preview-chip').forEach(btn=>{btn.onclick=e=>{e.preventDefault();this.openHtmlPreview(btn.dataset.preview)}});
+contentEl.querySelectorAll('.preview-chip').forEach(btn=>{
+  if(btn.dataset.wiredPreview==='1')return;btn.dataset.wiredPreview='1';
+  btn.onclick=e=>{e.preventDefault();e.stopPropagation();
+    const p=btn.dataset.preview;if(p)this._lastPreviewPath=p;
+    const inCode=(this.mode==='code'||this.app.mode==='code');
+    if(inCode){try{this.refreshCodePreview(p);this.showCodePreviewPane&&this.showCodePreviewPane()}catch(err){}}
+    else{try{if(p)this.openHtmlPreview(p)}catch(err){}}
+  };
+});
 let actions=aiEl.querySelector('.message-actions');
 if(!actions){
   actions=document.createElement('div');actions.className='message-actions';
@@ -10513,12 +10583,17 @@ renderMarkdown(text){
     t=t.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>{
       try{return pushChip(this.fileChipHtml({folder:p,name:(String(p).split('/').pop()||p)+'.zip'}))}catch(e){return _}
     });
+    {const seenP=new Set();
     t=t.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{
       try{
         const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;
+        const key=String(rp||p);
+        if(seenP.has(key))return '';
+        seenP.add(key);
+        if(rp)this._lastPreviewPath=rp;
         return pushChip('<button type="button" class="preview-chip" data-preview="'+escapeHtml(rp)+'">'+((SVG&&SVG.eye)||'')+' Preview '+escapeHtml((rp.split('/').pop()||p))+'</button>');
       }catch(e){return _}
-    });
+    });}
     t=t.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>{
       try{
         const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;
@@ -12797,9 +12872,16 @@ wireFileChips(root){
     a.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')go(e)});
   });
   root.querySelectorAll('.preview-chip').forEach(btn=>{
-    if(btn.dataset.wired==='1')return;
-    btn.dataset.wired='1';
-    btn.onclick=e=>{e.preventDefault();try{this.openHtmlPreview(btn.dataset.preview)}catch(err){toast(err.message||'Preview failed','error')}};
+    if(btn.dataset.wired==='1'||btn.dataset.wiredPreview==='1')return;
+    btn.dataset.wired='1';btn.dataset.wiredPreview='1';
+    btn.onclick=e=>{e.preventDefault();e.stopPropagation();
+      const p=btn.dataset.preview;if(p)this._lastPreviewPath=p;
+      const inCode=(this.mode==='code'||(this.app&&this.app.mode==='code'));
+      try{
+        if(inCode){this.refreshCodePreview(p);this.showCodePreviewPane&&this.showCodePreviewPane()}
+        else if(p)this.openHtmlPreview(p);
+      }catch(err){toast(err.message||'Preview failed','error')}
+    };
   });
 }
 fileChipHtml({path,folder,name}){
