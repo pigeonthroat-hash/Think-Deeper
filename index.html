@@ -7209,6 +7209,7 @@ saveAgentSession(partial){
   this.app.storage.set('agentSessions',list.slice(0,60));
   try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
   try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
+  return s;
 }
 
 _histMenuClick(e,el,kind){
@@ -7707,8 +7708,8 @@ async startSwarm(opts){
     const messages=baseMsgs.concat([{role:'user',content:goal}]);
     this._wantNewAgentChat=false;
     this._agentFollowupReady=true;
-    this._agentSession=this.saveAgentSession({id:sid,title:(prev&&prev.title)||goal.slice(0,40),messages});
-    this._currentAgentSessionId=this._agentSession.id;
+    this._agentSession=this.saveAgentSession({id:sid,title:(prev&&prev.title)||goal.slice(0,40),messages})||{id:sid,title:goal.slice(0,40),messages};
+    this._currentAgentSessionId=(this._agentSession&&this._agentSession.id)||sid;
     k.sessionId=this._currentAgentSessionId;
     try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
     if(!reuse) this.generateSessionTitle('agent',this._currentAgentSessionId,goal);
