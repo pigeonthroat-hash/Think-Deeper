@@ -326,7 +326,7 @@ Not promises — useful places to extend the project:
 - [ ] Export / import a full workspace as a zip
 - [ ] Real `torch.onnx.export` pipeline instead of the identity ONNX stub
 - [ ] More Auth providers than Google
-- [ ] A special code mode to make files easier and more efficently
+- [ ] A special code mode to make files easier and more efficent
 
 ---
 
