@@ -1951,6 +1951,8 @@ body.mode-canvas .sidebar-footer.collapsed{
 <div class="hint">Clamped to 0–1.2. Overrides intensity temperature when set. Code mode ignores iteration/time caps.</div></div>
 <div class="form-group"><label>Tool choice</label>
 <select id="tool-choice"><option value="auto">auto</option><option value="any">any (force tools)</option><option value="none">none</option></select></div>
+<div class="form-group"><label><input type="checkbox" id="remember-across-chats" checked> Remember across chats</label>
+<div class="hint">When on, the AI can use a silent <code>remember</code> tool to search related chats in this section/project, pull a brief summary (never shown in those chats), and continue seamlessly.</div></div>
 <div class="btn-row"><button class="btn-primary" id="save-agent">Save Agent Settings</button></div>
 </div>
 <div id="tab-personality" style="display:none">
@@ -4380,9 +4382,23 @@ async write(path,content){if(!this.dirHandle)throw new Error('No external worksp
 async _resolve(path){const parts=path.split('/').filter(Boolean);let handle=this.dirHandle;for(const p of parts){try{handle=await handle.getDirectoryHandle(p)}catch{handle=await handle.getFileHandle(p)}}return handle}}
 
 const CrashGuard={
-  pyDeny:[/\bwhile\s+True\s*:/,/\bwhile\s+1\s*:/,/\bfor\s+\w+\s+in\s+itertools\.count\b/,/\bos\.system\b/,/\bsubprocess\b/,/\bctypes\b/,/\bsocket\b/,/\bwebbrowser\b/,/\bmultiprocessing\b/,/\bthreading\b/,/\beval\s*\(/,/\bexec\s*\(/,/\bquit\s*\(\s*\)/,/\bexit\s*\(\s*\)/,/\bos\._exit\b/,/\brange\s*\(\s*\d{8,}/],
+  pyDeny:[/\bwhile\s+True\s*:/,/\bwhile\s+1\s*:/,/\bwhile\s+True\b/,/\bfor\s+\w+\s+in\s+itertools\.count\b/,/\bos\.system\b/,/\bsubprocess\b/,/\bctypes\b/,/\bsocket\b/,/\bwebbrowser\b/,/\bmultiprocessing\b/,/\bthreading\b/,/\bconcurrent\.futures\b/,/\beval\s*\(/,/\bexec\s*\(/,/\bcompile\s*\(/,/\b__import__\s*\(/,/\bquit\s*\(\s*\)/,/\bexit\s*\(\s*\)/,/\bos\._exit\b/,/\brange\s*\(\s*\d{7,}/,/\brange\s*\(\s*[^)]{0,40}\d{7,}/,/\*\s*\d{7,}/,/\[\s*0\s*\]\s*\*\s*\d{6,}/,/\bnumpy\.zeros\s*\(\s*\d{7,}/,/\bnp\.zeros\s*\(\s*\d{7,}/,/\btime\.sleep\s*\(\s*(?:[5-9]\d|\d{3,})/,/\binput\s*\(/],
   webDeny:[/while\s*\(\s*true\s*\)/i,/while\s*\(\s*1\s*\)/,/for\s*\(\s*;\s*;\s*\)/,/location\s*\.\s*reload\s*\(/i,/location\s*=\s*location/i,/history\s*\.\s*go\s*\(/i,/document\s*\.\s*write\s*\(/i,/new\s+Array\s*\(\s*\d{8,}/,/setInterval\s*\(\s*[^,]+,\s*0\s*\)/],
-  inspectPython(src){const t=String(src||'');for(const re of this.pyDeny){if(re.test(t))return{ok:false,error:'CRASH_BLOCKED: that Python would freeze or break the environment. Use a bounded for-range loop and small data.'}}if((t.match(/\bwhile\b/g)||[]).length>=6)return{ok:false,error:'CRASH_BLOCKED: too many while-loops.'};if(t.length>80000)return{ok:false,error:'CRASH_BLOCKED: script too large.'};return{ok:true}},
+  inspectPython(src,opts){const t=String(src||'');const strict=!!(opts&&opts.strict);for(const re of this.pyDeny){if(re.test(t))return{ok:false,error:'CRASH_BLOCKED: that Python would freeze or break the environment. Use bounded for-range loops, small data, and simple iteration only.'}}
+    if((t.match(/\bwhile\b/g)||[]).length>=(strict?2:4))return{ok:false,error:'CRASH_BLOCKED: too many while-loops. Prefer for-range with a fixed upper bound.'};
+    if((t.match(/\bfor\b/g)||[]).length>=(strict?12:20))return{ok:false,error:'CRASH_BLOCKED: too many nested/for loops. Simplify the algorithm.'};
+    if(t.length>(strict?25000:80000))return{ok:false,error:'CRASH_BLOCKED: script too large. Split into smaller steps.'};
+    // Unbounded while conditions (not True/1 but still risky)
+    if(/\bwhile\s+[^:\n]{1,80}:/.test(t)&&!/\bwhile\s+\w+\s*[<>=!]/.test(t)&&!/\bwhile\s+len\s*\(/.test(t)){
+      if(strict)return{ok:false,error:'CRASH_BLOCKED: only bounded while loops allowed in agent mode. Use for i in range(N).'};
+    }
+    // Large literal allocations
+    if(/\[\s*[^\]]{0,20}\]\s*\*\s*\d{5,}/.test(t)||/\bbytearray\s*\(\s*\d{6,}/.test(t))return{ok:false,error:'CRASH_BLOCKED: huge allocation blocked.'};
+    // Recursion without bound
+    if(strict&&/\bdef\s+(\w+)\s*\([^)]*\)\s*:[\s\S]{0,400}\1\s*\(/.test(t)&&!/\bmax_depth|depth\s*[<>=]|if\s+n\s*[<=]/.test(t)){
+      return{ok:false,error:'CRASH_BLOCKED: recursive functions need an explicit depth/base-case guard in agent mode.'};
+    }
+    return{ok:true}},
   inspectWeb(src){const t=String(src||'');for(const re of this.webDeny){if(re.test(t))return{ok:false,error:'CRASH_BLOCKED: unbounded loop, reload, or huge allocation would crash the preview.'};}return{ok:true}},
   wrapPreviewHtml(html){const guard='<script data-crash-guard="1">(function(){try{var SI=window.setInterval;window.setInterval=function(fn,ms){return SI(fn,Math.max(16,ms||16));};}catch(e){}})();</scr'+'ipt>';const t=String(html||'');return /<head[^>]*>/i.test(t)?t.replace(/<head[^>]*>/i,m=>m+guard):guard+t},
   note(msg){try{const vfs=window.__app&&window.__app.vfs;if(!vfs)return;let prev='';try{prev=String(vfs.read('memory/crash-log.md')||'')}catch(e){}const line='- '+new Date().toISOString()+' '+String(msg||'').replace(/\s+/g,' ').slice(0,240);vfs.write('memory/crash-log.md',(prev+'\n'+line).split('\n').filter(Boolean).slice(-40).join('\n'),{archiveOld:false})}catch(e){}}
@@ -4457,9 +4473,12 @@ def ws_list(prefix=''):
 async run(code){
   let src=String(code==null?'':code).replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
   if(!src)return{ok:false,error:'No Python code'};
-  const guard=CrashGuard.inspectPython(src);
+  const agentish=(typeof window!=='undefined'&&window.__app&&(window.__app.mode==='swarm'||window.__app.ui&&(window.__app.ui.mode==='swarm'||window.__app.ui._agentRunning)));
+  const guard=CrashGuard.inspectPython(src,{strict:!!agentish});
   if(!guard.ok){try{CrashGuard.note(guard.error)}catch(e){}return{ok:false,error:guard.error,blocked:true}}
-  src='import sys\nsys.setrecursionlimit(240)\n'+src;
+  // Agent mode: force smaller recursion + prefer simple iteration
+  src='import sys\nsys.setrecursionlimit('+(agentish?'80':'240')+')\n'+src;
+
   // Soften blocking sleeps — Pyodide runs on the main thread and time.sleep freezes the UI
   src=src.replace(/\btime\.sleep\s*\(\s*[^)]+\s*\)/g,'pass  # sleep skipped in browser sandbox');
   try{await this.init()}catch(e){return{ok:false,error:'Pyodide failed to load: '+(e.message||e)}}
@@ -4497,7 +4516,7 @@ async run(code){
   // Yield to UI
   await new Promise(r=>setTimeout(r,0));
   try{
-    const result=await Promise.race([this.pyodide.runPythonAsync(src),new Promise((_,rej)=>setTimeout(()=>rej(new Error('CRASH_BLOCKED: Python exceeded 20s. Use smaller inputs and bounded loops.')),20000))]);
+    const result=await Promise.race([this.pyodide.runPythonAsync(src),new Promise((_,rej)=>setTimeout(()=>rej(new Error('CRASH_BLOCKED: Python exceeded time limit. Use smaller inputs, bounded for-range loops, and simplified code.')),(typeof window!=='undefined'&&window.__app&&(window.__app.mode==='swarm'||window.__app.ui&&window.__app.ui.mode==='swarm'))?8000:15000))]);
     let stdout='',stderr='';
     try{stdout=this.pyodide.runPython('sys.stdout.getvalue()')}catch(e){}
     try{stderr=this.pyodide.runPython('sys.stderr.getvalue()')}catch(e){}
@@ -4513,7 +4532,7 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 {type:'function',function:{name:'run_onnx',description:'Run a workspace ONNX model in the browser with ONNX Runtime Web. path defaults to the last converted model. input is a number or JSON array of floats.',parameters:{type:'object',properties:{path:{type:'string'},input:{description:'Number or array of floats'}},required:[]}}},
 {type:'function',function:{name:'write_file',description:'Create or overwrite a file in the internal FS. In CODE MODE always write under the current session folder (code/<sessionId>/…), e.g. index.html or style.css — the runtime rewrites bare names into that folder. In chat mode prefer artifacts/ for work products and memory/ for durable facts. Previous versions are archived automatically.',parameters:{type:'object',properties:{path:{type:'string',description:'Destination path (code mode: relative to session code root, e.g. index.html)'},content:{type:'string',description:'Full file contents to write'}},required:['path','content']}}},
 {type:'function',function:{name:'delete_file',description:'Delete a file from the internal filesystem (a copy is archived). Use only when the user asks to remove something.',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}},{type:'function',function:{name:'write_pdf',description:'Create a real downloadable PDF in the workspace. path must end with .pdf; title optional; body is plain text with newlines.',parameters:{type:'object',properties:{path:{type:'string'},title:{type:'string'},body:{type:'string'}},required:['path','body']}}},{type:'function',function:{name:'fetch_url',description:'Fetch a public https URL (image, SVG, HTML, JSON, text) for coding or display. Only https.',parameters:{type:'object',properties:{url:{type:'string'},maxChars:{type:'number'}},required:['url']}}},
-{type:'function',function:{name:'run_python',description:'Run Python in a sandbox. Workspace files are under /workspace (uploads/, artifacts/, models/). Helpers: ws_read(path,start,length) and ws_search(path,keyword) to scan large files without loading everything.',parameters:{type:'object',properties:{code:{type:'string',description:'Python source code to execute'}},required:['code']}}},
+{type:'function',function:{name:'run_python',description:'Run Python in a sandbox. Workspace files are under /workspace (uploads/, artifacts/, models/). Helpers: ws_read(path,start,length) and ws_search(path,keyword). Prefer bounded for-range loops, simplified code, and small data. Infinite loops, huge allocations, and heavy recursion are blocked — especially in agent mode.',parameters:{type:'object',properties:{code:{type:'string',description:'Python source code to execute'}},required:['code']}}},
 {type:'function',function:{name:'self_check',description:'Record a brief self-check of correctness before finalizing an important answer. Use after tool results when stakes are high.',parameters:{type:'object',properties:{observation:{type:'string',description:'What you verified'},passed:{type:'boolean',description:'Whether the check passed'}},required:['observation']}}},
 {type:'function',function:{name:'web_search',description:'Search the public web for up-to-date facts, docs, or news. Use when the answer depends on information you may not have reliably.',parameters:{type:'object',properties:{query:{type:'string',description:'Search query string'}},required:['query']}}},
 {type:'function',function:{name:'check_code',description:'Runtime/syntax check files under code/ (or a specific path). Parses JS, runs Python compile checks, and basic HTML balance checks. Call after writing code and keep fixing until ok=true and errors is empty.',parameters:{type:'object',properties:{path:{type:'string',description:'Optional file path or folder under code/. Empty = check all code/ files.'}},required:[]}}},
@@ -4523,7 +4542,8 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 {type:'function',function:{name:'github_enable_pages',description:'Enable GitHub Pages on a repo from a branch folder (e.g. branch main, path / or /docs).',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},branch:{type:'string'},path:{type:'string'}},required:['owner','repo']}}},
 {type:'function',function:{name:'ask_user',description:'Pause and ask the user a clarifying question with 3 suggested answers plus a custom box. Use when you cannot continue safely without a choice. Do not end the task after this; wait for the answer then continue.',parameters:{type:'object',properties:{question:{type:'string'},option1:{type:'string'},option2:{type:'string'},option3:{type:'string'}},required:['question']}}},
 {type:'function',function:{name:'show_site_options',description:'Show 5 small website layout previews for the user to pick before you keep building. Only use when site mockups are enabled and you are creating a website.',parameters:{type:'object',properties:{prompt:{type:'string'},sites:{type:'array',items:{type:'object',properties:{name:{type:'string'},html:{type:'string'}}}}},required:['sites']}}},
-{type:'function',function:{name:'generate_image',description:'Generate an image from a text prompt using the configured image model. Returns a path in the workspace.',parameters:{type:'object',properties:{prompt:{type:'string'},filename:{type:'string'}},required:['prompt']}}}
+{type:'function',function:{name:'generate_image',description:'Generate an image from a text prompt using the configured image model. Returns a path in the workspace.',parameters:{type:'object',properties:{prompt:{type:'string'},filename:{type:'string'}},required:['prompt']}}},
+{type:'function',function:{name:'remember',description:'Search the user\'s chats in the current section/project for related context. Silently asks a brief summary from matching chats (never shown to the user; never stored in those chats). Use when the user refers to something they did earlier, asked you to remember, or when continuing a prior topic. Returns a short brief you can use to continue seamlessly.',parameters:{type:'object',properties:{query:{type:'string',description:'What to look for (topic, fact, or phrase the user mentioned)'},section:{type:'string',description:'Optional: chat|code|agent — limit search to that history section'}},required:['query']}}}
 ]}
 async execute(name,args){switch(name){
 case'write_pdf':{
@@ -4653,6 +4673,7 @@ case'write_file':{
 }
 
 case'delete_file':return this.vfs.delete(args.path);
+case'remember':return await this.rememberAcrossChats(args);
 case'run_python':return await this.python.run(args.code);
 case'self_check':return{recorded:true,observation:args.observation,passed:!!args.passed};
 case'web_search':return await this.webSearch(args.query||'');
@@ -4836,6 +4857,70 @@ async checkCode(path){
     }
   }
   return {ok:errors.length===0,path:target,errors};
+}
+async rememberAcrossChats(args){
+  try{
+    const enabled=(typeof window!=='undefined'&&window.__app&&window.__app.storage&&window.__app.storage.get('rememberAcrossChats',true));
+    if(enabled===false)return{ok:false,error:'Remember across chats is turned off in Settings → Agent.'};
+    const q=String((args&&args.query)||'').trim();
+    if(!q)return{ok:false,error:'query required'};
+    const section=String((args&&args.section)||'').toLowerCase();
+    const app=window.__app;if(!app||!app.conversations)return{ok:false,error:'No workspace'};
+    const pid=(app.ui&&app.ui.activeProjectId)?app.ui.activeProjectId():(app.storage.get('currentProjectId',null));
+    let chats=(app.conversations.list()||[]).slice();
+    if(pid){
+      const proj=(app.storage.get('projects',[])||[]).find(p=>String(p.id)===String(pid));
+      const set=new Set(((proj&&proj.chatIds)||[]).map(String));
+      chats=chats.filter(c=>String(c.projectId||'')===String(pid)||set.has(String(c.id)));
+    }
+    if(section==='agent'){
+      const sess=(app.storage.get('agentSessions',[])||[]);
+      chats=chats.concat(sess.map(s=>({id:s.id,title:s.title||'Agent session',messages:(s.messages||[]).map(m=>({role:m.role||'assistant',content:m.content||''})),_agent:true})));
+    }
+    const ql=q.toLowerCase();
+    const scored=[];
+    for(const c of chats){
+      if(!c||!c.messages||!c.messages.length)continue;
+      try{if(app.conversations.currentId&&String(c.id)===String(app.conversations.currentId))continue}catch(e){}
+      const blob=((c.title||'')+' '+c.messages.slice(-20).map(m=>String(m.content||'')).join(' ')).toLowerCase();
+      let score=0;
+      for(const term of ql.split(/\s+/).filter(t=>t.length>2)){if(blob.includes(term))score+=2}
+      if(blob.includes(ql))score+=8;
+      if(score>0)scored.push({c,score});
+    }
+    scored.sort((a,b)=>b.score-a.score);
+    const top=scored.slice(0,3);
+    if(!top.length)return{ok:true,found:false,brief:'No related chats found for: '+q,query:q};
+    const briefs=[];
+    for(const {c} of top){
+      const transcript=c.messages.slice(-16).map(m=>{
+        const role=m.role==='user'?'User':(m.role==='assistant'?'Assistant':'System');
+        return role+': '+String(m.content||'').replace(/\s+/g,' ').slice(0,500);
+      }).join('\n').slice(0,6000);
+      let summary='';
+      try{
+        const provider=app.provider;
+        if(provider&&provider.config&&provider.config.apiKey){
+          const data=await provider.chat([
+            {role:'system',content:'You write a brief internal memory note (3-6 short bullets). Cover: what the chat was about, what the user was doing/working on, and any facts the user asked to remember. Do not address the user. No preamble. Plain text bullets only.'},
+            {role:'user',content:'Topic focus: '+q+'\nChat title: '+(c.title||'Untitled')+'\nTranscript:\n'+transcript}
+          ],{temperature:0.2,maxTokens:400,tools:undefined});
+          summary=((data&&data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'').trim();
+        }
+      }catch(e){summary=''}
+      if(!summary){
+        const lastUser=[...c.messages].reverse().find(m=>m.role==='user');
+        const lastAi=[...c.messages].reverse().find(m=>m.role==='assistant');
+        summary='- Chat: '+(c.title||'Untitled')+'\n- Last user: '+String((lastUser&&lastUser.content)||'').slice(0,220)+'\n- Last assistant: '+String((lastAi&&lastAi.content)||'').slice(0,220);
+      }
+      briefs.push({title:c.title||'Untitled',id:c.id,summary:String(summary).slice(0,1200)});
+    }
+    try{
+      const note='Query: '+q+'\n'+briefs.map(b=>'## '+b.title+'\n'+b.summary).join('\n');
+      app.vfs.write('memory/remember-'+Date.now()+'.md',note.slice(0,4000),{archiveOld:false});
+    }catch(e){}
+    return{ok:true,found:true,query:q,briefs,brief:briefs.map(b=>b.title+':\n'+b.summary).join('\n\n').slice(0,3500)};
+  }catch(e){return{ok:false,error:String(e.message||e)}}
 }
 async webSearch(query){
   if(!query||!String(query).trim())return{ok:false,error:'Empty search query',results:[]};
@@ -5567,7 +5652,7 @@ class AgentManager{
     }
     if(a.perms.messaging)defs.push({type:'function',function:{name:'swarm_send',description:'Send a message to another agent id or channel',parameters:{type:'object',properties:{to:{type:'string'},text:{type:'string'}},required:['to','text']}}});
     if(a.perms.spawn)defs.push({type:'function',function:{name:'swarm_spawn',description:'Spawn a child agent',parameters:{type:'object',properties:{role:{type:'string'},task:{type:'string'}},required:['task']}}});
-    if(a.perms.python)defs.push({type:'function',function:{name:'run_python',description:'Run Python',parameters:{type:'object',properties:{code:{type:'string'}},required:['code']}}});
+    if(a.perms.python)defs.push({type:'function',function:{name:'run_python',description:'Run Python in the browser sandbox. AGENT RULES: only bounded for-range loops, simplified algorithms, small data, no while True, no huge allocations, finish fast. Prefer iteration over recursion.',parameters:{type:'object',properties:{code:{type:'string'}},required:['code']}}});
     if(a.perms.files){
       defs.push({type:'function',function:{name:'write_file',description:'Write workspace file',parameters:{type:'object',properties:{path:{type:'string'},content:{type:'string'}},required:['path','content']}}});
       defs.push({type:'function',function:{name:'read_file',description:'Read workspace file',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}});
@@ -5575,6 +5660,7 @@ class AgentManager{
     }
     if(a.perms.network!==false){
       defs.push({type:'function',function:{name:'web_search',description:'Full web search for facts, prior art, papers, news. Required before claiming a mathematical discovery is new.',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}});
+      defs.push({type:'function',function:{name:'remember',description:'Silently search related user chats in this section/project and return a brief summary. Never writes into those chats.',parameters:{type:'object',properties:{query:{type:'string'},section:{type:'string'}},required:['query']}}});
       defs.push({type:'function',function:{name:'image_search',description:'Search images related to a topic',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}});
     }
     return defs.length?defs:undefined;
@@ -6720,12 +6806,13 @@ _agentFor(name){
   return 'Agent 1';
 }
 _activityTitle(name,args,done=false){
-  const icon=name==='write_file'?SVG.write:name==='read_file'?SVG.read:name==='list_files'?SVG.read:name==='run_python'?SVG.code:name==='web_search'||name==='image_search'?SVG.search:name==='check_code'||name==='self_check'?SVG.check:SVG.code;
+  const icon=name==='write_file'?SVG.write:name==='read_file'?SVG.read:name==='list_files'?SVG.read:name==='run_python'?SVG.code:name==='remember'?SVG.bulb||SVG.search:name==='web_search'||name==='image_search'?SVG.search:name==='check_code'||name==='self_check'?SVG.check:SVG.code;
   let label='Tool';
   if(name==='write_file')label=done?'Wrote file':'Writing file';
   else if(name==='read_file')label=done?'Read file':'Reading file';
   else if(name==='list_files')label=done?'Listed files':'Listing files';
   else if(name==='run_python')label=done?'Ran Python':'Running Python';
+  else if(name==='remember')label=done?'Remembered':'Remembering…';
   else if(name==='web_search')label=done?'Searched web':'Searching web';
   else if(name==='image_search')label=done?'Searched images':'Searching images';
   else if(name==='check_code')label=done?'Checked code':'Checking code';
@@ -6739,7 +6826,7 @@ _activityTitle(name,args,done=false){
   const path=args&&(args.path||args.query||args.name||'');
   return `<span class="tp-ico">${icon}</span> ${label}${path?' · '+escapeHtml(String(path).slice(0,40)):''}`;
 }
-_detailForArgs(name,args){if(name==='run_python')return args.code||'';if(name==='write_file')return args.content||'';if(name==='self_check')return args.observation||'';return JSON.stringify(args,null,2)}
+_detailForArgs(name,args){if(name==='remember')return (args&&args.query)||'';if(name==='run_python')return args.code||'';if(name==='write_file')return args.content||'';if(name==='self_check')return args.observation||'';return JSON.stringify(args,null,2)}
 _summarizeResult(name,result){if(result?.error)return{detail:'Error: '+result.error,full:result.error};
 if(name==='run_python'){const parts=[];if(result.stdout)parts.push('stdout:\n'+result.stdout);if(result.stderr)parts.push('stderr:\n'+result.stderr);if(result.result!=null)parts.push('→ '+result.result);const full=parts.join('\n\n')||(result.ok?'(no output)':'Failed');return{detail:full.slice(0,300)+(full.length>300?'…':''),full}}
 if(name==='write_file'){if(result&&(result.error||result.ok===false))return{detail:'Write failed: '+(result.error||result.message||''),full:JSON.stringify(result)};const added=result.added||0,removed=result.removed||0;const p=result.path||'file';return{detail:(result.isNew?'Created ':'Saved ')+p+' ('+(result.lines||0)+' lines) — exists',delta:{added,removed},full:'Path: '+p+'\nLines: '+(result.lines||0)+'\n+'+added+' / -'+removed+'\nFile EXISTS. Link: [[file:'+p+']]'}}
@@ -7835,7 +7922,7 @@ stopAgentRun(){
   try{this.renderSwarm({t:'swarm.stop'})}catch(e){}
   toast('Stopped','info');
 }
-setAgentRunningUi(running){
+setAgentRunningUi(running){try{this._agentRunning=!!running;if(window.__app)window.__app._agentRunning=!!running}catch(e){}
   const send=$('#swarm-send-btn');
   const stop=$('#agent-stop-inline');
   const ta=$('#swarm-goal');
@@ -8894,6 +8981,8 @@ Python cannot write to the real disk — use write_file tool. Always persist cod
 
 If web_search/image_search fail with fetch errors, continue without them and say so.
 When using tools, put short narration in message content.
+Never tell the user which mode they are in (chat / code / agent). Keep the experience seamless — no "you are in agent mode" or "User is doing X on agent mode" messages.
+If the user refers to a prior topic or asks you to recall something, call the remember tool. It searches related chats in this section/project, pulls a brief summary silently (never shown in those chats), and returns a brief so you can continue where they left off.
 
 BUILT-IN SKILLS:
 ${skillText}
@@ -9108,7 +9197,7 @@ toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')||'da
 openSettings(){try{this.hideSelToolbar()}catch(e){}const ov=$('#settings-overlay');if(!ov){toast('Settings panel missing','error');return}ov.classList.add('open');ov.setAttribute('aria-hidden','false');try{const c=(this.app.provider&&this.app.provider.config)||{};$('#api-base').value=c.baseUrl||'';$('#api-key').value=c._fromSystem?'':(c.apiKey||'');if($('#api-key'))$('#api-key').placeholder=c._fromSystem?'•••• site-wide key (managed in Dev panel)':'sk-…';$('#api-model').value=c.model||'';this.renderModelLibrary();if($('#image-base'))$('#image-base').value=c.imageBaseUrl||'';if($('#image-key'))$('#image-key').value=c.imageApiKey||'';if($('#image-model'))$('#image-model').value=c.imageModel||'';if($('#site-mockups'))$('#site-mockups').checked=!!this.app.storage.get('siteMockups',false);$('#api-org').value=c.org||'';$('#api-project').value=c.project||'';$('#remember-key').checked=!!c.rememberKey;if($('#fallback-base')){$('#fallback-base').value=c.fallbackBaseUrl||'';$('#fallback-key').value=c.fallbackApiKey||'';$('#fallback-model').value=c.fallbackModel||''}if($('#google-client-id'))$('#google-client-id').value=c.googleClientId||this.app.storage.get('googleClientId','')||'';
 const roles=this.app.storage.get('modelRoles',{})||{};
 if($('#model-talk')){$('#model-talk').value=roles.talk||'';$('#model-code').value=roles.code||'';$('#model-deep').value=roles.deep||'';$('#plugins-global').checked=this.app.storage.get('pluginsGlobal',true)!==false;}
-const s=this.app.storage.get('agentSettings',{})||{};if($('#max-iterations'))$('#max-iterations').value=(s&&s.maxIterations)||12;if($('#max-tools'))$('#max-tools').value=(s&&s.maxTools)||30;if($('#max-time'))$('#max-time').value=(s&&s.maxTime)||180;if($('#tool-choice'))$('#tool-choice').value=this.app.storage.get('toolChoice','auto')||'auto';const ft=$('#force-temp');if(ft){const v=this.app.storage.get('forceTemp',null);ft.value=v==null||v===''?'':v}$('#personality').value=this.app.storage.get('personality','')||'';$('#thinking-gif').value=this.app.storage.get('thinkingGif','')||'';$('#settings-overlay').classList.add('open')}catch(err){console.warn('[settings]',err);try{$('#settings-overlay').classList.add('open')}catch(e){}}}
+const s=this.app.storage.get('agentSettings',{})||{};if($('#max-iterations'))$('#max-iterations').value=(s&&s.maxIterations)||12;if($('#max-tools'))$('#max-tools').value=(s&&s.maxTools)||30;if($('#max-time'))$('#max-time').value=(s&&s.maxTime)||180;if($('#tool-choice'))$('#tool-choice').value=this.app.storage.get('toolChoice','auto')||'auto';if($('#remember-across-chats'))$('#remember-across-chats').checked=this.app.storage.get('rememberAcrossChats',true)!==false;const ft=$('#force-temp');if(ft){const v=this.app.storage.get('forceTemp',null);ft.value=v==null||v===''?'':v}$('#personality').value=this.app.storage.get('personality','')||'';$('#thinking-gif').value=this.app.storage.get('thinkingGif','')||'';$('#settings-overlay').classList.add('open')}catch(err){console.warn('[settings]',err);try{$('#settings-overlay').classList.add('open')}catch(e){}}}
 closeSettings(){$('#settings-overlay').classList.remove('open')}
 applyPreset(n){const p={openai:{baseUrl:'https://api.openai.com/v1',model:'gpt-4o-mini'},groq:{baseUrl:'https://api.groq.com/openai/v1',model:'llama-3.3-70b-versatile'},openrouter:{baseUrl:'https://openrouter.ai/api/v1',model:'openai/gpt-4o-mini'},gemini:{baseUrl:'https://generativelanguage.googleapis.com/v1beta',model:'gemini-2.0-flash'},custom:{baseUrl:'',model:''}}[n];if(p){$('#api-base').value=p.baseUrl;$('#api-model').value=p.model;if(n==='gemini')toast('Gemini uses Google\'s native API (works in the browser). Paste a Google AI Studio key.','info')}}
 saveApi(){const config={baseUrl:$('#api-base').value.trim(),apiKey:$('#api-key').value.trim(),model:$('#api-model').value.trim(),org:$('#api-org').value.trim(),project:$('#api-project').value.trim(),rememberKey:$('#remember-key').checked,fallbackBaseUrl:$('#fallback-base')?.value.trim()||'',fallbackApiKey:$('#fallback-key')?.value.trim()||'',fallbackModel:$('#fallback-model')?.value.trim()||'',googleClientId:$('#google-client-id')?.value.trim()||'',imageBaseUrl:$('#image-base')?.value.trim()||'',imageApiKey:$('#image-key')?.value.trim()||'',imageModel:$('#image-model')?.value.trim()||'',modelList:this.getModelList()};this.app.storage.set('siteMockups',!!$('#site-mockups')?.checked);this.app.provider.save(config);try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch{}this.app.storage.set('googleClientId',config.googleClientId||'');
@@ -9116,7 +9205,7 @@ const roles={talk:$('#model-talk')?.value.trim()||'',code:$('#model-code')?.valu
 this.app.storage.set('pluginsGlobal',!!$('#plugins-global')?.checked);
 this.renderModelLabel();toast('API settings saved','success');try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}}
 async discoverModels(){try{this.saveApi();toast('Discovering…');const models=await this.app.provider.discoverModels();toast(`Found ${models.length} models`,'success');this.renderModelList()}catch(e){this.explainApiError(e)}}
-saveAgentSettings(){const s={maxIterations:parseInt($('#max-iterations').value,10)||12,maxTools:parseInt($('#max-tools').value,10)||30,maxTime:parseInt($('#max-time').value,10)||180};this.app.storage.set('agentSettings',s);this.app.agent.settings=s;if($('#tool-choice'))this.app.storage.set('toolChoice',$('#tool-choice').value||'auto');const ft=$('#force-temp');if(ft){let v=parseFloat(ft.value);if(Number.isFinite(v)){v=Math.min(1.2,Math.max(0,v));this.app.storage.set('forceTemp',v)}else this.app.storage.set('forceTemp',null)}toast('Agent settings saved','success');try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}}
+saveAgentSettings(){const s={maxIterations:parseInt($('#max-iterations').value,10)||12,maxTools:parseInt($('#max-tools').value,10)||30,maxTime:parseInt($('#max-time').value,10)||180};this.app.storage.set('agentSettings',s);this.app.agent.settings=s;if($('#tool-choice'))this.app.storage.set('toolChoice',$('#tool-choice').value||'auto');const ft=$('#force-temp');if(ft){let v=parseFloat(ft.value);if(Number.isFinite(v)){v=Math.min(1.2,Math.max(0,v));this.app.storage.set('forceTemp',v)}else this.app.storage.set('forceTemp',null)}if($('#remember-across-chats'))this.app.storage.set('rememberAcrossChats',!!$('#remember-across-chats').checked);toast('Agent settings saved','success');try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}}
 toggleModelDropdown(){const dd=$('#model-dropdown');dd.classList.toggle('open');if(dd.classList.contains('open')){this.renderModelList();$('#model-search').focus()}}
 closeModelDropdown(){$('#model-dropdown').classList.remove('open')}
 getModelList(){
@@ -9583,9 +9672,18 @@ finally{
   $('#stop-btn').classList.remove('visible');$('#send-btn').style.display='flex';$('#send-btn').disabled=false;{const s=$('#agent-status');if(s)s.textContent='Ready';const it=$('#iteration-info');if(it)it.textContent='';}const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();this.app.conversations.persist();
   try{this.app.storage.set('chatRunState',Object.assign({},this.app.storage.get('chatRunState',{})||{},{alive:false,ts:Date.now()}));if(this.app.cloud)this.app.cloud.pushNow(this.app,conv.id)}catch(e){}
 }}
-handleAgentEvent(ev,aiEl,aiMsg){try{if(!aiEl||typeof aiEl.querySelector!=='function'){console.error('handleAgentEvent: aiEl is not a DOM node',aiEl);return}if(ev.type==='status'){const s=$('#agent-status');if(s){s.textContent=ev.text||'';s.classList.toggle('busy',!!ev.text);}}
+handleAgentEvent(ev,aiEl,aiMsg){try{if(!aiEl||typeof aiEl.querySelector!=='function'){console.error('handleAgentEvent: aiEl is not a DOM node',aiEl);return}if(ev.type==='status'){const s=$('#agent-status');if(s){const t=String(ev.text||'');if(/(user is doing|on agent mode|in agent mode|working on this subject)/i.test(t)){/* seamless: hide */}else{s.textContent=t;s.classList.toggle('busy',!!t);}}}
 else if(ev.type==='iteration'){const it=$('#iteration-info');if(it)it.textContent=`Cycle ${ev.current}`;}
 else if(ev.type==='activity'){
+  // Hide internal cross-mode / "user is doing … on agent mode" notices so the UI stays seamless
+  try{
+    const leak=/(user is doing|on agent mode|in agent mode|you are in (chat|code|agent) mode|working on this subject)/i;
+    if(leak.test(String(ev.name||''))||leak.test(String(ev.detail||''))||leak.test(String(ev.text||''))){
+      /* skip rendering this activity card */
+      return;
+    }
+  }catch(e){}
+
   const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();
   let root=aiEl.querySelector('.thought-process');
   if(!root){
