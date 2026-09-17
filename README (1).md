@@ -5,7 +5,7 @@
   Drop your square icon here (512×512 PNG recommended).
   Suggested path: docs/brand/icon.png
 -->
-<img src="docs/brand/icon.png" alt="Think Deeper icon" width="120" height="120">
+<img src="assets/notify_icon.png" alt="Think Deeper icon" width="120" height="120">
 
 # Think Deeper
 
@@ -23,6 +23,7 @@
 ![Monaco](https://img.shields.io/badge/Monaco%20Editor-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)
 
 [![License](https://img.shields.io/badge/license-MIT-e08a4f?style=flat-square)](#license)
+[![Version](https://img.shields.io/badge/version-v1.0.0-6366f1?style=flat-square)](#)
 [![Status](https://img.shields.io/badge/status-active-22c55e?style=flat-square)](#)
 [![UI](https://img.shields.io/badge/UI-dark%20%2B%20light-18181b?style=flat-square)](#theming)
 [![i18n](https://img.shields.io/badge/i18n-20%2B%20languages-3b82f6?style=flat-square)](#internationalization)
@@ -33,9 +34,6 @@
 ---
 
 ## Showcase
-
-> Replace the files under `docs/screenshots/` with real captures.  
-> Recommended size: **1600×900** (16:9) PNG or WebP, dark theme preferred.
 
 <table>
   <tr>
@@ -71,7 +69,7 @@
 </table>
 
 <details>
-<summary><b>Extra slots</b> — mobile, files overlay, account, plugins</summary>
+<summary><b>Extra;</b> mobile, files overlay, account, plugins</summary>
 
 <br>
 
@@ -357,7 +355,7 @@ You are free to run, fork, and embed Think Deeper. Please do not present a thin 
 
 <div align="center">
 
-<img src="icon.png" alt="" width="36" height="36">
+<img src="assets/icon.png" alt="" width="81" height="81">
 
 **Think Deeper** — time, tools, and self-correction in the browser.
 
