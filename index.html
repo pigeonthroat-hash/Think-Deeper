@@ -1484,6 +1484,67 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
   .header-files-btn{padding:8px}
   .mode-pop.open{right:auto!important}
 }
+
+/* hide-dup-files */
+#chat-files-btn{display:none!important}
+.header-files-btn{flex-shrink:0}
+.model-selector-wrap{min-width:0;flex:1 1 auto;max-width:100%}
+.model-btn{max-width:100%;overflow:hidden}
+.model-btn #model-label{
+  display:block;overflow:hidden;text-overflow:clip;white-space:nowrap;
+  mask-image:linear-gradient(90deg,#000 0%,#000 78%,transparent 100%);
+  -webkit-mask-image:linear-gradient(90deg,#000 0%,#000 78%,transparent 100%);
+}
+.main-header{height:var(--header-height);min-height:var(--header-height);max-height:var(--header-height);overflow:visible}
+.header-right{flex-shrink:0;display:flex;align-items:center;gap:6px;max-width:48%;min-width:0}
+#auth-area{display:flex;align-items:center;gap:6px;min-width:0;max-width:100%}
+#auth-area .auth-name,#auth-area .user-name,.auth-user-label{
+  max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.78rem
+}
+#auth-area .auth-btn,#auth-area button{
+  flex-shrink:0;white-space:nowrap;height:32px;padding:0 10px;font-size:.75rem
+}
+.workspace-badge{max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:768px){
+  .header-right{max-width:42%}
+  #auth-area .auth-name,#auth-area .user-name,.auth-user-label{max-width:72px}
+  .workspace-badge{display:none}
+  .model-selector-wrap{flex:1 1 0;min-width:0}
+}
+/* mode-pop always top-right of trigger */
+.mode-pop.open{
+  position:fixed!important;
+  z-index:12000!important;
+}
+/* phone sidebar blur animation */
+.main{
+  transition:filter .22s ease, opacity .22s ease;
+}
+body.sidebar-open .main,
+html.sidebar-open .main,
+.app.sidebar-open .main,
+.layout.sidebar-open .main{
+  filter:blur(3px);
+  opacity:.72;
+  pointer-events:none;
+}
+.sidebar-backdrop{
+  position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:40;
+  opacity:0;pointer-events:none;transition:opacity .22s ease;
+}
+.sidebar-backdrop.show{opacity:1;pointer-events:auto}
+/* auto block touch */
+.ablock .ah{touch-action:none;-webkit-user-select:none;user-select:none;cursor:grab}
+.ablock.dragging .ah{cursor:grabbing}
+.aport{touch-action:none}
+#auto-board{touch-action:none}
+.sidebar-footer,.sidebar-footer.collapsed{/* keep height stable */
+  flex-shrink:0;
+}
+body.mode-canvas .sidebar-footer,
+body.mode-canvas .sidebar-footer.collapsed{
+  /* same height as chat mode */
+}
 </style>
 </head>
 <body>
@@ -6629,7 +6690,7 @@ init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;
   }catch(e){}
   this.bindEvents();try{this.syncProjectBundles()}catch(e){}this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();try{applyCodeModeVisibility()}catch(e){}
 try{this.rehydrateVfsFromStorage&&this.rehydrateVfsFromStorage()}catch(e){}
-const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>this.setMode('canvas');const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);this._preferEmptyBoot=true;this.newChat();try{setTimeout(()=>{try{this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);document.querySelectorAll(".conv-item.active").forEach(n=>n.classList.remove("active"));this.renderConversations&&this.renderConversations();this.showEmpty&&this.showEmpty()}catch(e){}},50)}catch(e){}
+const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>{try{if(this.isPhone&&this.isPhone())this.toggleSidebar(true)}catch(e){}this.setMode('canvas')};const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);this._preferEmptyBoot=true;this.newChat();try{setTimeout(()=>{try{this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);document.querySelectorAll(".conv-item.active").forEach(n=>n.classList.remove("active"));this.renderConversations&&this.renderConversations();this.showEmpty&&this.showEmpty()}catch(e){}},50)}catch(e){}
   window.addEventListener('beforeunload',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}try{this.app.conversations&&this.app.conversations.persist()}catch(e){}});
   window.addEventListener('pagehide',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}}});
@@ -7185,13 +7246,16 @@ syncAgentQualityBtn(){
 }
 agentSessions(){return this.app.storage.get('agentSessions',[])||[]}
 saveAgentSession(partial){
+  partial=partial||{};
   let list=(this.agentSessions()||[]).slice();
-  let s=list.find(x=>x&&x.id===partial.id);
+  const pid=partial.id||uid();
+  let s=list.find(x=>x&&String(x.id)===String(pid));
   if(!s){
-    s={id:partial.id||uid(),created:Date.now(),messages:[],title:'Agent chat',projectId:this.activeProjectId?this.activeProjectId():null};
+    let proj=null;try{proj=this.activeProjectId?this.activeProjectId():null}catch(e){}
+    s={id:pid,created:Date.now(),messages:[],title:'Agent chat',projectId:proj};
     list.push(s);
   }
-  Object.assign(s,partial,{updated:Date.now(),lastTalked:Date.now()});
+  try{Object.assign(s,partial,{id:s.id,updated:Date.now(),lastTalked:Date.now()})}catch(e){s.id=s.id||pid}
   if(!s.projectId&&this.activeProjectId)s.projectId=this.activeProjectId();
   if(s.title)s.title=String(s.title).slice(0,48);
   if(Array.isArray(s.messages)&&s.messages.length>1){
@@ -7708,11 +7772,24 @@ async startSwarm(opts){
     const messages=baseMsgs.concat([{role:'user',content:goal}]);
     this._wantNewAgentChat=false;
     this._agentFollowupReady=true;
-    this._agentSession=this.saveAgentSession({id:sid,title:(prev&&prev.title)||goal.slice(0,40),messages})||{id:sid,title:goal.slice(0,40),messages};
-    this._currentAgentSessionId=(this._agentSession&&this._agentSession.id)||sid;
-    k.sessionId=this._currentAgentSessionId;
+    const sessTitle=String((prev&&prev.title)||goal||'Agent chat').slice(0,40);
+    let saved=null;
+    try{
+      saved=this.saveAgentSession({id:sid,title:sessTitle,messages:messages||[]});
+    }catch(err){console.error('saveAgentSession',err)}
+    if(!saved||!saved.id){
+      saved={id:sid,title:sessTitle,messages:messages||[],created:Date.now(),updated:Date.now()};
+      try{
+        const list=(this.agentSessions()||[]).filter(x=>x&&String(x.id)!==String(sid));
+        list.unshift(saved);
+        this.app.storage.set('agentSessions',list.slice(0,60));
+      }catch(e){}
+    }
+    this._agentSession=saved;
+    this._currentAgentSessionId=String(saved.id||sid);
+    if(k)k.sessionId=this._currentAgentSessionId;
     try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
-    if(!reuse) this.generateSessionTitle('agent',this._currentAgentSessionId,goal);
+    if(!reuse) try{this.generateSessionTitle('agent',this._currentAgentSessionId,goal)}catch(e){}
   }
 
   this._agentIntent=intent;
@@ -8143,7 +8220,14 @@ setMode(mode){
     try{toast('Code mode is temporarily limited to developer accounts','info')}catch(e){}
     mode='chat';
   }
-  if(this.isPhone&&this.isPhone()&&mode!=='canvas')this.toggleSidebar(true);
+  // Build Automations: close left panel on phone; never wipe chat lists
+  if(mode==='canvas'){
+    try{document.body.classList.add('mode-canvas')}catch(e){}
+    try{if(this.isPhone&&this.isPhone())this.toggleSidebar(true)}catch(e){}
+  }else{
+    try{document.body.classList.remove('mode-canvas')}catch(e){}
+    if(this.isPhone&&this.isPhone())this.toggleSidebar(true);
+  }
   this.mode=mode;this.app.mode=mode;
   try{this.app.storage.set('appMode',mode)}catch(e){}
   document.querySelectorAll('.mode-tab').forEach(t=>t.classList.toggle('active',t.dataset.mode===mode));
@@ -8840,13 +8924,23 @@ toggleSidebar(c){
   const sb=$('#sidebar');const bd=$('#sidebar-backdrop');const openBtn=$('#open-sidebar');
   if(!sb)return;
   if(this.isPhone()){
-    if(c){sb.classList.remove('open');sb.classList.add('collapsed');if(bd)bd.classList.remove('show');if(openBtn)openBtn.style.display='flex'}
-    else {sb.classList.add('open');sb.classList.remove('collapsed');if(bd)bd.classList.add('show');if(openBtn)openBtn.style.display='flex'}
+    if(c){
+      sb.classList.remove('open');sb.classList.add('collapsed');
+      if(bd){bd.classList.remove('show');bd.setAttribute('aria-hidden','true')}
+      document.body.classList.remove('sidebar-open');
+      if(openBtn)openBtn.style.display='flex';
+    }else{
+      sb.classList.add('open');sb.classList.remove('collapsed');
+      if(bd){bd.classList.add('show');bd.setAttribute('aria-hidden','false')}
+      document.body.classList.add('sidebar-open');
+      if(openBtn)openBtn.style.display='flex';
+    }
     return;
   }
+  document.body.classList.remove('sidebar-open');
   if(c){sb.classList.add('collapsed');sb.classList.remove('open');if(openBtn)openBtn.style.display='flex'}
   else {sb.classList.remove('collapsed');sb.classList.remove('open');if(openBtn)openBtn.style.display='none'}
-  if(bd)bd.classList.remove('show');
+  if(bd){bd.classList.remove('show');bd.setAttribute('aria-hidden','true')}
 }
 bindResponsive(){
   if(this._respBound)return;this._respBound=true;
@@ -10684,7 +10778,9 @@ renderAuth(){
 
   if(user&&user.id){
     const avatar=user.picture?`<img class="auth-avatar" src="${escapeHtml(user.picture)}" alt="">`:`<span class="auth-avatar" style="display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-size:.7rem">${escapeHtml((user.name||user.email||'?')[0]||'?')}</span>`;
-    const who=this.userLabel();area.innerHTML=`<button type="button" class="auth-btn" id="btn-account">${avatar}<span style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(who.short)}</span></button><button type="button" class="auth-btn" id="btn-logout">Log out</button>`;
+    const who=this.userLabel();
+    const shortName=String(who.short||who.label||user.name||user.email||'Account').slice(0,18);
+    area.innerHTML=`<button type="button" class="auth-btn" id="btn-account" title="${escapeHtml(who.label||user.email||'')}">${avatar}<span class="auth-user-label">${escapeHtml(shortName)}</span></button><button type="button" class="auth-btn" id="btn-logout">Log out</button>`;
     const acc=$('#btn-account');if(acc)acc.onclick=()=>this.openAccountMenu();
     const b=$('#btn-logout');if(b)b.onclick=()=>this.confirmLogout();
   } else {
@@ -11136,7 +11232,13 @@ bindModeMini(){
   };
   const bindBtn=(btnId,popId)=>{
     const btn=document.getElementById(btnId);const pop=document.getElementById(popId);if(!btn||!pop)return;
-    btn.onclick=e=>{e.stopPropagation();const open=!pop.classList.contains('open');document.querySelectorAll('.mode-pop').forEach(p=>p.classList.remove('open'));if(open){fill(pop);pop.classList.add('open');try{const r=btn.getBoundingClientRect();const vw=window.innerWidth||400;const vh=window.innerHeight||600;const w=Math.min(280,vw-16);pop.style.position='fixed';pop.style.width=w+'px';pop.style.maxHeight=Math.min(380,vh-24)+'px';pop.style.overflowY='auto';pop.style.zIndex='12000';pop.style.right='auto';pop.style.bottom='auto';const left=Math.max(8,Math.min(r.right-w,vw-w-8));pop.style.left=left+'px';const openUp=r.top>Math.min(320,vh*0.45);if(openUp){pop.style.top='auto';pop.style.bottom=(vh-r.top+6)+'px'}else{pop.style.top=(r.bottom+6)+'px';pop.style.bottom='auto'}}catch(err){}}};
+    btn.onclick=e=>{e.stopPropagation();const open=!pop.classList.contains('open');document.querySelectorAll('.mode-pop').forEach(p=>p.classList.remove('open'));if(open){fill(pop);pop.classList.add('open');try{const r=btn.getBoundingClientRect();const vw=window.innerWidth||400;const vh=window.innerHeight||600;const w=Math.min(280,vw-16);pop.style.position='fixed';pop.style.width=w+'px';pop.style.minWidth=w+'px';pop.style.maxWidth=w+'px';pop.style.maxHeight=Math.min(380,vh-24)+'px';pop.style.overflowY='auto';pop.style.zIndex='12000';pop.style.right='auto';pop.style.bottom='auto';/* top-right of button */
+const left=Math.max(8,Math.min(r.right-w,vw-w-8));
+pop.style.left=left+'px';
+/* Prefer ABOVE the button; only go below if no room above */
+if(r.top>=160){pop.style.top='auto';pop.style.bottom=(vh-r.top+6)+'px'}
+else{pop.style.top=(r.bottom+6)+'px';pop.style.bottom='auto'}
+}catch(err){}}};
   };
   bindBtn('mode-mini-btn','mode-mini-pop');
   bindBtn('mode-mini-btn-code','mode-mini-pop-code');
@@ -12034,25 +12136,45 @@ autoRenderCanvas(){
   });
   world.querySelectorAll('.ablock').forEach(el=>{
     const head=el.querySelector('.ah');
+    if(!head)return;
+    head.style.touchAction='none';
     head.onpointerdown=e=>{
-      if(e.target.closest('button'))return;
+      if(e.target.closest('button')||e.target.closest('input')||e.target.closest('textarea'))return;
       e.preventDefault();e.stopPropagation();
       const b=this._editingAuto.blocks.find(x=>x.id===el.dataset.id);if(!b)return;
       const start={x:e.clientX,y:e.clientY,bx:b.x||0,by:b.y||0};
+      el.classList.add('dragging');
+      try{head.setPointerCapture&&head.setPointerCapture(e.pointerId)}catch(err){}
       const move=ev=>{
-        b.x=start.bx+(ev.clientX-start.x)/this._cam.s;
-        b.y=start.by+(ev.clientY-start.y)/this._cam.s;
+        ev.preventDefault();
+        const scale=(this._cam&&this._cam.s)||1;
+        b.x=start.bx+(ev.clientX-start.x)/scale;
+        b.y=start.by+(ev.clientY-start.y)/scale;
         el.style.left=b.x+'px';el.style.top=b.y+'px';
         this.autoDrawWires();
       };
-      const up=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up)};
-      window.addEventListener('pointermove',move);window.addEventListener('pointerup',up);
+      const up=ev=>{
+        el.classList.remove('dragging');
+        try{head.releasePointerCapture&&head.releasePointerCapture(ev.pointerId)}catch(err){}
+        head.removeEventListener('pointermove',move);
+        head.removeEventListener('pointerup',up);
+        head.removeEventListener('pointercancel',up);
+        window.removeEventListener('pointermove',move);
+        window.removeEventListener('pointerup',up);
+      };
+      head.addEventListener('pointermove',move,{passive:false});
+      head.addEventListener('pointerup',up);
+      head.addEventListener('pointercancel',up);
+      window.addEventListener('pointermove',move,{passive:false});
+      window.addEventListener('pointerup',up);
     };
   });
   world.querySelectorAll('.aport.out').forEach(p=>{
+    p.style.touchAction='none';
     p.onpointerdown=e=>{
       e.preventDefault();e.stopPropagation();
       this._wireDrag={from:p.dataset.bid,port:'out',x:e.clientX,y:e.clientY};
+      try{p.setPointerCapture&&p.setPointerCapture(e.pointerId)}catch(err){}
       this.autoDrawWires(e);
     };
   });
