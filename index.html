@@ -1349,17 +1349,11 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
   .sidebar-more-btn{display:none!important}
   .mode-pop, .mode-pop.open{
     position:fixed!important;
-    left:12px!important;
-    right:12px!important;
-    bottom:auto!important;
-    top:auto!important;
-    width:auto!important;
-    min-width:0!important;
-    max-width:calc(100vw - 24px)!important;
-    max-height:min(52vh,420px)!important;
+    max-width:min(280px, calc(100vw - 16px))!important;
+    width:min(280px, calc(100vw - 16px))!important;
+    max-height:min(52vh, 420px)!important;
     overflow-y:auto!important;
     z-index:12000!important;
-    box-shadow:0 16px 48px rgba(0,0,0,.35)!important;
   }
   .mode-pop button{
     white-space:normal!important;
@@ -1450,8 +1444,11 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
 @media (max-width:768px){
   .sidebar-more-btn{display:none!important}
   .mode-pop,.mode-pop.open{
-    position:fixed!important;left:12px!important;right:12px!important;width:auto!important;
-    max-width:calc(100vw - 24px)!important;max-height:min(52vh,420px)!important;overflow-y:auto!important;z-index:12000!important;
+    position:fixed!important;
+    /* position set by JS to top-right of trigger — do not force left/right */
+    max-width:min(280px,calc(100vw - 16px))!important;
+    width:min(280px,calc(100vw - 16px))!important;
+    max-height:min(52vh,420px)!important;overflow-y:auto!important;z-index:12000!important;
   }
   .mode-tabs{background:var(--bg-primary)!important;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
   .mode-tab{background:transparent!important;box-shadow:none!important;flex:1 1 auto;min-width:0;font-size:.78rem;padding:8px 6px}
@@ -1545,6 +1542,26 @@ body.mode-canvas .sidebar-footer,
 body.mode-canvas .sidebar-footer.collapsed{
   /* same height as chat mode */
 }
+
+.auto-zoom-ctl{position:absolute;right:10px;bottom:10px;z-index:5;display:flex;flex-direction:column;gap:6px}
+.auto-zoom-ctl button{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:1.2rem;line-height:1;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.auto-zoom-ctl button:active{background:var(--accent-soft)}
+#auto-board{position:relative;touch-action:none}
+.conv-ts{display:none;font-size:.68rem;color:var(--text-tertiary);margin-top:2px;font-variant-numeric:tabular-nums}
+.conv-item.active .conv-ts,.agent-hist-item.active .conv-ts,.conv-item:hover .conv-ts,.agent-hist-item:hover .conv-ts{display:block}
+.plugin-card[data-hidden="1"]{display:none!important}
+
+.conv-main{display:flex;flex-direction:column;min-width:0;flex:1;gap:1px}
+.conv-item,.agent-hist-item{align-items:flex-start}
+.conv-item .title,.ah-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.chat-topbar{display:none!important;height:0!important;min-height:0!important;padding:0!important;border:none!important}
+.tp-step.skill-chip{cursor:default;padding:6px 8px;border-radius:8px;background:var(--accent-soft);border:1px solid var(--border);margin:4px 0}
+.tp-step.skill-chip .tp-step-head{cursor:default;gap:8px}
+.tp-step.skill-chip .tp-step-body{display:none!important}
+.tp-step.skill-chip .tp-step-title{font-weight:500;color:var(--text-primary)}
+.msg-img{max-width:min(100%,420px);border-radius:10px;border:1px solid var(--border);margin:8px 0;display:block}
+.msg-link{color:var(--accent);text-decoration:underline;word-break:break-all}
 </style>
 </head>
 <body>
@@ -1630,9 +1647,7 @@ body.mode-canvas .sidebar-footer.collapsed{
   </div>
 </div>
 <div id="pin-bar" class="pin-bar" style="display:none"></div>
-<div class="chat-area" id="chat-area"><div class="chat-topbar"><span class="spacer"></span>
-<button type="button" class="icon-soft" id="chat-files-btn" aria-label="Workspace files" title="Workspace files"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M3 7V5a2 2 0 012-2h4l2 2"/></svg></button>
-</div><div class="chat-inner" id="chat-inner">
+<div class="chat-area" id="chat-area"><div class="chat-inner" id="chat-inner">
 <div class="empty-state" id="empty-state"><h1>Think deeper.</h1><p>An agentic environment that gives ordinary models time, tools, and self-correction so they can solve harder problems reliably.</p>
 <div class="suggestion-grid">
 <button class="suggestion" data-prompt="Explain the difference between correlation and causation with a concrete example.">Correlation vs causation</button>
@@ -1776,6 +1791,11 @@ body.mode-canvas .sidebar-footer.collapsed{
           <div><span class="hint">Seconds</span><input type="number" id="swarm-secs" min="0" max="59" value="0"></div>
         </div>
         <div class="hint" style="margin-top:6px">Supervisor tracks a live clock and keeps going until the goal is fully solved (or time is exhausted).</div>
+      </div>
+      <div class="form-group">
+        <label>Response (sent to the Supervisor)</label>
+        <textarea id="swarm-response" rows="3" placeholder="What should the team work on?" style="width:100%;min-height:72px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-primary);resize:vertical"></textarea>
+        <div class="hint" style="margin-top:6px">Pre-filled from your message. Edit before starting — the Supervisor receives this with your theme and settings.</div>
       </div>
       <div class="form-group agent-opts">
         <label class="agent-check"><input type="checkbox" id="swarm-group"> Group agents (leaders + teams)</label>
@@ -2146,7 +2166,8 @@ const SVG={
   doc:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>',
   file:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>',
   dl:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>',
-  pin:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M15 2H9a1 1 0 00-1 1v1h8V3a1 1 0 00-1-1z"/><path d="M8 4h8v2.7c0 1.5.7 2.4 1.8 3.5l.7.7H5.5l.7-.7C7.3 9.1 8 8.2 8 6.7V4z"/><path d="M12 10.5V17"/></svg>',
+  puzzle:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a2.5 2.5 0 012.5 2.5V6h3.5A1.5 1.5 0 0119.5 7.5V11a2.5 2.5 0 110 5v3.5a1.5 1.5 0 01-1.5 1.5H14.5V19.5a2.5 2.5 0 11-5 0V21H6a1.5 1.5 0 01-1.5-1.5V16a2.5 2.5 0 110-5V7.5A1.5 1.5 0 016 6h3.5V4.5A2.5 2.5 0 0112 2z"/></svg>',
+  pin:'<svg width="14" height="14" viewBox="0 0 56 56" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M13.42 35.97h12.52v12.05c0 3.56 1.5 6.56 2.08 6.56.56 0 2.06-3 2.06-6.56V35.97h12.49c1.62 0 2.79-1.03 2.79-2.6 0-.98-.3-1.69-.98-2.41l-7.17-7.78c-.49-.52-.8-.89-.68-1.85l1.2-8.55c.07-.49.12-.77.56-1.08l5.74-4.17c1.29-.94 1.85-2.09 1.85-3.14 0-1.57-1.27-2.95-3.07-2.95H13.19c-1.8 0-3.07 1.38-3.07 2.95 0 1.05.56 2.2 1.83 3.14l5.76 4.17c.45.31.49.59.56 1.08l1.2 8.55c.14.96-.19 1.33-.68 1.85l-7.17 7.78c-.68.72-.98 1.43-.98 2.41 0 1.57 1.17 2.6 2.79 2.6zm3.05-3.77c-.21 0-.35-.14-.35-.35 0-.14.09-.28.21-.4l6-6.28c.77-.77 1.08-1.62.98-2.48L22.86 11.4c-.12-.91-.42-1.59-1.1-2.06L16.67 5.95c-.16-.12-.21-.23-.21-.4 0-.21.16-.35.37-.35h24.33c.21 0 .37.14.37.35 0 .17-.05.28-.21.4l-5.09 3.38c-.68.47-.98 1.15-1.1 2.06l-1.45 11.3c-.09.87.21 1.71.96 2.48l6.02 6.28c.12.12.19.26.19.4 0 .21-.12.35-.33.35H16.47z"/></svg>',
   eye:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
 
   bulb:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12c.5.5 1 1.5 1 2h6c0-.5.5-1.5 1-2a7 7 0 00-4-12z"/></svg>',
@@ -2163,7 +2184,8 @@ const SVG={
   dl:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>',
   copy:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>',
   edit:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
-  pin:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M15 2H9a1 1 0 00-1 1v1h8V3a1 1 0 00-1-1z"/><path d="M8 4h8v2.7c0 1.5.7 2.4 1.8 3.5l.7.7H5.5l.7-.7C7.3 9.1 8 8.2 8 6.7V4z"/><path d="M12 10.5V17"/></svg>',
+  puzzle:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a2.5 2.5 0 012.5 2.5V6h3.5A1.5 1.5 0 0119.5 7.5V11a2.5 2.5 0 110 5v3.5a1.5 1.5 0 01-1.5 1.5H14.5V19.5a2.5 2.5 0 11-5 0V21H6a1.5 1.5 0 01-1.5-1.5V16a2.5 2.5 0 110-5V7.5A1.5 1.5 0 016 6h3.5V4.5A2.5 2.5 0 0112 2z"/></svg>',
+  pin:'<svg width="14" height="14" viewBox="0 0 56 56" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M13.42 35.97h12.52v12.05c0 3.56 1.5 6.56 2.08 6.56.56 0 2.06-3 2.06-6.56V35.97h12.49c1.62 0 2.79-1.03 2.79-2.6 0-.98-.3-1.69-.98-2.41l-7.17-7.78c-.49-.52-.8-.89-.68-1.85l1.2-8.55c.07-.49.12-.77.56-1.08l5.74-4.17c1.29-.94 1.85-2.09 1.85-3.14 0-1.57-1.27-2.95-3.07-2.95H13.19c-1.8 0-3.07 1.38-3.07 2.95 0 1.05.56 2.2 1.83 3.14l5.76 4.17c.45.31.49.59.56 1.08l1.2 8.55c.14.96-.19 1.33-.68 1.85l-7.17 7.78c-.68.72-.98 1.43-.98 2.41 0 1.57 1.17 2.6 2.79 2.6zm3.05-3.77c-.21 0-.35-.14-.35-.35 0-.14.09-.28.21-.4l6-6.28c.77-.77 1.08-1.62.98-2.48L22.86 11.4c-.12-.91-.42-1.59-1.1-2.06L16.67 5.95c-.16-.12-.21-.23-.21-.4 0-.21.16-.35.37-.35h24.33c.21 0 .37.14.37.35 0 .17-.05.28-.21.4l-5.09 3.38c-.68.47-.98 1.15-1.1 2.06l-1.45 11.3c-.09.87.21 1.71.96 2.48l6.02 6.28c.12.12.19.26.19.4 0 .21-.12.35-.33.35H16.47z"/></svg>',
   trash:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
   warn:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L12.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
   google:'<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.5-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 12 24 12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.3 35.9 26.8 37 24 37c-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-1.3 3.7-4.6 6.4-8.3 7.5l.1.1 6.3 5.3C35.8 42.2 44 36 44 24c0-1.3-.1-2.5-.4-3.5z"/></svg>'
@@ -4473,7 +4495,7 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 {type:'function',function:{name:'search_file',description:'Search a workspace file (or all uploads/) for a keyword or regex. Returns matching snippets with character offsets so you can read_file that section. Use this on large HTML/text instead of loading the whole file.',parameters:{type:'object',properties:{path:{type:'string',description:'File path or folder. Empty = search uploads/ and artifacts/'},query:{type:'string'},regex:{type:'boolean'},context:{type:'number',description:'Chars of context around each hit'},limit:{type:'number'}},required:['query']}}},
 {type:'function',function:{name:'run_onnx',description:'Run a workspace ONNX model in the browser with ONNX Runtime Web. path defaults to the last converted model. input is a number or JSON array of floats.',parameters:{type:'object',properties:{path:{type:'string'},input:{description:'Number or array of floats'}},required:[]}}},
 {type:'function',function:{name:'write_file',description:'Create or overwrite a file in the internal FS. In CODE MODE always write under the current session folder (code/<sessionId>/…), e.g. index.html or style.css — the runtime rewrites bare names into that folder. In chat mode prefer artifacts/ for work products and memory/ for durable facts. Previous versions are archived automatically.',parameters:{type:'object',properties:{path:{type:'string',description:'Destination path (code mode: relative to session code root, e.g. index.html)'},content:{type:'string',description:'Full file contents to write'}},required:['path','content']}}},
-{type:'function',function:{name:'delete_file',description:'Delete a file from the internal filesystem (a copy is archived). Use only when the user asks to remove something.',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}},
+{type:'function',function:{name:'delete_file',description:'Delete a file from the internal filesystem (a copy is archived). Use only when the user asks to remove something.',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}},{type:'function',function:{name:'write_pdf',description:'Create a real downloadable PDF in the workspace. path must end with .pdf; title optional; body is plain text with newlines.',parameters:{type:'object',properties:{path:{type:'string'},title:{type:'string'},body:{type:'string'}},required:['path','body']}}},{type:'function',function:{name:'fetch_url',description:'Fetch a public https URL (image, SVG, HTML, JSON, text) for coding or display. Only https.',parameters:{type:'object',properties:{url:{type:'string'},maxChars:{type:'number'}},required:['url']}}},
 {type:'function',function:{name:'run_python',description:'Run Python in a sandbox. Workspace files are under /workspace (uploads/, artifacts/, models/). Helpers: ws_read(path,start,length) and ws_search(path,keyword) to scan large files without loading everything.',parameters:{type:'object',properties:{code:{type:'string',description:'Python source code to execute'}},required:['code']}}},
 {type:'function',function:{name:'self_check',description:'Record a brief self-check of correctness before finalizing an important answer. Use after tool results when stakes are high.',parameters:{type:'object',properties:{observation:{type:'string',description:'What you verified'},passed:{type:'boolean',description:'Whether the check passed'}},required:['observation']}}},
 {type:'function',function:{name:'web_search',description:'Search the public web for up-to-date facts, docs, or news. Use when the answer depends on information you may not have reliably.',parameters:{type:'object',properties:{query:{type:'string',description:'Search query string'}},required:['query']}}},
@@ -4487,6 +4509,37 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 {type:'function',function:{name:'generate_image',description:'Generate an image from a text prompt using the configured image model. Returns a path in the workspace.',parameters:{type:'object',properties:{prompt:{type:'string'},filename:{type:'string'}},required:['prompt']}}}
 ]}
 async execute(name,args){switch(name){
+case'write_pdf':{
+  let path=String((args&&args.path)||'artifacts/document.pdf').replace(/^\/+/,'').trim();
+  if(!/\.pdf$/i.test(path)) path=path.replace(/\.?$/,'')+'.pdf';
+  const title=String((args&&args.title)||'Document');
+  const body=String((args&&args.body)||'');
+  try{
+    const pdf=Tools._buildSimplePdf(title, body);
+    this.vfs.write(path, pdf, {archiveOld:true, binary:true});
+    return {path, bytes:pdf.length|| (pdf.byteLength||0), ok:true, note:'PDF written — download from Files'};
+  }catch(e){return {error:String(e.message||e)}}
+}
+case'fetch_url':{
+  const url=String((args&&args.url)||'').trim();
+  if(!/^https:\/\//i.test(url)) return {error:'Only https:// URLs are allowed'};
+  const maxChars=Math.min(200000, Math.max(500, Number(args&&args.maxChars)||40000));
+  try{
+    const res=await fetch(url, {mode:'cors'});
+    if(!res.ok) return {error:'HTTP '+res.status, url};
+    const ct=(res.headers.get('content-type')||'').toLowerCase();
+    if(/image\/(png|jpe?g|gif|webp|svg)/i.test(ct) || /\.svg(\?|$)/i.test(url)){
+      if(/svg/i.test(ct)||/\.svg/i.test(url)){
+        const text=await res.text();
+        return {url, contentType:ct||'image/svg+xml', kind:'svg', text:String(text).slice(0,maxChars)};
+      }
+      return {url, contentType:ct, kind:'image', bytes:0, note:'Image reachable — display in chat with markdown ![img]('+url+')'};
+    }
+    const text=await res.text();
+    return {url, contentType:ct||'text', kind:'text', text:String(text).slice(0,maxChars)};
+  }catch(e){return {error:String(e.message||e), url, hint:'CORS may block this host in the browser'}}
+}
+
 case'list_files':{const p=args.path||'';if(p.startsWith('external:')||p==='external'){const sub=p.replace(/^external:?/,'')||'';return await this.external.list(sub)}const paths=this.vfs.list(p);return paths.map(path=>({path,lines:this.vfs.files[path]?.lines,updated:this.vfs.files[path]?.updated}))}
 case'read_file':{
   const p=args.path||'';
@@ -5629,7 +5682,7 @@ class Coordinator{
     this.k.goal=goal;
     const mystery=!!this.k.mystery;
     const groupMode=!!this.k.groupMode;
-    let supPrompt='You are the Supervisor (coordinator). Never speak to the human directly. Call contact_agent to assign work and createfinalresponse when fully solved. ENVIRONMENT SAFETY: this is a browser tab. Never assign while True, unbounded loops, os.system, subprocess, threading, eval, location.reload, or huge allocations. If a tool returns CRASH_BLOCKED, rewrite smaller. Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nCRITICAL RULE: Do NOT output SOLVED until the goal is completely solved to the user\'s standard — partial progress is not enough. Keep assigning workers until the work is finished. Only then synthesize the final answer from all agent results (prefer majority when they agree). When workers submit Python, you optimize it for maximum Pyodide speed (all modules available) before execution; agents stay idle until that returns. In your own notes use short thoughts only — no titles/headings; LaTeX math is fine.';
+    let supPrompt='You are the Supervisor (coordinator). Never speak to the human directly. Call contact_agent to assign work and createfinalresponse when fully solved. MATH & COMPUTATION: Always compute in small iterations — break large calculations into sequential steps or batches; never one giant unbounded loop or massive matrix in a single run_python call. Prefer iterative refinement (check → adjust → re-check). Cap loops (e.g. max 50–200 steps per call) and aggregate results across multiple tool calls. This prevents tab crashes. ENVIRONMENT SAFETY: this is a browser tab. Never assign while True, unbounded loops, os.system, subprocess, threading, eval, location.reload, or huge allocations. If a tool returns CRASH_BLOCKED, rewrite smaller. Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nCRITICAL RULE: Do NOT output SOLVED until the goal is completely solved to the user\'s standard — partial progress is not enough. Keep assigning workers until the work is finished. Only then synthesize the final answer from all agent results (prefer majority when they agree). When workers submit Python, you optimize it for maximum Pyodide speed (all modules available) before execution; agents stay idle until that returns. In your own notes use short thoughts only — no titles/headings; LaTeX math is fine.';
     if(mystery){
       supPrompt+='\nMYSTERY MODE (HARD RULES):\n'
         +'Your ONLY goal is to SOLVE the mathematical mystery — find something never found before (a new proof step, closed form, counterexample, computation, or rigorous relation), then VERIFY it.\n'
@@ -5670,7 +5723,7 @@ if(groupMode){
           ?(' You are group leader of '+meta.group+'. Coordinate members of '+meta.group+' via swarm_send, then report a group summary to the Supervisor.')
           :(' You are a member of '+meta.group+'. Discuss only with your leader and Supervisor. Use your agent id only.');
       }
-      const workerPrompt='You are '+('w'+String(i+1).padStart(4,'0'))+', role '+role+'. Stay in scope. Speak only to the Supervisor (and your group leader if any) by agent id. Never address the human user by name. Never claim other agents used a human name for you. Use tools only if permitted. SAFETY: no infinite loops, while True, os/subprocess, or location.reload. Bound every loop. If you see CRASH_BLOCKED, shrink the work. THINKING STYLE: write a short plain thought only — no titles or headings. Math may use LaTeX. Do not echo the user message. Use tools (especially run_python) when the task needs computation or verification — do not only restate the task.'+extra+(mystery?' Mystery mode: push toward a result never found before for this goal. Deliver a concrete artifact: computation, proof step, closed form, or counterexample. Then propose tests to verify it. Never say it is impossible or limited by time. Never only restate the problem. Use run_python heavily.':'');
+      const workerPrompt='You are '+('w'+String(i+1).padStart(4,'0'))+', role '+role+'. Stay in scope. Speak only to the Supervisor (and your group leader if any) by agent id. Never address the human user by name. Never claim other agents used a human name for you. Use tools only if permitted. SAFETY: no infinite loops, while True, os/subprocess, or location.reload. Compute math iteratively in small batches; never unbounded loops or huge single allocations. Bound every loop. If you see CRASH_BLOCKED, shrink the work. THINKING STYLE: write a short plain thought only — no titles or headings. Math may use LaTeX. Do not echo the user message. Use tools (especially run_python) when the task needs computation or verification — do not only restate the task.'+extra+(mystery?' Mystery mode: push toward a result never found before for this goal. Deliver a concrete artifact: computation, proof step, closed form, or counterexample. Then propose tests to verify it. Never say it is impossible or limited by time. Never only restate the problem. Use run_python heavily.':'');
       this.k.agents.register({
         id:'w'+String(i+1).padStart(4,'0'),
         role,
@@ -6061,6 +6114,11 @@ if(hasTools){
       }
     }
     console.log('[Agent] tool call',name,args,'id',tc.id);
+    // Surface skill chips for special tools (non-expandable)
+    try{
+      if(name==='write_pdf') onEvent({type:'activity',name:'Skill used: PDF files',skill:'PDF files',status:'done',expand:false});
+      if(name==='fetch_url') onEvent({type:'activity',name:'Skill used: URL & media',skill:'URL & media',status:'done',expand:false});
+    }catch(e){}
     const actId=onEvent({type:'activity',name:this._activityTitle(name,args),agent:this._agentFor(name),status:'running',detail:name==='write_file'?('Writing '+(args.path||'file')+'…'):this._detailForArgs(name,args),expand:name==='write_file'});
     let result;
     try{
@@ -6693,7 +6751,10 @@ try{this.rehydrateVfsFromStorage&&this.rehydrateVfsFromStorage()}catch(e){}
 const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>{try{if(this.isPhone&&this.isPhone())this.toggleSidebar(true)}catch(e){}this.setMode('canvas')};const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);this._preferEmptyBoot=true;this.newChat();try{setTimeout(()=>{try{this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);document.querySelectorAll(".conv-item.active").forEach(n=>n.classList.remove("active"));this.renderConversations&&this.renderConversations();this.showEmpty&&this.showEmpty()}catch(e){}},50)}catch(e){}
   window.addEventListener('beforeunload',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}try{this.app.conversations&&this.app.conversations.persist()}catch(e){}});
   window.addEventListener('pagehide',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}});
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}}});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden'){try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}}
+    else if(document.visibilityState==='visible'){try{this.tryResumeAgentRun()}catch(e){}try{this.tryResumeChatRun()}catch(e){}}
+  });
   window.addEventListener('online',()=>{try{if(this.app.cloud)this.app.cloud.pushNow(this.app)}catch(e){}try{this.tryResumeAgentRun()}catch(e){}try{this.tryResumeChatRun()}catch(e){}});
 }
 initCodeMode(){
@@ -6906,7 +6967,14 @@ persistChatRun(force){
     const conv=this.app.conversations.get(this.app.conversations.currentId);
     const lastAi=conv&&(conv.messages||[]).slice().reverse().find(m=>m.role==='assistant');
     const lastUser=conv&&(conv.messages||[]).slice().reverse().find(m=>m.role==='user');
-    const snap={v:1,ts:Date.now(),alive:running&&!!(lastUser&&lastAi&&!String(lastAi.content||'').trim()),convId:conv?conv.id:null,userMsgId:lastUser&&lastUser.id,aiMsgId:lastAi&&lastAi.id,userText:lastUser?String(lastUser.content||'').slice(0,8000):'',attachments:(lastUser&&lastUser.attachments)||[],activities:(lastAi&&lastAi.activities)||[]};
+    let thinkingText='';
+    try{
+      if(lastAi){
+        thinkingText=String(lastAi.reasoning||lastAi.thinking||'');
+        if(!thinkingText&&Array.isArray(lastAi.activities))thinkingText=lastAi.activities.map(a=>String((a&&(a.detail||a.text||a.name))||'')).filter(Boolean).join('\n').slice(0,8000);
+      }
+    }catch(e){}
+    const snap={v:1,ts:Date.now(),alive:running&&!!(lastUser&&lastAi&&!String(lastAi.content||'').trim()),convId:conv?conv.id:null,userMsgId:lastUser&&lastUser.id,aiMsgId:lastAi&&lastAi.id,userText:lastUser?String(lastUser.content||'').slice(0,8000):'',attachments:(lastUser&&lastUser.attachments)||[],activities:(lastAi&&lastAi.activities)||[],thinkingText:thinkingText};
     this.app.storage.set('chatRunState',snap);
     if(this.app.cloud){
       try{this.app.cloud.pushLiveThinking&&this.app.cloud.pushLiveThinking(this.app,{kind:'chat',convId:snap.convId,alive:snap.alive})}catch(e){}
@@ -6928,7 +6996,7 @@ tryResumeAgentRun(){
     if(!k.restore||!k.restore(snap))return;
     this._agentResumed=true;
     if(this.setAgentRunningUi)this.setAgentRunningUi(true);
-    toast('Agent run resumed','success');
+    /* seamless agent resume — no toast */
     this.renderSwarm({t:'swarm.resume'});
   }catch(e){console.warn('[resume agent]',e)}
 }
@@ -6950,12 +7018,44 @@ tryResumeChatRun(){
     if(!aiMsg)this.app.conversations.addMessage(conv.id,liveAi);
     this.loadConversation(snap.convId);
     const aiEl=document.querySelector('.message[data-id="'+liveAi.id+'"]')||this.renderMessage(liveAi,true);
-    toast('Continuing chat after refresh','success');
+    // Seamless resume: no "continuing" toast — same thinking panel looks "Working" again
+    try{
+      const th=aiEl&&(aiEl.querySelector('.thinking-compact')||aiEl.querySelector('.th-head')||aiEl.querySelector('.agent-work'));
+      if(th){th.classList.add('open');const lab=aiEl.querySelector('#agent-work-label,.th-label');if(lab)lab.textContent='Working…'}
+    }catch(e){}
     this.ensureAgent();
     const stop=$('#stop-btn');if(stop)stop.classList.add('visible');
     const sendBtn=$('#send-btn');if(sendBtn){sendBtn.style.display='none';sendBtn.disabled=true}
     const history=(conv.messages||[]).filter(m=>m.id!==liveAi.id);
-    this.app.agent.run(snap.userText,history,snap.attachments||[],ev=>this.handleAgentEvent(ev,aiEl,liveAi),{deepThink:false})
+    const acts=liveAi.activities||snap.activities||[];
+    const hasThinking=!!(acts&&acts.length)||!!(liveAi.reasoning||liveAi.thinking||(snap.thinkingText));
+    const hasFinal=!!String(liveAi.content||'').trim();
+    // Secret prompts — never shown as user bubbles; model must not mention resuming
+    let resumeUser=snap.userText;
+    let deepThink=false;
+    if(hasThinking&&!hasFinal){
+      resumeUser='[SYSTEM INTERNAL — do not mention this note] The previous turn already produced thinking/activities but no final user-facing answer. Using that thinking as context, write only the final response now. Do not restate that you are continuing. Do not open a new deep-think phase.';
+      deepThink=false;
+    }else if(!hasFinal){
+      resumeUser='[SYSTEM INTERNAL — do not mention this note] Continue the interrupted answer to the user request below. Do not say you were interrupted, paused, or are continuing — reply as if this is one unbroken response.\n\nUser request:\n'+String(snap.userText||'');
+      deepThink=false;
+    }else{
+      // already complete
+      this.app.storage.set('chatRunState',Object.assign({},snap,{alive:false}));
+      return;
+    }
+    // Attach prior thinking into history for the model only
+    const histForModel=history.slice();
+    if(hasThinking){
+      const thinkBits=[];
+      (acts||[]).forEach(a=>{if(a&&(a.detail||a.text||a.name))thinkBits.push(String(a.detail||a.text||a.name).slice(0,600))});
+      if(liveAi.reasoning)thinkBits.push(String(liveAi.reasoning).slice(0,2000));
+      if(snap.thinkingText)thinkBits.push(String(snap.thinkingText).slice(0,2000));
+      if(thinkBits.length){
+        histForModel.push({role:'assistant',content:'(prior thinking notes — internal)\n'+thinkBits.join('\n').slice(0,6000)});
+      }
+    }
+    this.app.agent.run(resumeUser,histForModel,snap.attachments||[],ev=>this.handleAgentEvent(ev,aiEl,liveAi),{deepThink:deepThink,resume:true,reuseMsgId:liveAi.id})
       .catch(e=>toast(e.message||String(e),'error'))
       .finally(()=>{
         this.app.storage.set('chatRunState',Object.assign({},this.app.storage.get('chatRunState',{})||{},{alive:false,ts:Date.now()}));
@@ -7422,7 +7522,11 @@ renderAgentHist(){
     .filter(s=>s&&(!pid||String(s.projectId||'')===String(pid)))
     .slice()
     .sort((a,b)=>Number(b.updated||b.lastTalked||b.created||0)-Number(a.updated||a.lastTalked||a.created||0));
-  listEl.innerHTML=list.slice(0,40).map(s=>'<div class="agent-hist-item hist-item-wrap'+(s.id===this._currentAgentSessionId?' active':'')+'" data-id="'+s.id+'"><span class="ah-title">'+escapeHtml(s.title||'Agent chat')+'</span><button type="button" class="ah-more" data-act="menu" aria-label="Menu">⁝</button><div class="hist-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div></div>').join('')||'<div class="hint" style="padding:8px">No agent chats yet</div>';
+  listEl.innerHTML=list.slice(0,40).map(s=>{
+    const cts=s.created||s.updated||0;
+    const tlab=cts?new Date(cts).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):'';
+    return '<div class="agent-hist-item hist-item-wrap'+(s.id===this._currentAgentSessionId?' active':'')+'" data-id="'+s.id+'"><div class="conv-main"><span class="ah-title">'+escapeHtml(s.title||'Agent chat')+'</span>'+(tlab?'<span class="conv-ts">Created '+escapeHtml(tlab)+'</span>':'')+'</div><button type="button" class="ah-more" data-act="menu" aria-label="Menu">⁝</button><div class="hist-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div></div>';
+  }).join('')||'<div class="hint" style="padding:8px">No agent chats yet</div>';
   listEl.querySelectorAll('.agent-hist-item').forEach(el=>el.onclick=e=>this._histMenuClick(e,el,'agent'));
   const nb=$('#agent-new-btn');if(nb)nb.onclick=()=>{this.resetAgentChatView();toast('New agent chat','success')};
 }
@@ -7598,11 +7702,12 @@ openAgentSetup(){
     ov.style.display='flex';
     ov.style.zIndex='12050';
     try{
-      // Ensure defaults visible
       if($('#swarm-count')&&!$('#swarm-count').value)$('#swarm-count').value='5';
       if($('#swarm-mins')&&!$('#swarm-mins').value)$('#swarm-mins').value='10';
+      const resp=$('#swarm-response');
+      const typed=($('#swarm-goal')?.value||'').trim();
+      if(resp) resp.value=typed||'Complete the goal thoroughly and report a clear final answer.';
     }catch(e){}
-    // Re-bind Start so it always works
     const go=$('#agent-setup-go');
     if(go)go.onclick=()=>this.confirmAgentSetup(false);
     return;
@@ -7665,7 +7770,7 @@ async confirmAgentSetup(followup){
     ov.classList.remove('open');
     ov.setAttribute('aria-hidden','true');
   }
-  let goal=($('#swarm-goal')?.value||'').trim();
+  let goal=($('#swarm-response')?.value||$('#swarm-goal')?.value||'').trim();
   const agentAtt=this.consumePendingAttachments?this.consumePendingAttachments():[];
   if(!goal&&!(agentAtt&&agentAtt.length))return;
   if(!goal)goal='Use the attached files.';
@@ -7686,7 +7791,14 @@ async confirmAgentSetup(followup){
     mystery=intent==='mystery';
     this._lastAgentOpts={count,budgetMs,intent,live,debate,group,mystery};
   }
+  // Theme tells the supervisor what the user wants with this response
+  const themeMap={mystery:'Mathematical mystery',code:'Create advanced code',document:'Write a fancy document',other:'General task'};
+  const themeLabel=themeMap[intent]||themeMap.other;
+  if(intent&&intent!=='other'){
+    goal='The user wants to do this with the response: '+themeLabel+'.\n\nUser response / goal:\n'+goal;
+  }
   const t=$('#swarm-goal');if(t){t.value='';t.style.height='auto'}
+  const r=$('#swarm-response');if(r)r.value='';
   await this.startSwarm({goal,count,live,debate,group,mystery,intent,budgetMs,followup:!!followup});
 }
 
@@ -9184,7 +9296,7 @@ downloadSingleFile(path){
 }
 previewFile(path){try{const content=this.app.vfs.read(path);const meta=this.app.vfs.files[path];$('#file-meta').textContent=`${path} · v${meta.version} · ${meta.lines} lines · ${new Date(meta.updated).toLocaleString()}`;$('#file-preview').textContent=content;$('#file-preview-wrap').style.display='block'}catch(e){this.explainApiError(e)}}
 openPlugins(){this.hideSelToolbar();this.renderPluginList();$('#plugin-editor').style.display='none';$('#plugins-overlay').classList.add('open')}
-renderPluginList(){const list=$('#plugin-list');list.innerHTML='';const plugins=this.app.plugins.list();if(!plugins.length){list.innerHTML='<p style="color:var(--text-tertiary)">No plugins yet.</p>';return}plugins.forEach(p=>{const card=document.createElement('div');card.className='plugin-card';const iconHtml=p.icon?.startsWith('http')?`<img src="${escapeHtml(p.icon)}" alt="">`:`<span style="font-size:1.4rem">${escapeHtml(p.icon||'P')}</span>`;card.innerHTML=`<div class="icon">${iconHtml}</div><div class="info"><div class="name">${escapeHtml(p.name)} ${p.enabled?'<span style="color:var(--success);font-size:.75rem">● on</span>':'<span style="color:var(--text-tertiary);font-size:.75rem">off</span>'}</div><div class="desc">${escapeHtml(p.description||'')}${p.folder?'<div style="font-size:.7rem;color:var(--text-tertiary);margin-top:4px">'+SVG.folder+' '+escapeHtml(p.folder)+'</div>':''}</div></div><div class="actions"><button class="icon-btn" data-act="toggle" title="Toggle on/off">${p.enabled?'⏻':'⭘'}</button><button class="icon-btn" data-act="edit">✎</button><button class="icon-btn" data-act="del">×</button></div>`;card.querySelector('[data-act=toggle]').onclick=()=>{p.enabled=!p.enabled;this.app.plugins.save(p);this.renderPluginList();toast(p.enabled?'Plugin enabled':'Plugin disabled','success')};card.querySelector('[data-act=edit]').onclick=()=>this.editPlugin(p.id);card.querySelector('[data-act=del]').onclick=()=>{this.appConfirm('Delete this plugin?','Delete plugin').then(ok=>{if(ok){this.app.plugins.delete(p.id);this.renderPluginList()}})};list.appendChild(card)})}
+renderPluginList(){const list=$('#plugin-list');list.innerHTML='';const plugins=this.app.plugins.list().filter(p=>p&&!p.hidden);if(!plugins.length){list.innerHTML='<p style="color:var(--text-tertiary)">No plugins yet.</p>';return}plugins.forEach(p=>{const card=document.createElement('div');card.className='plugin-card';const iconHtml=p.icon?.startsWith('http')?`<img src="${escapeHtml(p.icon)}" alt="">`:`<span style="font-size:1.4rem">${escapeHtml(p.icon||'P')}</span>`;card.innerHTML=`<div class="icon">${iconHtml}</div><div class="info"><div class="name">${escapeHtml(p.name)} ${p.enabled?'<span style="color:var(--success);font-size:.75rem">● on</span>':'<span style="color:var(--text-tertiary);font-size:.75rem">off</span>'}</div><div class="desc">${escapeHtml(p.description||'')}${p.folder?'<div style="font-size:.7rem;color:var(--text-tertiary);margin-top:4px">'+SVG.folder+' '+escapeHtml(p.folder)+'</div>':''}</div></div><div class="actions"><button class="icon-btn" data-act="toggle" title="Toggle on/off">${p.enabled?'⏻':'⭘'}</button><button class="icon-btn" data-act="edit">✎</button><button class="icon-btn" data-act="del">×</button></div>`;card.querySelector('[data-act=toggle]').onclick=()=>{p.enabled=!p.enabled;this.app.plugins.save(p);this.renderPluginList();toast(p.enabled?'Plugin enabled':'Plugin disabled','success')};card.querySelector('[data-act=edit]').onclick=()=>this.editPlugin(p.id);card.querySelector('[data-act=del]').onclick=()=>{this.appConfirm('Delete this plugin?','Delete plugin').then(ok=>{if(ok){this.app.plugins.delete(p.id);this.renderPluginList()}})};list.appendChild(card)})}
 editPlugin(id){const p=id?this.app.plugins.get(id):{id:uid(),name:'',description:'',instructions:'',knowledge:'',icon:'',enabled:true};$('#plugin-name').value=p.name;$('#plugin-desc').value=p.description||'';$('#plugin-instructions').value=p.instructions||'';$('#plugin-knowledge').value=p.knowledge||'';$('#plugin-icon').value=p.icon||'';$('#plugin-enabled').checked=!!p.enabled;if($('#plugin-training'))$('#plugin-training').checked=!!p.training;$('#plugin-editor').style.display='block';this._editingPlugin=p}
 savePlugin(){const p=this._editingPlugin||{id:uid()};p.name=$('#plugin-name').value.trim()||'Untitled';p.description=$('#plugin-desc').value.trim();p.instructions=$('#plugin-instructions').value;p.knowledge=$('#plugin-knowledge').value;p.icon=$('#plugin-icon').value.trim()||'🧩';p.enabled=$('#plugin-enabled').checked;p.training=!!$('#plugin-training')?.checked;this.app.plugins.save(p);$('#plugin-editor').style.display='none';this.renderPluginList();toast('Plugin saved','success')}
 async importPlugin(file){if(!file)return;try{const text=await file.text();let data;try{data=JSON.parse(text)}catch{data=null}const p=data?{id:uid(),name:data.name||file.name.replace(/\.\w+$/,''),description:data.description||'',instructions:data.instructions||data.prompt||'',knowledge:data.knowledge||'',icon:data.icon||'plugin',enabled:true,training:!!data.training,folder:data.folder||'',files:data.files||null}:{id:uid(),name:file.name.replace(/\.\w+$/,''),description:'Imported text',instructions:text,knowledge:'',icon:'file',enabled:true};this.app.plugins.save(p);this.renderPluginList();toast('Imported','success')}catch(e){toast('Import failed: '+e.message,'error')}$('#import-plugin-file').value=''}
@@ -9248,7 +9360,9 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
   }
   chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+((this.app.conversations.currentId&&String(c.id)===String(this.app.conversations.currentId))?' active':'');div.draggable=true;div.dataset.chatId=c.id;
   const projMenu=projects.length?('<button type="button" data-act="to-project">Move to project…</button>'+(c.projectId?'<button type="button" data-act="leave-project">Remove from project</button>':'')):'';
-  div.innerHTML=`<span class="title">${escapeHtml(c.title)}</span><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button>${projMenu}<button type="button" data-act="delete">Delete</button></div>`;
+  const createdTs=c.created||c.updated||0;
+  const tsLabel=createdTs?new Date(createdTs).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}):'';
+  div.innerHTML=`<div class="conv-main"><span class="title">${escapeHtml(c.title)}</span>${tsLabel?`<span class="conv-ts" title="Created">Created ${escapeHtml(tsLabel)}</span>`:''}</div><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button>${projMenu}<button type="button" data-act="delete">Delete</button></div>`;
   div.ondragstart=e=>{div.classList.add('dragging');e.dataTransfer.setData('text/td-chat-id',c.id);e.dataTransfer.setData('text/plain',c.id);e.dataTransfer.effectAllowed='move'};
   div.ondragend=()=>div.classList.remove('dragging');
   div.onclick=e=>{
@@ -9494,15 +9608,22 @@ else if(ev.type==='activity'){
   if(!panel){console.error('thought panel missing');return null}
   const id=uid();
   const isNarration=/thinking|plan|deep/i.test(ev.name||'');
-  const step=document.createElement('div');step.className='tp-step';step.dataset.id=id;
+  const isSkill=/^Skill used:/i.test(String(ev.name||'')) || !!ev.skill;
+  const step=document.createElement('div');step.className='tp-step'+(isSkill?' skill-chip':'');step.dataset.id=id;
   const title=ev.name||'Step';
-  step.innerHTML=`<div class="tp-step-head"><span style="opacity:.6">▸</span> <span class="tp-step-title"></span> <span class="line-delta" hidden></span> <span class="tp-step-status" style="opacity:.6">${ev.status==='running'?'…':''}</span></div><div class="tp-step-body"></div>`;
+  if(isSkill){
+    const skillName=String(ev.skill||String(title).replace(/^Skill used:\s*/i,'')||'Skill');
+    step.innerHTML=`<div class="tp-step-head">${SVG.puzzle||''}<span class="tp-step-title">Skill used: ${escapeHtml(skillName)}</span></div>`;
+  } else {
+    step.innerHTML=`<div class="tp-step-head"><span style="opacity:.6">▸</span> <span class="tp-step-title"></span> <span class="line-delta" hidden></span> <span class="tp-step-status" style="opacity:.6">${ev.status==='running'?'…':''}</span></div><div class="tp-step-body"></div>`;
+  }
   let agent=String(ev.agent||'').trim();
   let titleText=String(title||'Step');
   if(agent && titleText.toLowerCase().startsWith(agent.toLowerCase())){
     titleText=titleText.slice(agent.length).replace(/^[\s·\-:]+/,'').trim()||titleText;
   }
   step.dataset.agent=agent;
+  if(!isSkill){
   step.querySelector('.tp-step-title').innerHTML=(agent?('<span class="tp-agent">'+escapeHtml(agent)+'</span> '):'')+escapeHtml(titleText);
   if(ev.detail){
     const b=step.querySelector('.tp-step-body');
@@ -9517,12 +9638,13 @@ else if(ev.type==='activity'){
       try{b.innerHTML=this.renderMarkdown(d.slice(0,4000))}catch{b.textContent=d.slice(0,4000)}
     }
   }
+  } // end !isSkill
   {
     const isWrite=/Writing file|Wrote file|write_file/i.test(String(ev.name||''));
     if(isWrite||ev.expand){step.classList.add('open');const ch=step.querySelector('.tp-step-head > span');if(ch)ch.textContent='▾';}
     if(isWrite){step.classList.add('writing-live');const root=step.closest('.thought-process');if(root){root.classList.add('open');const c=root.querySelector('.tp-chevron');if(c)c.textContent='▾'}}
   }
-  step.querySelector('.tp-step-head').onclick=(e)=>{e.stopPropagation();step.classList.toggle('open');step.querySelector('.tp-step-head span').textContent=step.classList.contains('open')?'▾':'▸'};
+  if(!isSkill){step.querySelector('.tp-step-head').onclick=(e)=>{e.stopPropagation();step.classList.toggle('open');const chev=step.querySelector('.tp-step-head span');if(chev)chev.textContent=step.classList.contains('open')?'▾':'▸'};}
   panel.appendChild(step);
   const n=panel.querySelectorAll('.tp-step').length;
   root.querySelector('.tp-meta').textContent=`${n} step${n>1?'s':''}`;
@@ -10316,6 +10438,7 @@ renderMarkdown(text){
       out=marked.parse(t);
     }else out=this.builtinMarkdown(t);
   }catch(e){out=this.builtinMarkdown(t)}
+  try{out=this._enhanceLinksAndImages(out)}catch(e){}
   out=out.replace(/%%MATH(\d+)%%/g,(_,n)=>this._katexHTML(maths[Number(n)]));
   out=String(out||'').replace(/%%CHIP(\d+)%%/g,(_,n)=>chips[Number(n)]||'');
   return out;
@@ -11232,12 +11355,29 @@ bindModeMini(){
   };
   const bindBtn=(btnId,popId)=>{
     const btn=document.getElementById(btnId);const pop=document.getElementById(popId);if(!btn||!pop)return;
-    btn.onclick=e=>{e.stopPropagation();const open=!pop.classList.contains('open');document.querySelectorAll('.mode-pop').forEach(p=>p.classList.remove('open'));if(open){fill(pop);pop.classList.add('open');try{const r=btn.getBoundingClientRect();const vw=window.innerWidth||400;const vh=window.innerHeight||600;const w=Math.min(280,vw-16);pop.style.position='fixed';pop.style.width=w+'px';pop.style.minWidth=w+'px';pop.style.maxWidth=w+'px';pop.style.maxHeight=Math.min(380,vh-24)+'px';pop.style.overflowY='auto';pop.style.zIndex='12000';pop.style.right='auto';pop.style.bottom='auto';/* top-right of button */
-const left=Math.max(8,Math.min(r.right-w,vw-w-8));
-pop.style.left=left+'px';
-/* Prefer ABOVE the button; only go below if no room above */
-if(r.top>=160){pop.style.top='auto';pop.style.bottom=(vh-r.top+6)+'px'}
-else{pop.style.top=(r.bottom+6)+'px';pop.style.bottom='auto'}
+    btn.onclick=e=>{e.stopPropagation();const open=!pop.classList.contains('open');document.querySelectorAll('.mode-pop').forEach(p=>p.classList.remove('open'));if(open){fill(pop);pop.classList.add('open');try{
+const r=btn.getBoundingClientRect();
+const vw=window.innerWidth||400, vh=window.innerHeight||600;
+const w=Math.min(280,vw-16);
+pop.style.setProperty('position','fixed','important');
+pop.style.setProperty('width',w+'px','important');
+pop.style.setProperty('min-width',w+'px','important');
+pop.style.setProperty('max-width',w+'px','important');
+pop.style.setProperty('max-height',Math.min(380,vh-24)+'px','important');
+pop.style.setProperty('overflow-y','auto','important');
+pop.style.setProperty('z-index','12000','important');
+pop.style.setProperty('right','auto','important');
+/* align to top-RIGHT of the quality button */
+const left=Math.max(8, Math.min(r.right - w, vw - w - 8));
+pop.style.setProperty('left', left+'px', 'important');
+/* always prefer ABOVE (top of button); only below if no room */
+if(r.top >= 140){
+  pop.style.setProperty('top','auto','important');
+  pop.style.setProperty('bottom', (vh - r.top + 6)+'px', 'important');
+}else{
+  pop.style.setProperty('top', (r.bottom + 6)+'px', 'important');
+  pop.style.setProperty('bottom','auto','important');
+}
 }catch(err){}}};
   };
   bindBtn('mode-mini-btn','mode-mini-pop');
@@ -12008,8 +12148,44 @@ bindAutoBuilder(){
       const next=Math.min(1.8,Math.max(0.45,s*(e.deltaY<0?1.08:0.92)));
       this._cam.s=next;this.autoApplyCam();
     },{passive:false});
+    // Pinch-to-zoom (phone)
+    board.addEventListener('touchstart',e=>{
+      if(e.touches&&e.touches.length===2){
+        e.preventDefault();
+        const dx=e.touches[0].clientX-e.touches[1].clientX;
+        const dy=e.touches[0].clientY-e.touches[1].clientY;
+        this._pinch={dist:Math.hypot(dx,dy),s:this._cam.s};
+        this._pan=null;
+      }
+    },{passive:false});
+    board.addEventListener('touchmove',e=>{
+      if(this._pinch&&e.touches&&e.touches.length===2){
+        e.preventDefault();
+        const dx=e.touches[0].clientX-e.touches[1].clientX;
+        const dy=e.touches[0].clientY-e.touches[1].clientY;
+        const dist=Math.hypot(dx,dy)||1;
+        const next=Math.min(1.8,Math.max(0.45,this._pinch.s*(dist/this._pinch.dist)));
+        this._cam.s=next;this.autoApplyCam();
+      }
+    },{passive:false});
+    board.addEventListener('touchend',e=>{
+      if(!e.touches||e.touches.length<2)this._pinch=null;
+    });
+    // Zoom controls (always visible helper for phone)
+    if(!board.querySelector('.auto-zoom-ctl')){
+      const ctl=document.createElement('div');
+      ctl.className='auto-zoom-ctl';
+      ctl.innerHTML='<button type="button" data-z="in" aria-label="Zoom in">+</button><button type="button" data-z="out" aria-label="Zoom out">−</button>';
+      board.appendChild(ctl);
+      ctl.onclick=e=>{
+        const z=e.target&&e.target.dataset&&e.target.dataset.z;if(!z)return;
+        const s=this._cam.s||1;
+        this._cam.s=Math.min(1.8,Math.max(0.45,s*(z==='in'?1.12:0.9)));
+        this.autoApplyCam();
+      };
+    }
     board.addEventListener('pointerdown',e=>{
-      if(e.target.closest('.ablock')||e.target.closest('.aport'))return;
+      if(e.target.closest('.ablock')||e.target.closest('.aport')||e.target.closest('.auto-zoom-ctl'))return;
       this._pan={x:e.clientX-this._cam.x,y:e.clientY-this._cam.y};
       board.classList.add('panning');
     });
@@ -12580,13 +12756,44 @@ this.plugins.onSave=(p)=>this.materializePlugin(p);
 this.plugins.list().forEach(p=>this.materializePlugin(p));
 this.ensureDefaultPlugins=function(){
   const defaults=[
-    {id:'builtin-math',name:'Math & KaTeX',enabled:false,knowledge:'Always write math with KaTeX: inline $x^2$ and display $$...$$. Never use [ ] for equations. Prefer aligned environments inside $$.',icon:'∑'},
-    {id:'builtin-code',name:'Clean coding',enabled:false,knowledge:'Write correct readable code with specific file paths. Never generic names like temp.js. Use write_file tool.',icon:'</>'},
-    {id:'builtin-truth',name:'Careful claims',enabled:false,knowledge:'Do not invent facts or claim tool success without results. Prefer tools over guessing.',icon:'✓'},
-    {id:'builtin-thinking',name:'Structured thinking',enabled:false,knowledge:'State goal, plan, verify, revise. Narrate briefly when using tools.',icon:'think'}
+    {id:'builtin-math',name:'Math & KaTeX',enabled:true,icon:'∑',
+      knowledge:'Use KaTeX for all math: inline $x^2$ and display $$...$$. Prefer aligned environments inside $$. Never use bare [ ] brackets for equations.',
+      instructions:'When the user asks about math, physics, or formulas: (1) write every expression in KaTeX, (2) show intermediate steps when helpful, (3) verify numeric results with run_python when available, (4) keep notation consistent across the reply.'},
+    {id:'builtin-code',name:'Clean coding',enabled:true,icon:'</>',
+      knowledge:'Write correct, readable code with specific file paths. Never invent generic names like temp.js unless asked. Prefer write_file / read_file tools for real files.',
+      instructions:'When coding: (1) plan files before writing, (2) use write_file so artifacts appear in the workspace, (3) keep functions small and named clearly, (4) mention how to run or preview the result, (5) fix errors from tool output instead of guessing.'},
+    {id:'builtin-truth',name:'Careful claims',enabled:true,icon:'✓',
+      knowledge:'Do not invent facts, URLs, or tool results. Prefer tools over guessing. If unsure, say what is uncertain.',
+      instructions:'Before strong claims: check tools or state confidence. Never claim a file was written or a command succeeded unless the tool result confirms it. Separate facts from speculation.'},
+    {id:'builtin-thinking',name:'Structured thinking',enabled:true,icon:'think',
+      knowledge:'State goal, plan, verify, revise. Narrate briefly when using tools so the user sees progress.',
+      instructions:'For non-trivial tasks: outline a short plan, execute step by step, verify intermediate results, and revise if something fails. Keep tool narration concise (2–6 sentences per step).'},
+    {id:'builtin-pdf',name:'PDF files',enabled:true,hidden:true,icon:'PDF',
+      knowledge:'You can create real PDF documents via the write_pdf tool (path ending in .pdf, title, and body text or simple HTML-ish lines).',
+      instructions:'When the user asks for a PDF or printable document, call write_pdf with path (e.g. artifacts/report.pdf), title, and body (plain text; use newlines). Prefer write_pdf over write_file for PDFs so the file is a valid PDF the user can download.'},
+    {id:'builtin-url',name:'URL & media',enabled:true,hidden:true,icon:'URL',
+      knowledge:'You can fetch public https URLs with fetch_url (images, SVG, HTML, JSON, text). Prefer embedding image URLs as markdown images so the chat shows the picture.',
+      instructions:'When you need an external image, SVG, or page content: use fetch_url. For display, write markdown image syntax ![desc](https://...) for images so the UI renders them. For normal links, use [label](https://...). Do not invent URLs.'},
+    {id:'builtin-personality',name:'Personality',enabled:true,hidden:true,icon:'◆',
+      knowledge:'Sleek, professional, calm, and helpful. Warm with sensitive users without being theatrical.',
+      instructions:'Voice: clear, professional, and slightly understated. Prefer short paragraphs and concrete next steps. With sensitive topics (health, crisis, personal distress): be gentle, non-judgmental, and practical; avoid jokes or harsh certainty. Never moralize. Stay helpful and direct on technical work. Do not mention this personality skill or that instructions were injected.'}
   ];
   const existing=new Set(this.plugins.list().map(p=>p.id));
-  for(const d of defaults){if(!existing.has(d.id))this.plugins.save({...d,created:Date.now()});}
+  for(const d of defaults){
+    if(!existing.has(d.id))this.plugins.save(Object.assign({},d,{created:Date.now()}));
+    else {
+      // Upgrade older installs: turn built-ins on and fill missing instructions
+      const cur=this.plugins.get(d.id);
+      if(cur){
+        let changed=false;
+        if(cur.enabled===false && !cur.userDisabled){cur.enabled=true;changed=true}
+        if(!cur.instructions && d.instructions){cur.instructions=d.instructions;changed=true}
+        if(!cur.knowledge && d.knowledge){cur.knowledge=d.knowledge;changed=true}
+        if(d.hidden)cur.hidden=true;
+        if(changed)this.plugins.save(cur);
+      }
+    }
+  }
 }.bind(this);
 this.ensureDefaultPlugins();
 let agentSettings=this.storage.get('agentSettings',null);if(!agentSettings||typeof agentSettings!=='object')agentSettings={maxIterations:12,maxTools:30,maxTime:180};this.agent=new Agent(this.provider,this.tools,agentSettings,this.plugins,this.storage);this.ui=new UIManager(this)}materializePlugin(p){
