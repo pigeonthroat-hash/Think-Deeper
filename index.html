@@ -1562,6 +1562,22 @@ body.mode-canvas .sidebar-footer.collapsed{
 .tp-step.skill-chip .tp-step-title{font-weight:500;color:var(--text-primary)}
 .msg-img{max-width:min(100%,420px);border-radius:10px;border:1px solid var(--border);margin:8px 0;display:block}
 .msg-link{color:var(--accent);text-decoration:underline;word-break:break-all}
+
+.message-actions,.agent-msg .message-actions{
+  display:inline-flex;align-items:center;gap:2px;flex-wrap:wrap;margin-top:6px;vertical-align:middle
+}
+.message-actions button,.message-actions .msg-act-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;padding:0;border:none;background:transparent;
+  color:var(--text-tertiary);cursor:pointer;border-radius:6px;line-height:0
+}
+.message-actions button:hover{background:var(--bg-hover);color:var(--text-primary)}
+.message-actions button svg,.message-actions .msg-act-btn svg{
+  width:14px;height:14px;display:block;flex-shrink:0
+}
+.message-actions .token-badge{margin-right:4px;line-height:28px;height:28px;display:inline-flex;align-items:center}
+#agent-token-badge{display:none!important}
+#swarm-usage .tok-dup,#swarm-usage[data-tokens]{/* page-level tokens removed */}
 </style>
 </head>
 <body>
@@ -2182,6 +2198,7 @@ const SVG={
   branch:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="5.5" r="2.35"/><circle cx="7" cy="18.5" r="2.35"/><circle cx="17.5" cy="12" r="2.35"/><path d="M7 7.85v8.3"/><path d="M9.2 6.4c2.7.15 5.4 1.55 6.3 4.05"/></svg>',
   refer:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7h9a3 3 0 013 3v4a3 3 0 01-3 3h-2l-3 3v-3H8a3 3 0 01-3-3v-4a3 3 0 013-3z"/><path d="M10 11h6M10 14h3"/></svg>',
   dl:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>',
+  regen:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 01-9 9 9.75 9.75 0 01-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>',
   copy:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>',
   edit:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
   puzzle:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a2.5 2.5 0 012.5 2.5V6h3.5A1.5 1.5 0 0119.5 7.5V11a2.5 2.5 0 110 5v3.5a1.5 1.5 0 01-1.5 1.5H14.5V19.5a2.5 2.5 0 11-5 0V21H6a1.5 1.5 0 01-1.5-1.5V16a2.5 2.5 0 110-5V7.5A1.5 1.5 0 016 6h3.5V4.5A2.5 2.5 0 0112 2z"/></svg>',
@@ -5682,7 +5699,7 @@ class Coordinator{
     this.k.goal=goal;
     const mystery=!!this.k.mystery;
     const groupMode=!!this.k.groupMode;
-    let supPrompt='You are the Supervisor (coordinator). Never speak to the human directly. Call contact_agent to assign work and createfinalresponse when fully solved. MATH & COMPUTATION: Always compute in small iterations — break large calculations into sequential steps or batches; never one giant unbounded loop or massive matrix in a single run_python call. Prefer iterative refinement (check → adjust → re-check). Cap loops (e.g. max 50–200 steps per call) and aggregate results across multiple tool calls. This prevents tab crashes. ENVIRONMENT SAFETY: this is a browser tab. Never assign while True, unbounded loops, os.system, subprocess, threading, eval, location.reload, or huge allocations. If a tool returns CRASH_BLOCKED, rewrite smaller. Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nCRITICAL RULE: Do NOT output SOLVED until the goal is completely solved to the user\'s standard — partial progress is not enough. Keep assigning workers until the work is finished. Only then synthesize the final answer from all agent results (prefer majority when they agree). When workers submit Python, you optimize it for maximum Pyodide speed (all modules available) before execution; agents stay idle until that returns. In your own notes use short thoughts only — no titles/headings; LaTeX math is fine.';
+    let supPrompt='You are the Supervisor (coordinator). Never speak to the human directly. Call contact_agent to assign work and createfinalresponse when fully solved. MATH & COMPUTATION: Always compute in small iterations — break large calculations into sequential steps or batches; never one giant unbounded loop or massive matrix in a single run_python call. Prefer iterative refinement (check → adjust → re-check). Cap loops (e.g. max 50–200 steps per call) and aggregate results across multiple tool calls. This prevents tab crashes. ENVIRONMENT SAFETY: this is a browser tab. Never assign while True, unbounded loops, os.system, subprocess, threading, eval, location.reload, or huge allocations. If a tool returns CRASH_BLOCKED, rewrite smaller. Address workers only by their agent ids (e.g. w0001), never by human names. Pick ONE worker at a time. When a worker finishes, you receive their result immediately, then assign the next. Reply with exactly:\nRUN <agentId>: <short task>\nor\nSOLVED: <final answer>\nCRITICAL RULE: Do NOT output SOLVED until the goal is completely solved to the user\'s standard — partial progress is not enough. Keep assigning workers until the work is finished. Only then synthesize the final answer from all agent results (prefer majority when they agree). When workers submit Python, you optimize it for maximum Pyodide speed When you produce files the user can open, include markers in your final answer: [[file:path/to/file]] for download and [[preview:path/to/file]] for live preview (HTML/CSS/JS/SVG). You may also share short code in fenced blocks without writing a file; for saved work always use write_file/write_pdf then those markers. (all modules available) before execution; agents stay idle until that returns. In your own notes use short thoughts only — no titles/headings; LaTeX math is fine.';
     if(mystery){
       supPrompt+='\nMYSTERY MODE (HARD RULES):\n'
         +'Your ONLY goal is to SOLVE the mathematical mystery — find something never found before (a new proof step, closed form, counterexample, computation, or rigorous relation), then VERIFY it.\n'
@@ -7771,6 +7788,7 @@ async confirmAgentSetup(followup){
     ov.setAttribute('aria-hidden','true');
   }
   let goal=($('#swarm-response')?.value||$('#swarm-goal')?.value||'').trim();
+  this._displayGoal=goal;
   const agentAtt=this.consumePendingAttachments?this.consumePendingAttachments():[];
   if(!goal&&!(agentAtt&&agentAtt.length))return;
   if(!goal)goal='Use the attached files.';
@@ -7794,7 +7812,8 @@ async confirmAgentSetup(followup){
   // Theme tells the supervisor what the user wants with this response
   const themeMap={mystery:'Mathematical mystery',code:'Create advanced code',document:'Write a fancy document',other:'General task'};
   const themeLabel=themeMap[intent]||themeMap.other;
-  if(intent&&intent!=='other'){
+  this._displayGoal=goal; // clean user text for bubble + session history
+  if(!followup && intent && intent!=='other'){
     goal='The user wants to do this with the response: '+themeLabel+'.\n\nUser response / goal:\n'+goal;
   }
   const t=$('#swarm-goal');if(t){t.value='';t.style.height='auto'}
@@ -7881,7 +7900,8 @@ async startSwarm(opts){
     const sid=reuse?this._currentAgentSessionId:uid();
     const prev=reuse?this.agentSessions().find(x=>x.id===sid):null;
     const baseMsgs=(prev&&prev.messages)?prev.messages.slice():[];
-    const messages=baseMsgs.concat([{role:'user',content:goal}]);
+    const userVisible=String(this._displayGoal||goal||'').trim();
+    const messages=baseMsgs.concat([{role:'user',content:userVisible,id:uid(),ts:Date.now()}]);
     this._wantNewAgentChat=false;
     this._agentFollowupReady=true;
     const sessTitle=String((prev&&prev.title)||goal||'Agent chat').slice(0,40);
@@ -7910,9 +7930,11 @@ async startSwarm(opts){
   const box=$('#swarm-think');
   if(box){
     const msg=document.createElement('div');msg.className='agent-msg user';msg.dataset.mid=uid();
-    {const who=this.userLabel();msg.innerHTML='<div class="agent-msg-head"><div class="avatar user"'+(who.bg?(' style="'+who.bg+'"'):'')+'>'+(who.img||who.initial)+'</div><span class="agent-msg-role">'+escapeHtml(who.label)+'</span></div><div class="agent-msg-body">'+escapeHtml(goal)+'</div>';}
+    {const who=this.userLabel();
+      const shown=String(this._displayGoal||goal||'').trim();
+      msg.innerHTML='<div class="agent-msg-head"><div class="avatar user"'+(who.bg?(' style="'+who.bg+'"'):'')+'>'+(who.img||who.initial)+'</div><span class="agent-msg-role">'+escapeHtml(who.label)+'</span></div><div class="agent-msg-body">'+escapeHtml(shown)+'</div>';}
     box.appendChild(msg);
-    this.paintMsgActions(msg,{kind:'agent',id:msg.dataset.mid||uid(),role:'user',text:goal});
+    this.paintMsgActions(msg,{kind:'agent',id:msg.dataset.mid||uid(),role:'user',text:String(this._displayGoal||goal||'')});
     // Demote ALL live agent UI ids on prior messages so thought process + final body bind to THIS run
     try{
       const liveIds=['agent-live-msg','agent-work','agent-work-toggle','agent-work-body','agent-work-label','agent-work-meta','agent-work-ico','agent-live-clock','agent-final-body'];
@@ -7940,10 +7962,15 @@ async startSwarm(opts){
   if(this._agentClockTimer)clearInterval(this._agentClockTimer);
   this._agentClockTimer=setInterval(()=>this._tickAgentClock(),500);
   const intentNote={mystery:'Mathematical mystery — SOLVE it. Deliver What was solved / Solution / Evidence. Never claim the problem is impossible or limited by time; keep computing and proving until solved.',code:'Advanced code — implement fully with verification.',document:'Fancy document — polished complete deliverable.',other:'General task — complete solution required.'}[intent]||'';
+  // Multi-turn like normal chat: history is internal context, NOT prepended into the user-visible goal
   const prior=(opts.followup&&this._currentAgentSessionId)?(this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{}).messages:[];
-  const historyNote=(prior&&prior.length)?('\n\nPRIOR TURNS IN THIS AGENT CHAT:\n'+prior.slice(-8).map(m=>(m.role+': '+String(m.content||'').slice(0,800))).join('\n')):'';
+  const historyNote=(prior&&prior.length)?('\n\n[INTERNAL CHAT HISTORY — do not repeat these messages as the user message]\n'+prior.slice(-12).map(m=>{
+    const role=m.role==='user'?'User':(m.speaker||'Assistant');
+    return role+': '+String(m.content||'').slice(0,1200);
+  }).join('\n')):'';
+  const modelGoal=String(goal||'').trim(); // clean goal only for this turn
   try{
-    await k.start(goal+historyNote,{count,conc:1,live,debate,mystery,group,intent,intentNote,budgetMs:opts.budgetMs||budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto'});
+    await k.start(modelGoal,{count,conc:1,live,debate,mystery,group,intent,intentNote:(intentNote||'')+historyNote,budgetMs:opts.budgetMs||budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto',chatHistory:prior});
     // Ensure coordinator actually runs (pump can stick after reset)
     try{
       if(k.scheduler){
@@ -8073,7 +8100,11 @@ renderSwarm(ev){
       try{if(this.enhanceCodeBlocks)this.enhanceCodeBlocks(finalEl)}catch(e){}
       try{this.wireFileChips&&this.wireFileChips(finalEl)}catch(e){}
       const live=$('#agent-live-msg');
-      if(live)this.paintMsgActions(live,{kind:'agent',id:live.dataset.mid||uid(),role:'assistant',text:String(k.solved||'')});
+      if(live){
+        let tok=null;
+        try{const t=k.usage&&k.usage.totals;if(t&&t.tokens)tok=Number(t.tokens)}catch(e){}
+        this.paintMsgActions(live,{kind:'agent',id:live.dataset.mid||uid(),role:'assistant',text:String(k.solved||''),tokEst:tok||undefined,thinking:(()=>{try{return ($('#agent-work-body')||{}).innerText||''}catch(e){return ''}})()});
+      }
     }
     if(work){
       work.classList.remove('open');
@@ -8117,27 +8148,9 @@ renderSwarm(ev){
   if(use&&k.usage){
     const t=k.usage.totals||{};
     const toks=Number(t.tokens||0);
-    use.textContent=(nWork?nWork+' agents · ':'')+(t.reqs||0)+' requests'+(toks?(' · '+toks+' tokens'):'')+(k.alive?' · live':'');
+    use.textContent=(nWork?nWork+' agents · ':'')+(t.reqs||0)+' requests'+(k.alive?' · live':'');
   }
-  // Status line token badge (includes thinking tokens from usage.bump)
-  try{
-    let badge=$('#agent-token-badge');
-    if(!badge){
-      const line=$('#agent-status-line');
-      if(line&&line.parentElement){
-        badge=document.createElement('span');
-        badge.id='agent-token-badge';
-        badge.className='token-badge';
-        line.parentElement.appendChild(badge);
-      }
-    }
-    if(badge&&k.usage){
-      const t=k.usage.totals||{};
-      const toks=Number(t.tokens||0);
-      badge.textContent=toks?('~'+toks+' tokens'):'';
-      badge.style.display=toks?'inline':'none';
-    }
-  }catch(e){}
+  try{const b=$('#agent-token-badge');if(b)b.remove()}catch(e){}
   this.scrollAgentChat&&this.scrollAgentChat(false);
   clearTimeout(this._liveAgentTimer);
   this._liveAgentTimer=setTimeout(()=>this.persistLiveAgent(false),1800);
@@ -9911,12 +9924,12 @@ hydrateThoughts(div,msg){
 msgActionsHtml(tokEst){
   const tok=tokEst?('<span class="token-badge">~'+tokEst+' tokens</span>'):'';
   return tok+
-    '<button type="button" data-act="copy" title="Copy">'+(SVG.copy||'')+'</button>'+
-    '<button type="button" data-act="pin" title="Pin">'+(SVG.pin||'')+'</button>'+
-    '<button type="button" data-act="refer" title="Refer">'+(SVG.refer||'')+'</button>'+
-    '<button type="button" data-act="branch" title="Branch">'+(SVG.branch||'')+'</button>'+
-    '<button type="button" data-act="regen" title="Retry">↻</button>'+
-    '<button type="button" data-act="continue" title="Continue">→</button>';
+    '<button type="button" data-act="copy" title="Copy" class="msg-act-btn">'+(SVG.copy||'')+'</button>'+
+    '<button type="button" data-act="pin" title="Pin" class="msg-act-btn">'+(SVG.pin||'')+'</button>'+
+    '<button type="button" data-act="refer" title="Refer" class="msg-act-btn">'+(SVG.refer||'')+'</button>'+
+    '<button type="button" data-act="branch" title="Branch" class="msg-act-btn">'+(SVG.branch||'')+'</button>'+
+    '<button type="button" data-act="regen" title="Retry" class="msg-act-btn">'+(SVG.regen||'↻')+'</button>'+
+    '<button type="button" data-act="continue" title="Continue" class="msg-act-btn">'+(SVG.continue||'→')+'</button>';
 }
 userMsgActionsHtml(canEdit){
   return (canEdit?('<button type="button" data-act="edit" title="Edit and resend">'+(SVG.edit||'')+'</button>'):'')+
@@ -9955,7 +9968,18 @@ paintMsgActions(el,ctx){
     host.appendChild(actions);
   }
   const text=ctx.text!=null?ctx.text:this.msgElText(el);
-  const tokEst=ctx.tokEst!=null?ctx.tokEst:Math.max(1,Math.round(String(text||'').length/4));
+  let tokEst=ctx.tokEst;
+  if(tokEst==null){
+    let raw=String(text||'');
+    try{
+      // Include thinking / activities in estimate
+      const th=el.querySelector('.thought-process, .agent-work-body, .thinking-compact');
+      if(th) raw+='\n'+String(th.innerText||'');
+      if(ctx.thinking) raw+='\n'+String(ctx.thinking);
+      if(ctx.activities&&ctx.activities.length) raw+='\n'+ctx.activities.map(a=>String((a&&(a.detail||a.text||a.name))||'')).join('\n');
+    }catch(e){}
+    tokEst=Math.max(1, Math.round(raw.length/4));
+  }
   const kind=ctx.kind||this.mode||'chat';
   const id=ctx.id||el.dataset.mid||null;
   const isUser=ctx.role==='user'||el.classList.contains('user');
