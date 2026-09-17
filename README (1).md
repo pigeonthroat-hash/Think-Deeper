@@ -23,11 +23,12 @@
 ![Monaco](https://img.shields.io/badge/Monaco%20Editor-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)
 
 [![License](https://img.shields.io/badge/license-MIT-e08a4f?style=flat-square)](#license)
-[![Version](https://img.shields.io/badge/version-v1.0.0-6366f1?style=flat-square)](#)
+[![Version](https://img.shields.io/badge/version-v1.0.0-6366f1?style=flat-square)](VERSION.md)
 [![Status](https://img.shields.io/badge/status-active-22c55e?style=flat-square)](#)
 [![UI](https://img.shields.io/badge/UI-dark%20%2B%20light-18181b?style=flat-square)](#theming)
 [![i18n](https://img.shields.io/badge/i18n-20%2B%20languages-3b82f6?style=flat-square)](#internationalization)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-d97757?style=flat-square)](#contributing)
+
 
 </div>
 
