@@ -243,7 +243,13 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 /* Code mode */
 .mode-tabs{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border)}
 .mode-tab{flex:1;padding:8px;border-radius:8px;border:1px solid transparent;background:transparent;font-size:.85rem;cursor:pointer;color:var(--text-secondary)}
-.mode-tab.active{background:var(--bg-active);color:var(--text-primary);border-color:var(--border)}
+.mode-tab.active{background:var(--accent-soft);color:var(--text-primary);border-color:transparent;box-shadow:none}
+.mode-tab{background:transparent;border:1px solid transparent}
+@media (max-width:768px){
+  .mode-tabs{background:var(--bg-primary)!important;border-bottom:1px solid var(--border)}
+  .mode-tab{background:transparent!important;box-shadow:none!important}
+  .mode-tab.active{background:var(--accent-soft)!important;border-color:transparent!important;color:var(--text-primary)!important}
+}
 
 #code-view{display:none;flex:1;flex-direction:column;min-height:0;background:var(--bg-primary);color:var(--text-primary)}
 #code-view.active{display:flex}
@@ -1378,11 +1384,18 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
   .sidebar{display:flex;flex-direction:column;height:100%;min-height:0}
   .conv-list,.agent-hist,#agent-hist-list,#code-hist-list{
     flex:1 1 auto!important;
-    min-height:120px!important;
+    min-height:0!important;
     max-height:none!important;
     overflow-y:auto!important;
-    display:block!important;
   }
+  /* Visibility controlled by setMode — never force display:block */
+  #conv-list[style*="display: none"],
+  #agent-hist-list[style*="display: none"],
+  #code-hist-list[style*="display: none"],
+  #chat-list-section[style*="display: none"],
+  #agent-hist-section[style*="display: none"],
+  #code-hist-section[style*="display: none"],
+  #chat-search-wrap[style*="display: none"]{display:none!important}
   #chat-list-section,#agent-hist-section,#code-hist-section{flex-shrink:0}
   #swarm-view.active{
     display:flex!important;
@@ -1429,6 +1442,35 @@ html{font-size:calc(15px * var(--ui-scale, 1))}
   .chat-area{min-height:0;flex:1}
   .project-list .project-item{font-size:.78rem;padding:7px 8px}
   .project-item .proj-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+}
+
+/* phone-ui-2026-09-17b */
+.mode-hidden{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;border:none!important}
+#agent-token-badge{font-size:.72rem;color:var(--text-tertiary);margin-left:6px;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media (max-width:768px){
+  .sidebar-more-btn{display:none!important}
+  .mode-pop,.mode-pop.open{
+    position:fixed!important;left:12px!important;right:12px!important;width:auto!important;
+    max-width:calc(100vw - 24px)!important;max-height:min(52vh,420px)!important;overflow-y:auto!important;z-index:12000!important;
+  }
+  .mode-tabs{background:var(--bg-primary)!important;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
+  .mode-tab{background:transparent!important;box-shadow:none!important;flex:1 1 auto;min-width:0;font-size:.78rem;padding:8px 6px}
+  .mode-tab.active{background:var(--accent-soft)!important;border-color:transparent!important;color:var(--text-primary)!important}
+  .project-list{max-height:96px;overflow:auto;flex-shrink:0}
+  .conv-list,.agent-hist,#agent-hist-list,#code-hist-list{flex:1 1 auto;min-height:0;overflow-y:auto}
+  #conv-list[style*="display: none"],#agent-hist-list[style*="display: none"],#code-hist-list[style*="display: none"],
+  #chat-list-section[style*="display: none"],#agent-hist-section[style*="display: none"],#code-hist-section[style*="display: none"],
+  #chat-search-wrap[style*="display: none"]{display:none!important}
+  .agent-chat-actions,.agent-input-actions{display:flex!important;flex-wrap:wrap;gap:6px;align-items:center}
+  .agent-chat-actions > *,.agent-input-actions > *{flex:0 0 auto!important;width:auto!important;max-width:100%}
+  .agent-quality-btn,.agent-quick-btn,.agent-stop-btn,#swarm-stop{
+    display:inline-flex!important;width:auto!important;flex:0 0 auto!important;padding:6px 12px!important;font-size:.75rem!important;white-space:nowrap;
+  }
+  #swarm-send-btn{flex:0 0 auto!important;width:36px!important;height:36px!important;min-width:36px!important}
+  #swarm-view.active{display:flex!important;flex-direction:column!important;flex:1!important;min-height:0!important;width:100%!important}
+  .agent-chat-shell{display:flex;flex-direction:column;flex:1;min-height:0;width:100%}
+  .agent-chat-body{flex:1;min-height:0;overflow:auto}
+  .agent-chat-input-area{flex-shrink:0}
 }
 </style>
 </head>
@@ -3878,7 +3920,14 @@ geminiToOpenAI(data,model){
   msg._geminiParts=parts;
   return {
     choices:[{message:msg,finish_reason:tool_calls.length?'tool_calls':(cand.finishReason||'stop')}],
-    usage:{total_tokens:((data.usageMetadata&&data.usageMetadata.totalTokenCount)||0)},
+    usage:(()=>{
+      const um=data.usageMetadata||{};
+      const prompt=Number(um.promptTokenCount||0);
+      const candidates=Number(um.candidatesTokenCount||0);
+      const thoughts=Number(um.thoughtsTokenCount||0);
+      const total=Number(um.totalTokenCount||0) || (prompt+candidates+thoughts);
+      return {prompt_tokens:prompt,completion_tokens:candidates,thinking_tokens:thoughts,total_tokens:Math.max(total,prompt+candidates+thoughts)};
+    })(),
     model:model||'gemini'
   };
 }
@@ -4921,7 +4970,7 @@ class ModelRouter{
             signal:this.k&&this.k.signal
           });
           const used=(data&&data.model)||model;
-          this.k.usage.bump(agent.id,{reqs:1,tokens:(data&&data.usage&&data.usage.total_tokens)||32,cost:0.0});
+          this.k.usage.bump(agent.id,{reqs:1,tokens:(()=>{const u=data&&data.usage;if(!u)return 32;const t=Number(u.total_tokens||0);const think=Number(u.thinking_tokens||u.reasoning_tokens||0);const p=Number(u.prompt_tokens||0);const c=Number(u.completion_tokens||0);return Math.max(t,p+c+think,32)})(),cost:0.0});
           return {data,model:used,provider:'remote',fallback:i};
         }catch(e){
           last=e;
@@ -4932,7 +4981,7 @@ class ModelRouter{
             await new Promise(r=>setTimeout(r,1500));
             try{
               const data=await this.app.provider.chat(messages,{model,tools,temperature:0.3,maxTokens:agent.maxTokens||2500,signal:this.k&&this.k.signal});
-              this.k.usage.bump(agent.id,{reqs:1,tokens:(data&&data.usage&&data.usage.total_tokens)||32});
+              this.k.usage.bump(agent.id,{reqs:1,tokens:(()=>{const u=data&&data.usage;if(!u)return 32;const t=Number(u.total_tokens||0);const think=Number(u.thinking_tokens||u.reasoning_tokens||0);const p=Number(u.prompt_tokens||0);const c=Number(u.completion_tokens||0);return Math.max(t,p+c+think,32)})()});
               return {data,model:(data&&data.model)||model,provider:'remote',fallback:i};
             }catch(e2){last=e2}
           }
@@ -7450,16 +7499,8 @@ openAgentSetup(){
     this._agentFollowupReady=true;
     return this.confirmAgentSetup(true);
   }
-  const ov=$('#agent-setup-overlay');
-  if(ov){
-    ov.classList.add('open');
-    ov.setAttribute('aria-hidden','false');
-    ov.style.display='flex';
-    try{ov.scrollTop=0}catch(e){}
-  } else {
-    // Overlay missing — start with defaults so Send still works
-    return this.confirmAgentSetup(false);
-  }
+  // Start immediately with form defaults so phone Send always runs the supervisor
+  return this.confirmAgentSetup(false);
   }catch(err){console.error('openAgentSetup',err);toast(err.message||'Could not start agent','error')}
 }
 async runAgentQuickAsk(goal){
@@ -7668,9 +7709,16 @@ async startSwarm(opts){
   const intentNote={mystery:'Mathematical mystery — SOLVE it. Deliver What was solved / Solution / Evidence. Never claim the problem is impossible or limited by time; keep computing and proving until solved.',code:'Advanced code — implement fully with verification.',document:'Fancy document — polished complete deliverable.',other:'General task — complete solution required.'}[intent]||'';
   const prior=(opts.followup&&this._currentAgentSessionId)?(this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{}).messages:[];
   const historyNote=(prior&&prior.length)?('\n\nPRIOR TURNS IN THIS AGENT CHAT:\n'+prior.slice(-8).map(m=>(m.role+': '+String(m.content||'').slice(0,800))).join('\n')):'';
-  await k.start(goal+historyNote,{count,conc:1,live,debate,mystery,group,intent,intentNote,budgetMs:opts.budgetMs||budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto'});
+  try{
+    await k.start(goal+historyNote,{count,conc:1,live,debate,mystery,group,intent,intentNote,budgetMs:opts.budgetMs||budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto'});
+  }catch(err){
+    console.error('swarm start',err);
+    this.setAgentRunningUi(false);
+    this._setAgentStatus('Error');
+    toast((err&&err.message)||'Agent failed to start','error');
+  }
   this._agentFollowupReady=true;
-  this.renderSwarm();
+  try{this.renderSwarm()}catch(e){}
 }
 _setAgentStatus(t){
   const el=$('#agent-status-line');if(el)el.textContent=t||'Supervisor · idle';
@@ -7826,8 +7874,28 @@ renderSwarm(ev){
   const use=$('#swarm-usage');
   if(use&&k.usage){
     const t=k.usage.totals||{};
-    use.textContent=(nWork?nWork+' agents · ':'')+(t.reqs||0)+' requests'+(k.alive?' · live':'');
+    const toks=Number(t.tokens||0);
+    use.textContent=(nWork?nWork+' agents · ':'')+(t.reqs||0)+' requests'+(toks?(' · '+toks+' tokens'):'')+(k.alive?' · live':'');
   }
+  // Status line token badge (includes thinking tokens from usage.bump)
+  try{
+    let badge=$('#agent-token-badge');
+    if(!badge){
+      const line=$('#agent-status-line');
+      if(line&&line.parentElement){
+        badge=document.createElement('span');
+        badge.id='agent-token-badge';
+        badge.className='token-badge';
+        line.parentElement.appendChild(badge);
+      }
+    }
+    if(badge&&k.usage){
+      const t=k.usage.totals||{};
+      const toks=Number(t.tokens||0);
+      badge.textContent=toks?('~'+toks+' tokens'):'';
+      badge.style.display=toks?'inline':'none';
+    }
+  }catch(e){}
   this.scrollAgentChat&&this.scrollAgentChat(false);
   clearTimeout(this._liveAgentTimer);
   this._liveAgentTimer=setTimeout(()=>this.persistLiveAgent(false),1800);
@@ -8052,7 +8120,11 @@ setMode(mode){
   const showChat=mode==='chat';
   const showAgent=mode==='swarm';
   const showCode=mode==='code';
-  const setDisp=(sel,on)=>{const el=$(sel);if(el)el.style.display=on?'':'none'};
+  const setDisp=(sel,on)=>{
+    const el=$(sel);if(!el)return;
+    el.style.setProperty('display', on?'':'none', 'important');
+    el.classList.toggle('mode-hidden', !on);
+  };
   setDisp('#chat-list-section',showChat);
   setDisp('#chat-search-wrap',showChat);
   setDisp('#conv-list',showChat);
@@ -10578,6 +10650,7 @@ openAuthModal(mode){
     <p>Sign in with Google to save your profile on this device. More providers coming soon.</p>
     <div id="google-btn-host" style="display:flex;justify-content:center;min-height:44px;margin:12px 0"></div>
     <p id="auth-status" style="font-size:.78rem;color:var(--text-tertiary);margin:8px 0 0;text-align:center"></p>
+    <p class="auth-refresh-hint" style="font-size:.75rem;color:var(--text-tertiary);margin:12px 0 0;text-align:center;line-height:1.4">If sign-in fails or the popup closes with no result, <strong>refresh the page</strong> and try again.</p>
   </div>`;
   document.body.appendChild(overlay);
   overlay.querySelector('#auth-close').onclick=()=>overlay.remove();
