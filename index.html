@@ -830,6 +830,23 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .agent-stop-btn{padding:6px 12px;font-size:.8rem}
 .agent-complete-btn{padding:6px 14px;font-size:.8rem;font-weight:600;border-radius:8px;margin-left:6px}
 .agent-complete-btn:disabled{opacity:.5;cursor:not-allowed}
+.msg-version-nav{display:inline-flex;align-items:center;gap:10px;margin-left:4px;height:28px;color:var(--text-tertiary);user-select:none;vertical-align:middle}
+.msg-version-nav button{width:28px;height:28px;border-radius:6px;border:none;background:transparent;color:var(--text-tertiary);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;line-height:0}
+.msg-version-nav button svg{width:14px;height:14px;display:block}
+.msg-version-nav button:hover{background:var(--bg-hover);color:var(--text-primary)}
+.msg-version-nav button:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+.msg-version-nav .msg-ver-label{min-width:1.1em;text-align:center;font-size:.78rem;font-variant-numeric:tabular-nums;color:var(--text-tertiary);line-height:28px;pointer-events:none}
+/* Live thinking rail (collapsed: top 3 steps) */
+.tp-live-rail{display:flex;flex-direction:column;gap:2px;margin:4px 0 2px 28px;max-height:72px;overflow:hidden;pointer-events:none}
+.thought-process.open .tp-live-rail{display:none}
+.thought-process.done .tp-live-rail{display:none!important}
+.tp-live-item{font-size:.72rem;color:var(--text-tertiary);line-height:1.35;padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;transform:translateY(8px);animation:tpLiveIn .32s cubic-bezier(.2,.8,.2,1) forwards}
+.tp-live-item.leaving{animation:tpLiveOut .28s cubic-bezier(.4,0,.2,1) forwards}
+@keyframes tpLiveIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes tpLiveOut{from{opacity:1;transform:translateY(0);max-height:24px}to{opacity:0;transform:translateY(-8px);max-height:0;padding:0;margin:0}}
+.tp-live-item .tp-live-dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:middle;opacity:.7;animation:tpPulse 1.2s ease-in-out infinite}
+@keyframes tpPulse{0%,100%{opacity:.35}50%{opacity:.9}}
+.thought-process.thinking-live .tp-toggle .tp-label{color:var(--text-secondary)}
 .agent-chat-body{flex:1;overflow:auto;padding:24px 20px 32px;scroll-behavior:smooth}
 .agent-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:52vh;text-align:center;padding:32px 16px}
 .agent-empty h1{font-family:var(--font-display);font-size:2.2rem;font-weight:400;letter-spacing:-.03em;margin-bottom:10px}
@@ -1879,7 +1896,7 @@ body.mode-canvas .sidebar-footer.collapsed{
 <div class="input-actions">
 <div style="position:relative">
 <button type="button" class="mode-mini" id="mode-mini-btn" aria-label="Choose mode"><span id="mode-mini-label">Medium</span> <span class="mode-caret">▾</span></button>
-<label class="mode-mini agent-n-wrap" id="agent-n-wrap" title="Ultra team size — Supervisor sequences agents" style="display:none">Team <input id="chat-agent-n" type="number" min="1" max="8" value="3" aria-label="Agent count"></label>
+<!-- agent-n-wrap removed: team size not adjustable in normal chat -->
 <div class="mode-pop" id="mode-mini-pop"></div>
 </div>
 <button class="stop-btn" id="stop-btn" aria-label="Stop"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
@@ -2202,6 +2219,8 @@ const SVG={
   branch:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="5.5" r="2.35"/><circle cx="7" cy="18.5" r="2.35"/><circle cx="17.5" cy="12" r="2.35"/><path d="M7 7.85v8.3"/><path d="M9.2 6.4c2.7.15 5.4 1.55 6.3 4.05"/></svg>',
   refer:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7h9a3 3 0 013 3v4a3 3 0 01-3 3h-2l-3 3v-3H8a3 3 0 01-3-3v-4a3 3 0 013-3z"/><path d="M10 11h6M10 14h3"/></svg>',
   dl:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>',
+  chevLeft:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  chevRight:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>',
   regen:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 01-9 9 9.75 9.75 0 01-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>',
   copy:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>',
   edit:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
@@ -4357,6 +4376,25 @@ function extractTextToolCalls(text){
   out=out.replace(/Call tool\s+[A-Za-z0-9_]+\s+with\s*\{?[\s\S]*$/gi,'').trim();
   return {text:out,calls};
 }
+/** Pull <think>...</think> (and variants) into thinking text; return clean user-visible text */
+function extractThinkBlocks(text){
+  const src=String(text||'');
+  if(!src)return {text:src,thinking:''};
+  const chunks=[];
+  let out=src;
+  // Match <think>, <thinking>, ```thinking ... ```
+  const patterns=[
+    /<think>([\s\S]*?)<\/think>/gi,
+    /<thinking>([\s\S]*?)<\/thinking>/gi,
+    /```(?:thinking|reasoning|thought)\s*\n([\s\S]*?)```/gi
+  ];
+  for(const re of patterns){
+    out=out.replace(re,(_,body)=>{chunks.push(String(body||'').trim());return ''});
+  }
+  // Also strip leftover orphan open tags
+  out=out.replace(/<\/?think(?:ing)?>/gi,'').trim();
+  return {text:out,thinking:chunks.filter(Boolean).join('\n\n').trim()};
+}
 function harvestLeakedToolCalls(data){
   try{
     const msg=data&&data.choices&&data.choices[0]&&data.choices[0].message;
@@ -5939,7 +5977,16 @@ try{
 }catch(e){}
 if(!bits.length)return '';return '\n\nSHARED MEMORY (files, chats, agent thinking — keep these facts across chat and agent mode):\n'+bits.join('\n\n').slice(0,10000)}catch{return ''}}
 getSystemPrompt(deepThink=false){const personality=this.storage.get('personality','')||'';const pluginsOn=this.storage.get('pluginsGlobal',true)!==false;const pluginInj=pluginsOn?this.plugins.getSystemInjection():'';
-const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector: After YOU write or edit JS/TS/HTML/CSS/Python with write_file, you may call check_code. Do not run check_code on files the user only shared for reading/explanation.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nFILES — READ vs WRITE (critical):\n- Only treat files as attached if THIS user message lists them (or [[path]] / tool results in this turn). Do NOT invent attachments from older chats.\n- If the user ATTACHED a file or asks what is IN a file / to explain / summarize / review it: READ and EXPLAIN the contents. Use the file text already in the message when present. Otherwise call read_file (or ws_read). Do NOT call write_file, check_code, or run_python just to "inspect" an attached file.\n- Never create a new file when the user only asked what is inside an existing one.\n- EDITING EXISTING WORK: If you already created a file in this chat/session (or list_files / RECENT WORKSPACE FILES shows it), call read_file on that exact path BEFORE changing it. Reuse and update the existing content — do NOT rewrite the whole file from scratch unless the user asks for a full rewrite.\n- After write_file, the path is real. To continue on the same file: read_file that path, then write_file with the improved full content.\n- write_file is available at every intensity ONLY when the user clearly asks to create, save, edit, or generate a file. After write_file, give a short final summary with the path.\n- check_code is only for code YOU just wrote or edited — not for user-shared files they only want explained.\nTHINKING: Keep all work in this single reply. Prefer short, concrete thoughts (1–3 sentences per step) over long narration. Skip restating the user request. When Python runs, pause other steps until it finishes, then continue.\n';
+const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector: After YOU write or edit JS/TS/HTML/CSS/Python with write_file, you may call check_code. Do not run check_code on files the user only shared for reading/explanation.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nFILES — READ vs WRITE (critical):\n- Only treat files as attached if THIS user message lists them (or [[path]] / tool results in this turn). Do NOT invent attachments from older chats.\n- If the user ATTACHED a file or asks what is IN a file / to explain / summarize / review it: READ and EXPLAIN the contents. Use the file text already in the message when present. Otherwise call read_file (or ws_read). Do NOT call write_file, check_code, or run_python just to "inspect" an attached file.\n- Never create a new file when the user only asked what is inside an existing one.\n- EDITING EXISTING WORK: If you already created a file in this chat/session (or list_files / RECENT WORKSPACE FILES shows it), call read_file on that exact path BEFORE changing it. Reuse and update the existing content — do NOT rewrite the whole file from scratch unless the user asks for a full rewrite.\n- After write_file, the path is real. To continue on the same file: read_file that path, then write_file with the improved full content.\n- write_file is available at every intensity ONLY when the user clearly asks to create, save, edit, or generate a file. After write_file, give a short final summary with the path.\n- check_code is only for code YOU just wrote or edited — not for user-shared files they only want explained.\nTHINKING (required — this product is Think Deeper):
+- Before EVERY final answer, write a private reasoning block using exactly these tags:
+<think>
+Your full step-by-step reasoning here: what the user asked, options, risks, calculations, what tools you need, and why.
+</think>
+- Put the user-visible answer AFTER the closing </think> tag.
+- Never skip the <think> block. Never leave it empty. Never put the final answer only inside <think>.
+- The UI shows <think> as thinking; users do not see the tags in the final reply.
+- Prefer concrete reasoning over filler. When Python runs, pause other steps until it finishes, then continue.
+';
 const deep=deepThink?`
 DEEP THINK MODE IS ON.
 - Keep working until the problem is FULLY solved and verified.
@@ -6013,7 +6060,7 @@ ${deep}
 ${personality?'Personality:\n'+personality+'\n':''}${pluginInj?'Plugins:\n'+pluginInj+'\n':''}
 User can expand tool cards to see full code and outputs. Finish when the answer is solid unless Deep Think is on.`
 }
-async run(userMessage,history,attachments,onEvent,{deepThink=false}={}){this.running=true;this._toolCallsThisRun=0;this.abortController=new AbortController();const signal=this.abortController.signal;const maxIter=Number.POSITIVE_INFINITY;const maxTools=Number.POSITIVE_INFINITY;const start=Date.now();const maxMs=Number.POSITIVE_INFINITY;
+async run(userMessage,history,attachments,onEvent,{deepThink=false}={}){this.running=true;this._toolCallsThisRun=0;this._emittedThink=false;this.abortController=new AbortController();const signal=this.abortController.signal;const maxIter=Number.POSITIVE_INFINITY;const maxTools=Number.POSITIVE_INFINITY;const start=Date.now();const maxMs=Number.POSITIVE_INFINITY;
 if(attachments?.length){for(const a of attachments){
   try{
     const isImg=a&&(a.isImage||(a.type&&String(a.type).startsWith('image/'))||a.dataUrl);
@@ -6171,8 +6218,13 @@ messages.push(assistantMsg);
 console.log('[Agent] assistant appended',{hasTools,finish,contentPreview:(assistantMsg.content||'').slice(0,100),tools:assistantMsg.tool_calls?.map(t=>t.function.name)});
 
 if(hasTools){
-  const realThought=(assistantMsg.content||'').trim();
-  const reasoning=String(assistantMsg.reasoning_content||msg.reasoning_content||'').trim();
+  let realThought=(assistantMsg.content||'').trim();
+  let reasoning=String(assistantMsg.reasoning_content||msg.reasoning_content||'').trim();
+  try{
+    const et=extractThinkBlocks(realThought);
+    if(et.thinking){reasoning=(reasoning?(reasoning+'\n\n'):'')+et.thinking;realThought=et.text}
+    assistantMsg.content=realThought;
+  }catch(e){}
   const toolSummary=assistantMsg.tool_calls.map((t,i)=>{
     let a={};try{a=JSON.parse(t.function.arguments||'{}')}catch{}
     let hint='';
@@ -6187,7 +6239,7 @@ if(hasTools){
   const lim=(deepThink||codeHot)?8000:4000;
   const thought=String(reasoning||realThought||'').replace(/\r/g,'').trim().slice(0,lim);
   const planText=(thought?(thought+'\n\n'):'')+toolSummary;
-  onEvent({type:'activity',name:deepThink?'Deep thinking':'Thinking',agent:'Agent 1',status:'done',detail:planText||toolSummary||'Working through the request…',expand:true});
+  this._emittedThink=true;onEvent({type:'activity',name:deepThink?'Deep thinking':'Thinking',agent:'Agent 1',status:'done',detail:planText||toolSummary||'Working through the request…',expand:true});
   // Keep live "Deep thinking" step updated during long tool loops
   try{if(waitId&&thought)onEvent({type:'activity-update',id:waitId,status:'done',detail:thought.slice(0,2000)})}catch(e){}
   for(const tc of assistantMsg.tool_calls){
@@ -6358,19 +6410,24 @@ if(codeHotEnd&&iteration<=5){
     }
   }
 }
-finalContent=(extractTextToolCalls(assistantMsg.content||'').text)||'';console.log('[Agent] final content length',finalContent.length,'finish',finish);
-// Always surface model reasoning as visible thinking (normal chat + ultra)
+finalContent=(extractTextToolCalls(assistantMsg.content||'').text)||'';
+// Prefer explicit <think> blocks, then provider reasoning channels
 try{
-  const rc=String(assistantMsg.reasoning_content||msg.reasoning_content||assistantMsg.reasoning||'').trim();
-  const thoughtBits=rc||((!hasTools&&finalContent)?String(finalContent).slice(0,600):'');
+  const extracted=extractThinkBlocks(finalContent);
+  finalContent=extracted.text||finalContent;
+  const rc=String(
+    extracted.thinking||
+    assistantMsg.reasoning_content||
+    msg.reasoning_content||
+    assistantMsg.reasoning||
+    ''
+  ).trim();
   if(rc){
-    onEvent({type:'activity',name:'Thinking',agent:'Agent 1',status:'done',detail:rc.slice(0,8000),expand:true});
-  }else if(!hasTools&&String(finalContent||'').trim()){
-    // No separate reasoning channel — still record a short plan note so the card is not empty
-    onEvent({type:'activity',name:'Thinking',agent:'Agent 1',status:'done',detail:'Forming a direct answer for the user.',expand:false});
+    this._emittedThink=true;onEvent({type:'activity',name:'Thinking',agent:'Agent 1',status:'done',detail:rc.slice(0,12000),expand:true});
   }
-}catch(e){}
-if(finalContent.trim())break;
+}catch(e){console.warn('think extract',e)}
+console.log('[Agent] final content length',String(finalContent||'').length,'finish',finish);
+if(String(finalContent||'').trim())break;
 // After tools (e.g. write_file), synthesize a reply if the model returned empty — avoids silent ends in normal chat
 if(!String(finalContent||'').trim()){
   const wrotePaths=[];
@@ -6466,13 +6523,23 @@ if(!finalContent||!String(finalContent).trim()){
   // Always produce a user-visible final response — never end on tools-only silence
   try{
     const synth=await this.provider.chat([
-      {role:'system',content:'Write a clear final answer for the user based on the conversation so far. Be concrete. Do not call tools. Do not say you cannot answer if tools already ran — summarize what was done and the outcome.'},
+      {role:'system',content:'Write a clear final answer for the user based on the conversation so far. Be concrete. Do not call tools. Do not say you cannot answer if tools already ran — summarize what was done and the outcome. Start with a <think>...</think> block of full reasoning, then the answer.'},
       {role:'user',content:String(userMessage||'').slice(0,3000)+'\n\n(Tools already ran; produce the final reply now.)'}
     ],{temperature:0.3,maxTokens:Math.min(2000,this.maxTokens||2000),signal});
     finalContent=(synth&&synth.choices&&synth.choices[0]&&synth.choices[0].message&&synth.choices[0].message.content)||'';
+    try{
+      const et=extractThinkBlocks(finalContent);
+      finalContent=et.text||finalContent;
+      if(et.thinking)onEvent({type:'activity',name:'Thinking',agent:'Agent 1',status:'done',detail:et.thinking.slice(0,12000),expand:true});
+    }catch(e){}
   }catch(e){console.warn('final synth',e)}
   if(!finalContent||!String(finalContent).trim())finalContent='Work finished. If you expected more detail, send a short follow-up and I will continue from here.';
 }
+// If the model never produced visible thinking, request a dedicated reasoning pass (Think Deeper requirement)
+try{
+  const hadThink=!!(this._emittedThink||false);
+  // Check via a soft flag set when we emit Thinking activities
+}catch(e){}
 if((this.teamSize||1)>1){
   try{
     const codeMode=this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code');
@@ -6535,6 +6602,20 @@ try{
     }
   }
 }catch(e){}
+if(!this._emittedThink&&String(finalContent||'').trim()&&this.running){
+  try{
+    onEvent({type:'activity',name:'Thinking',agent:'Agent 1',status:'running',detail:'Deepening reasoning…'});
+    const thinkData=await this.provider.chat([
+      {role:'system',content:'You are the Think Deeper reasoning layer. Write ONLY the full private reasoning for how to answer the user. No final answer, no tools, no preamble. Cover: goal, approach, edge cases, and conclusion.'},
+      {role:'user',content:'User request:\n'+String(userMessage||'').slice(0,2500)+'\n\nDraft answer (for context only — do not repeat it):\n'+String(finalContent).slice(0,2000)}
+    ],{temperature:0.3,maxTokens:1200,signal,tools:undefined});
+    const thinkTxt=((thinkData&&thinkData.choices&&thinkData.choices[0]&&thinkData.choices[0].message&&thinkData.choices[0].message.content)||'').trim();
+    if(thinkTxt){
+      this._emittedThink=true;
+      onEvent({type:'activity',name:'Thinking',agent:'Agent 1',status:'done',detail:thinkTxt.slice(0,12000),expand:true});
+    }
+  }catch(e){console.warn('forced think',e)}
+}
 onEvent({type:'final',content:finalContent});onEvent({type:'status',text:''});onEvent({type:'done'});return finalContent}
 catch(e){if(e.name==='AbortError'){onEvent({type:'status',text:'Stopped'});onEvent({type:'final',content:finalContent||'*(Stopped)*'});onEvent({type:'done'});return finalContent}
 console.error('[Agent] fatal',e);
@@ -7061,24 +7142,38 @@ paintVersionNav(el,msg){
     const old=el.querySelector('.msg-version-nav');if(old)old.remove();
     return;
   }
-  let nav=el.querySelector('.msg-version-nav');
+  // Always live inside the grey action row with copy/pin
+  let actions=el.querySelector('.message-actions');
+  if(!actions){
+    actions=document.createElement('div');
+    actions.className='message-actions';
+    const host=el.querySelector('.message-content')||el.querySelector('.message-body')||el;
+    host.appendChild(actions);
+  }
+  let nav=actions.querySelector('.msg-version-nav');
   if(!nav){
     nav=document.createElement('div');
     nav.className='msg-version-nav';
-    const actions=el.querySelector('.message-actions');
-    if(actions)actions.appendChild(nav);
-    else{
-      const host=el.querySelector('.message-content')||el.querySelector('.message-body')||el;
-      host.appendChild(nav);
-    }
+    actions.appendChild(nav);
+  }else if(nav.parentNode!==actions){
+    actions.appendChild(nav);
   }
   const idx=Math.min(Math.max(0,Number(msg.versionIdx!=null?msg.versionIdx:total-1)),total-1);
   msg.versionIdx=idx;
-  nav.innerHTML='<button type="button" data-ver="prev" aria-label="Previous response" title="Previous">‹</button><span class="msg-ver-label">'+(idx+1)+' / '+total+'</span><button type="button" data-ver="next" aria-label="Next response" title="Next">›</button>';
+  const left=SVG.chevLeft||'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>';
+  const right=SVG.chevRight||'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>';
+  // Number only (1, 2, 3…) — not "1 / 3"
+  nav.innerHTML='<button type="button" data-ver="prev" aria-label="Previous response" title="Previous version">'+left+'</button><span class="msg-ver-label">'+(idx+1)+'</span><button type="button" data-ver="next" aria-label="Next response" title="Next version">'+right+'</button>';
   const prev=nav.querySelector('[data-ver=prev]');
   const next=nav.querySelector('[data-ver=next]');
-  if(prev){prev.disabled=idx<=0;prev.onclick=e=>{e.preventDefault();this.switchMessageVersion(msg.id,idx-1)}}
-  if(next){next.disabled=idx>=total-1;next.onclick=e=>{e.preventDefault();this.switchMessageVersion(msg.id,idx+1)}}
+  if(prev){
+    prev.disabled=idx<=0;
+    prev.onclick=(e)=>{e.preventDefault();e.stopPropagation();if(idx>0)this.switchMessageVersion(msg.id,idx-1)};
+  }
+  if(next){
+    next.disabled=idx>=total-1;
+    next.onclick=(e)=>{e.preventDefault();e.stopPropagation();if(idx<total-1)this.switchMessageVersion(msg.id,idx+1)};
+  }
 }
 switchMessageVersion(msgId,toIdx){
   try{
@@ -8636,7 +8731,8 @@ bindIntensityBars(){
   const syncAgentN=()=>{
     const k=this.app.storage.get('intensity','medium')||'medium';
     const wrap=$('#agent-n-wrap');
-    if(wrap)wrap.style.display=(k==='ultra'||k==='xultra')?'inline-flex':'none';
+    if(wrap){wrap.style.display='none';}
+    if(false&&wrap)wrap.style.display='none';
   };
   document.querySelectorAll('.intensity-chip').forEach(btn=>{
     btn.classList.toggle('active',btn.dataset.intensity===saved);
@@ -9965,8 +10061,9 @@ else if(ev.type==='activity'){
     const gif=this.app.storage.get('thinkingGif','')||'';
     const media=gif?`<img class="tp-gif" src="${escapeHtml(gif)}" alt="">`:SVG.spin;
     root.dataset.thinkStart=String(Date.now());
-    root.innerHTML=`<div class="tp-toggle">${media}<span class="tp-chevron">▾</span> <span class="tp-label">Working for 0s</span><span class="tp-meta" style="opacity:.7;margin-left:6px"></span></div><div class="tp-panel"></div>`;
-    root.classList.add('open');
+    root.innerHTML=`<div class="tp-toggle">${media}<span class="tp-chevron">▸</span> <span class="tp-label">Working for 0s</span><span class="tp-meta" style="opacity:.7;margin-left:6px"></span></div><div class="tp-live-rail" aria-hidden="true"></div><div class="tp-panel"></div>`;
+    root.classList.add('thinking-live');
+    root.classList.remove('open'); // collapsed: live rail shows top 3
     root.querySelector('.tp-toggle').onclick=()=>{
       root.classList.toggle('open');
       root.querySelector('.tp-chevron').textContent=root.classList.contains('open')?'▾':'▸';
@@ -10008,7 +10105,7 @@ else if(ev.type==='activity'){
         const st=last.querySelector('.tp-step-status');
         if(st)st.textContent=ev.status==='running'?'…':(ev.status==='done'?'✓':'');
         const existingId=last.dataset.id;
-        if(existingId){this.activityMap.set(existingId,last);this.snapshotThoughts(aiMsg,aiEl);return existingId}
+        if(existingId){this.activityMap.set(existingId,last);try{this.updateLiveThinkRail(root)}catch(e){}this.snapshotThoughts(aiMsg,aiEl);return existingId}
       }
     }
   }catch(e){}
@@ -10056,9 +10153,53 @@ else if(ev.type==='activity'){
   root.querySelector('.tp-meta').textContent=`${n} step${n>1?'s':''}`;
   // Stay collapsed by default (Grok-style)
   this.activityMap.set(id,step);
+  try{this.updateLiveThinkRail(root)}catch(e){}
   this.snapshotThoughts(aiMsg,aiEl);try{if(this.app.cloud&&this.app.cloud.pushNow)this.app.cloud.pushNow(this.app,this.app.conversations.currentId)}catch(e){}
   this.scrollToBottom();
   return id;
+}
+updateLiveThinkRail(root){
+  if(!root||!root.isConnected)return;
+  if(root.classList.contains('done')||root.classList.contains('open'))return;
+  let rail=root.querySelector('.tp-live-rail');
+  if(!rail){
+    rail=document.createElement('div');
+    rail.className='tp-live-rail';
+    rail.setAttribute('aria-hidden','true');
+    const panel=root.querySelector('.tp-panel');
+    if(panel)root.insertBefore(rail,panel);else root.appendChild(rail);
+  }
+  const steps=[...root.querySelectorAll('.tp-panel .tp-step')];
+  const latest=steps.slice(-3);
+  const labels=latest.map(st=>{
+    const t=(st.querySelector('.tp-step-title')||{}).innerText||'';
+    const d=((st.querySelector('.tp-step-body')||{}).innerText||'').trim().split('\n')[0]||'';
+    const line=(t+(d?(' — '+d):'')).replace(/\s+/g,' ').trim().slice(0,90);
+    return line||'Thinking…';
+  });
+  // Animate: mark excess old items as leaving
+  const existing=[...rail.querySelectorAll('.tp-live-item')];
+  const keep=labels.length;
+  if(existing.length>keep){
+    existing.slice(0,existing.length-keep).forEach(el=>{
+      el.classList.add('leaving');
+      setTimeout(()=>{try{el.remove()}catch(e){}},300);
+    });
+  }
+  // Rebuild remaining as newest 3
+  setTimeout(()=>{
+    if(!rail.isConnected)return;
+    const stillLeaving=rail.querySelectorAll('.tp-live-item.leaving');
+    // clear non-leaving
+    [...rail.querySelectorAll('.tp-live-item:not(.leaving)')].forEach(n=>n.remove());
+    labels.forEach((lab,i)=>{
+      const item=document.createElement('div');
+      item.className='tp-live-item';
+      item.style.animationDelay=(i*0.04)+'s';
+      item.innerHTML='<span class="tp-live-dot"></span>'+escapeHtml(lab);
+      rail.appendChild(item);
+    });
+  }, existing.length>keep ? 120 : 0);
 }
 else if(ev.type==='file-saved'&&ev.path){
   try{
@@ -10185,6 +10326,9 @@ if(tp){
   }
   const lab=tp.querySelector('.tp-label');if(lab)lab.textContent='Worked for '+formatDuration(Date.now()-start);
   const meta=tp.querySelector('.tp-meta');if(meta)meta.textContent='';
+  tp.classList.remove('thinking-live');
+  tp.classList.add('done');
+  try{const rail=tp.querySelector('.tp-live-rail');if(rail)rail.remove()}catch(e){}
   tp.querySelectorAll('.tp-step-title').forEach(t=>{
     if(!t)return;
     t.textContent=String(t.textContent||'').replace(/^Planning$/i,'Planned').replace(/^Deep thinking$/i,'Deep thought');
