@@ -5977,16 +5977,7 @@ try{
 }catch(e){}
 if(!bits.length)return '';return '\n\nSHARED MEMORY (files, chats, agent thinking — keep these facts across chat and agent mode):\n'+bits.join('\n\n').slice(0,10000)}catch{return ''}}
 getSystemPrompt(deepThink=false){const personality=this.storage.get('personality','')||'';const pluginsOn=this.storage.get('pluginsGlobal',true)!==false;const pluginInj=pluginsOn?this.plugins.getSystemInjection():'';
-const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector: After YOU write or edit JS/TS/HTML/CSS/Python with write_file, you may call check_code. Do not run check_code on files the user only shared for reading/explanation.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nFILES — READ vs WRITE (critical):\n- Only treat files as attached if THIS user message lists them (or [[path]] / tool results in this turn). Do NOT invent attachments from older chats.\n- If the user ATTACHED a file or asks what is IN a file / to explain / summarize / review it: READ and EXPLAIN the contents. Use the file text already in the message when present. Otherwise call read_file (or ws_read). Do NOT call write_file, check_code, or run_python just to "inspect" an attached file.\n- Never create a new file when the user only asked what is inside an existing one.\n- EDITING EXISTING WORK: If you already created a file in this chat/session (or list_files / RECENT WORKSPACE FILES shows it), call read_file on that exact path BEFORE changing it. Reuse and update the existing content — do NOT rewrite the whole file from scratch unless the user asks for a full rewrite.\n- After write_file, the path is real. To continue on the same file: read_file that path, then write_file with the improved full content.\n- write_file is available at every intensity ONLY when the user clearly asks to create, save, edit, or generate a file. After write_file, give a short final summary with the path.\n- check_code is only for code YOU just wrote or edited — not for user-shared files they only want explained.\nTHINKING (required — this product is Think Deeper):
-- Before EVERY final answer, write a private reasoning block using exactly these tags:
-<think>
-Your full step-by-step reasoning here: what the user asked, options, risks, calculations, what tools you need, and why.
-</think>
-- Put the user-visible answer AFTER the closing </think> tag.
-- Never skip the <think> block. Never leave it empty. Never put the final answer only inside <think>.
-- The UI shows <think> as thinking; users do not see the tags in the final reply.
-- Prefer concrete reasoning over filler. When Python runs, pause other steps until it finishes, then continue.
-';
+const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector: After YOU write or edit JS/TS/HTML/CSS/Python with write_file, you may call check_code. Do not run check_code on files the user only shared for reading/explanation.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nFILES — READ vs WRITE (critical):\n- Only treat files as attached if THIS user message lists them (or [[path]] / tool results in this turn). Do NOT invent attachments from older chats.\n- If the user ATTACHED a file or asks what is IN a file / to explain / summarize / review it: READ and EXPLAIN the contents. Use the file text already in the message when present. Otherwise call read_file (or ws_read). Do NOT call write_file, check_code, or run_python just to "inspect" an attached file.\n- Never create a new file when the user only asked what is inside an existing one.\n- EDITING EXISTING WORK: If you already created a file in this chat/session (or list_files / RECENT WORKSPACE FILES shows it), call read_file on that exact path BEFORE changing it. Reuse and update the existing content — do NOT rewrite the whole file from scratch unless the user asks for a full rewrite.\n- After write_file, the path is real. To continue on the same file: read_file that path, then write_file with the improved full content.\n- write_file is available at every intensity ONLY when the user clearly asks to create, save, edit, or generate a file. After write_file, give a short final summary with the path.\n- check_code is only for code YOU just wrote or edited — not for user-shared files they only want explained.\nTHINKING (required — this product is Think Deeper):\n- Before EVERY final answer, write a private reasoning block using exactly these tags:\n<think>\nYour full step-by-step reasoning here: what the user asked, options, risks, calculations, what tools you need, and why.\n</think>\n- Put the user-visible answer AFTER the closing </think> tag.\n- Never skip the <think> block. Never leave it empty. Never put the final answer only inside <think>.\n- The UI shows <think> as thinking; users do not see the tags in the final reply.\n- Prefer concrete reasoning over filler. When Python runs, pause other steps until it finishes, then continue.\n';
 const deep=deepThink?`
 DEEP THINK MODE IS ON.
 - Keep working until the problem is FULLY solved and verified.
@@ -10158,49 +10149,6 @@ else if(ev.type==='activity'){
   this.scrollToBottom();
   return id;
 }
-updateLiveThinkRail(root){
-  if(!root||!root.isConnected)return;
-  if(root.classList.contains('done')||root.classList.contains('open'))return;
-  let rail=root.querySelector('.tp-live-rail');
-  if(!rail){
-    rail=document.createElement('div');
-    rail.className='tp-live-rail';
-    rail.setAttribute('aria-hidden','true');
-    const panel=root.querySelector('.tp-panel');
-    if(panel)root.insertBefore(rail,panel);else root.appendChild(rail);
-  }
-  const steps=[...root.querySelectorAll('.tp-panel .tp-step')];
-  const latest=steps.slice(-3);
-  const labels=latest.map(st=>{
-    const t=(st.querySelector('.tp-step-title')||{}).innerText||'';
-    const d=((st.querySelector('.tp-step-body')||{}).innerText||'').trim().split('\n')[0]||'';
-    const line=(t+(d?(' — '+d):'')).replace(/\s+/g,' ').trim().slice(0,90);
-    return line||'Thinking…';
-  });
-  // Animate: mark excess old items as leaving
-  const existing=[...rail.querySelectorAll('.tp-live-item')];
-  const keep=labels.length;
-  if(existing.length>keep){
-    existing.slice(0,existing.length-keep).forEach(el=>{
-      el.classList.add('leaving');
-      setTimeout(()=>{try{el.remove()}catch(e){}},300);
-    });
-  }
-  // Rebuild remaining as newest 3
-  setTimeout(()=>{
-    if(!rail.isConnected)return;
-    const stillLeaving=rail.querySelectorAll('.tp-live-item.leaving');
-    // clear non-leaving
-    [...rail.querySelectorAll('.tp-live-item:not(.leaving)')].forEach(n=>n.remove());
-    labels.forEach((lab,i)=>{
-      const item=document.createElement('div');
-      item.className='tp-live-item';
-      item.style.animationDelay=(i*0.04)+'s';
-      item.innerHTML='<span class="tp-live-dot"></span>'+escapeHtml(lab);
-      rail.appendChild(item);
-    });
-  }, existing.length>keep ? 120 : 0);
-}
 else if(ev.type==='file-saved'&&ev.path){
   try{
     // Confirm file is really in VFS
@@ -10447,6 +10395,50 @@ snapshotThoughts(aiMsg,aiEl){
     try{this.writeSharedMemoryPack()}catch(e){}
   }catch(e){}
 }
+updateLiveThinkRail(root){
+  if(!root||!root.isConnected)return;
+  if(root.classList.contains('done')||root.classList.contains('open'))return;
+  let rail=root.querySelector('.tp-live-rail');
+  if(!rail){
+    rail=document.createElement('div');
+    rail.className='tp-live-rail';
+    rail.setAttribute('aria-hidden','true');
+    const panel=root.querySelector('.tp-panel');
+    if(panel)root.insertBefore(rail,panel);else root.appendChild(rail);
+  }
+  const steps=[...root.querySelectorAll('.tp-panel .tp-step')];
+  const latest=steps.slice(-3);
+  const labels=latest.map(st=>{
+    const t=(st.querySelector('.tp-step-title')||{}).innerText||'';
+    const d=((st.querySelector('.tp-step-body')||{}).innerText||'').trim().split('\n')[0]||'';
+    const line=(t+(d?(' — '+d):'')).replace(/\s+/g,' ').trim().slice(0,90);
+    return line||'Thinking…';
+  });
+  // Animate: mark excess old items as leaving
+  const existing=[...rail.querySelectorAll('.tp-live-item')];
+  const keep=labels.length;
+  if(existing.length>keep){
+    existing.slice(0,existing.length-keep).forEach(el=>{
+      el.classList.add('leaving');
+      setTimeout(()=>{try{el.remove()}catch(e){}},300);
+    });
+  }
+  // Rebuild remaining as newest 3
+  setTimeout(()=>{
+    if(!rail.isConnected)return;
+    const stillLeaving=rail.querySelectorAll('.tp-live-item.leaving');
+    // clear non-leaving
+    [...rail.querySelectorAll('.tp-live-item:not(.leaving)')].forEach(n=>n.remove());
+    labels.forEach((lab,i)=>{
+      const item=document.createElement('div');
+      item.className='tp-live-item';
+      item.style.animationDelay=(i*0.04)+'s';
+      item.innerHTML='<span class="tp-live-dot"></span>'+escapeHtml(lab);
+      rail.appendChild(item);
+    });
+  }, existing.length>keep ? 120 : 0);
+}
+
 hydrateThoughts(div,msg){
   if(!msg||!msg.activities||!msg.activities.length)return;
   // Never stack duplicate thinking cards on the same message
