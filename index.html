@@ -219,8 +219,8 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 .thought-process{margin:6px 0 10px;font-size:.8rem;color:var(--text-tertiary)}
 .code-msg .thought-process{color:var(--text-secondary);font-size:.85rem;border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:var(--bg-tool);margin:8px 0 12px}
 .code-msg .thought-process .tp-label{color:var(--text-primary);font-weight:600}
-.code-msg .thought-process .tp-panel{max-height:420px;display:block}
-.code-msg .thought-process.open .tp-panel{display:block}
+.code-msg .thought-process.open .tp-panel{max-height:420px;display:block;opacity:1}
+.code-msg .thought-process.open .tp-panel{display:block;max-height:420px;opacity:1;overflow:auto}
 .code-msg .thought-process .tp-step-body{display:block;max-height:160px}
 .code-msg .thought-process .tp-step.open .tp-step-body{display:block}
 .code-msg .thought-process .tp-step{color:var(--text-secondary)}
@@ -229,13 +229,32 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
 .thought-process .tp-toggle{display:inline-flex;align-items:center;gap:6px;cursor:pointer;padding:4px 8px;border-radius:8px;border:1px solid transparent;color:var(--text-tertiary);user-select:none;font-size:.78rem}
 .thought-process .tp-toggle:hover{background:transparent;color:var(--text-secondary);border-color:transparent}
 .thought-process .tp-toggle .tp-chevron{font-size:.65rem;opacity:.7}
-.thought-process .tp-panel{display:none;margin-top:6px;padding:8px 2px;border:none;background:transparent;max-height:280px;overflow:auto}
-.thought-process.open .tp-panel{display:block}
+.thought-process .tp-panel{display:block;margin-top:6px;padding:0 2px;border:none;background:transparent;max-height:0;overflow:hidden;opacity:0;transition:max-height .32s cubic-bezier(.2,.8,.2,1),opacity .22s ease}
+.thought-process.open .tp-panel{display:block;max-height:420px;opacity:1;overflow:auto}
 .thought-process .tp-step{font-size:.75rem;color:var(--text-secondary);padding:4px 0;border-bottom:1px solid var(--border)}
 .thought-process .tp-step:last-child{border-bottom:none}
 .thought-process .tp-step .tp-step-head{cursor:pointer;display:flex;gap:6px;align-items:center}
-.thought-process .tp-step .tp-step-body{display:none;margin-top:4px;padding:6px 8px;background:var(--bg-tool);border-radius:6px;max-height:140px;overflow:auto;white-space:pre-wrap;font-size:.72rem}
-.thought-process .tp-step.open .tp-step-body{display:block}
+.thought-process .tp-step .tp-step-body{
+  display:block;margin-top:0;padding:0 8px;background:var(--bg-tool);border-radius:6px;
+  max-height:0;overflow:hidden;opacity:0;
+  white-space:pre-wrap;font-size:.72rem;
+  transition:max-height .28s cubic-bezier(.2,.8,.2,1),opacity .22s ease,padding .22s ease,margin .22s ease;
+}
+.thought-process .tp-step.open .tp-step-body{
+  max-height:280px;overflow:auto;opacity:1;margin-top:4px;padding:6px 8px;
+}
+.thought-process .tp-panel{
+  overflow:hidden;max-height:0;opacity:0;
+  transition:max-height .32s cubic-bezier(.2,.8,.2,1),opacity .22s ease,margin .22s ease;
+}
+.thought-process.open .tp-panel{
+  display:block;max-height:420px;opacity:1;overflow:auto;
+}
+.tp-step-head .tp-chev{display:inline-block;width:12px;text-align:center;opacity:.55;transition:transform .2s ease;flex-shrink:0}
+.tp-step.open .tp-step-head .tp-chev{transform:rotate(90deg);opacity:.85}
+.tp-code-label{font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-tertiary);margin:6px 0 2px}
+.tp-code,.tp-out{margin:0 0 6px;padding:8px;border-radius:6px;background:var(--bg-primary);border:1px solid var(--border);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.7rem;line-height:1.4;white-space:pre-wrap;word-break:break-word;max-height:180px;overflow:auto}
+.tp-out{border-color:var(--border-strong)}
 .thought-process .tp-narration{font-size:.8rem;color:var(--text-secondary);margin:4px 0;line-height:1.45}
 .agent-activity{display:none!important} /* hide old large activity cards; use thought-process instead */
 .agent-activity.legacy-show{display:block!important}
@@ -830,6 +849,20 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .agent-stop-btn{padding:6px 12px;font-size:.8rem}
 .agent-complete-btn{padding:6px 14px;font-size:.8rem;font-weight:600;border-radius:8px;margin-left:6px}
 .agent-complete-btn:disabled{opacity:.5;cursor:not-allowed}
+.ws-preview-overlay{position:fixed;inset:0;z-index:13000;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px}
+.ws-preview-overlay.open{display:flex}
+.ws-preview-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-lg);width:min(920px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+.ws-preview-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border)}
+.ws-preview-head .ws-path{flex:1;min-width:0;font-size:.85rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-preview-tools{display:flex;gap:6px;align-items:center}
+.ws-preview-tools button{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-secondary);font-size:.78rem;cursor:pointer}
+.ws-preview-tools button:hover,.ws-preview-tools button.active{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.ws-preview-body{flex:1;min-height:0;overflow:auto;background:var(--bg-primary)}
+.ws-preview-body pre{margin:0;padding:16px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;line-height:1.45;white-space:pre-wrap;word-break:break-word;color:var(--text-primary)}
+.ws-preview-body iframe{width:100%;height:min(70vh,640px);border:0;background:#fff}
+.ws-preview-body img,.ws-preview-body object{display:block;max-width:100%;max-height:min(70vh,640px);margin:16px auto}
+.ws-preview-body .ws-svg-wrap{padding:16px;display:flex;justify-content:center;align-items:center;min-height:200px}
+
 .msg-version-nav{display:inline-flex;align-items:center;gap:10px;margin-left:4px;height:28px;color:var(--text-tertiary);user-select:none;vertical-align:middle}
 .msg-version-nav button{width:28px;height:28px;border-radius:6px;border:none;background:transparent;color:var(--text-tertiary);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;line-height:0}
 .msg-version-nav button svg{width:14px;height:14px;display:block}
@@ -840,10 +873,10 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .tp-live-rail{display:flex;flex-direction:column;gap:2px;margin:4px 0 2px 28px;max-height:72px;overflow:hidden;pointer-events:none}
 .thought-process.open .tp-live-rail{display:none}
 .thought-process.done .tp-live-rail{display:none!important}
-.tp-live-item{font-size:.72rem;color:var(--text-tertiary);line-height:1.35;padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;transform:translateY(8px);animation:tpLiveIn .32s cubic-bezier(.2,.8,.2,1) forwards}
-.tp-live-item.leaving{animation:tpLiveOut .28s cubic-bezier(.4,0,.2,1) forwards}
-@keyframes tpLiveIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-@keyframes tpLiveOut{from{opacity:1;transform:translateY(0);max-height:24px}to{opacity:0;transform:translateY(-8px);max-height:0;padding:0;margin:0}}
+.tp-live-item{font-size:.72rem;color:var(--text-tertiary);line-height:1.35;padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:1;transform:translateY(0);max-height:24px;transition:opacity .25s ease,transform .28s cubic-bezier(.2,.8,.2,1),max-height .28s ease,padding .2s ease,margin .2s ease}
+.tp-live-item.is-new{opacity:0;transform:translateY(8px)}
+.tp-live-item.is-new.is-in{opacity:1;transform:translateY(0)}
+.tp-live-item.leaving{opacity:0;transform:translateY(-8px);max-height:0;padding-top:0;padding-bottom:0;margin:0;pointer-events:none}
 .tp-live-item .tp-live-dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:middle;opacity:.7;animation:tpPulse 1.2s ease-in-out infinite}
 @keyframes tpPulse{0%,100%{opacity:.35}50%{opacity:.9}}
 .thought-process.thinking-live .tp-toggle .tp-label{color:var(--text-secondary)}
@@ -2089,6 +2122,18 @@ body.mode-canvas .sidebar-footer.collapsed{
 <div class="auto-canvas" id="auto-canvas"></div>
 <div class="btn-row"><button type="button" class="btn-primary" id="auto-save-full">Save automation</button></div>
 </div></div></div>
+
+<div class="ws-preview-overlay" id="ws-preview-overlay" aria-hidden="true">
+  <div class="ws-preview-card">
+    <div class="ws-preview-head">
+      <span class="ws-path" id="ws-preview-path">file</span>
+      <div class="ws-preview-tools" id="ws-preview-tools"></div>
+      <button type="button" class="icon-btn" id="ws-preview-close" aria-label="Close">×</button>
+    </div>
+    <div class="ws-preview-body" id="ws-preview-body"></div>
+  </div>
+</div>
+
 <div class="ask-overlay" id="ask-overlay" aria-hidden="true">
   <div class="ask-card" id="ask-card">
     <h3 id="ask-title">Before we continue</h3>
@@ -6312,7 +6357,7 @@ if(hasTools){
         result=await this.tools.execute(name,args);
       }
       const summary=this._summarizeResult(name,result);
-      onEvent({type:'activity-update',id:actId,status:'done',detail:summary.detail,delta:summary.delta,full:summary.full||(name==='write_file'?(args.content||''):summary.full),stream:false});
+      onEvent({type:'activity-update',id:actId,status:'done',detail:summary.detail,delta:summary.delta,full:summary.full||(name==='write_file'?(args.content||''):(name==='run_python'?('CODE:\n'+String(args.code||'')+'\n\n'+(summary.detail||'')):summary.full)),stream:false});
       console.log('[Agent] tool result',name,summary.detail);
       if(name==='write_file'&&result&&!result.error&&!result.blocked){
         try{
@@ -6937,7 +6982,7 @@ _agentFor(name){
   return 'Agent 1';
 }
 _activityTitle(name,args,done=false){
-  const icon=name==='write_file'?SVG.write:name==='read_file'?SVG.read:name==='list_files'?SVG.read:name==='run_python'?SVG.code:name==='remember'?SVG.bulb||SVG.search:name==='web_search'||name==='image_search'?SVG.search:name==='check_code'||name==='self_check'?SVG.check:SVG.code;
+  // Plain text only — icons are applied in the UI so titles never show raw SVG HTML
   let label='Tool';
   if(name==='write_file')label=done?'Wrote file':'Writing file';
   else if(name==='read_file')label=done?'Read file':'Reading file';
@@ -6955,7 +7000,16 @@ _activityTitle(name,args,done=false){
   else if(name==='github_commit_files')label=done?'Committed':'Committing';
   else label=done?('Finished '+name):(name);
   const path=args&&(args.path||args.query||args.name||'');
-  return `<span class="tp-ico">${icon}</span> ${label}${path?' · '+escapeHtml(String(path).slice(0,40)):''}`;
+  return label+(path?' · '+String(path).slice(0,40):'');
+}
+_activityIcon(name){
+  if(name==='write_file')return SVG.write||'';
+  if(name==='read_file'||name==='list_files')return SVG.read||'';
+  if(name==='run_python')return SVG.code||'';
+  if(name==='remember')return SVG.bulb||SVG.search||'';
+  if(name==='web_search'||name==='image_search')return SVG.search||'';
+  if(name==='check_code'||name==='self_check')return SVG.check||'';
+  return SVG.code||'';
 }
 _detailForArgs(name,args){if(name==='remember')return (args&&args.query)||'';if(name==='run_python')return args.code||'';if(name==='write_file')return args.content||'';if(name==='self_check')return args.observation||'';return JSON.stringify(args,null,2)}
 _summarizeResult(name,result){if(result?.error)return{detail:'Error: '+result.error,full:result.error};
@@ -7731,11 +7785,18 @@ saveAgentSession(partial){
   try{Object.assign(s,partial,{id:s.id,updated:Date.now(),lastTalked:Date.now()})}catch(e){s.id=s.id||pid}
   if(!s.projectId&&this.activeProjectId)s.projectId=this.activeProjectId();
   if(s.title)s.title=String(s.title).slice(0,48);
-  if(Array.isArray(s.messages)&&s.messages.length>1){
+  if(Array.isArray(s.messages)&&s.messages.length){
     const out=[];
     for(const m of s.messages){
+      if(!m)continue;
+      if(m.ephemeral||/^\[in-progress\]/i.test(String(m.content||'')))continue;
       const prev=out[out.length-1];
-      if(prev&&m&&prev.role===m.role&&prev.role!=='user'&&String(prev.content||'')===String(m.content||''))continue;
+      // Dedupe consecutive identical messages (user OR assistant) to stop refresh/send doubles
+      if(prev&&m&&prev.role===m.role&&String(prev.content||'').trim()===String(m.content||'').trim()){
+        if(m.thoughts&&m.thoughts.length&&!(prev.thoughts&&prev.thoughts.length))prev.thoughts=m.thoughts;
+        if(m.workHtml&&!prev.workHtml)prev.workHtml=m.workHtml;
+        continue;
+      }
       out.push(m);
     }
     s.messages=out.slice(-200);
@@ -7997,8 +8058,8 @@ loadAgentSession(id){
     // Thinking-only blobs that were wrongly saved as the response
     if(m.role==='assistant'&&!String(m.content||'').trim()&&!(m.thoughts&&m.thoughts.length))continue;
     const prev=cleaned[cleaned.length-1];
-    if(prev&&prev.role===m.role&&prev.role!=='user'&&String(prev.content||'')===String(m.content||'')){
-      // Merge thoughts into the kept message instead of duplicating Supervisor bubbles
+    if(prev&&prev.role===m.role&&String(prev.content||'').trim()===String(m.content||'').trim()){
+      // Merge thoughts into the kept message instead of duplicating bubbles (user or assistant)
       if(m.thoughts&&m.thoughts.length&&!(prev.thoughts&&prev.thoughts.length))prev.thoughts=m.thoughts;
       if(m.workHtml&&!prev.workHtml)prev.workHtml=m.workHtml;
       continue;
@@ -8144,49 +8205,86 @@ async runAgentQuickAsk(goal){
   if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');return}
   if(!this.app.provider.config.model){toast('Select a model in Settings','error');return}
   const qAtt=this.consumePendingAttachments?this.consumePendingAttachments():[];
-  if(qAtt&&qAtt.length)goal=String(goal||'Use the attached files.')+'\n\nAttached files (also in uploads/):\n'+qAtt.map(a=>'- '+(a.vfsPath||a.name)).join('\n');
+  const displayGoal=String(goal||'').trim()||'Use the attached files.';
+  let sendGoal=displayGoal;
+  if(qAtt&&qAtt.length)sendGoal=displayGoal+'\n\nAttached files (also in uploads/):\n'+qAtt.map(a=>'- '+(a.vfsPath||a.name)).join('\n');
   const t=$('#swarm-goal');if(t){t.value='';t.style.height='auto'}
   const empty=$('#agent-empty');if(empty)empty.style.display='none';
   const box=$('#swarm-think');
   const who=this.userLabel();
   if(box){
-    const msg=document.createElement('div');msg.className='agent-msg user';
-    msg.dataset.mid=uid();
-    msg.innerHTML='<div class="agent-msg-head"><div class="avatar user">'+(who.img||who.initial)+'</div><span class="agent-msg-role">'+escapeHtml(who.label)+'</span></div><div class="agent-msg-body">'+escapeHtml(goal)+'</div>';
-    box.appendChild(msg);
-    this.paintMsgActions(msg,{kind:'agent',id:msg.dataset.mid,role:'user',text:goal});
+    const lastUser=[...box.querySelectorAll('.agent-msg.user .agent-msg-body')].pop();
+    if(!lastUser||(lastUser.textContent||'').trim()!==displayGoal){
+      const msg=document.createElement('div');msg.className='agent-msg user';
+      msg.dataset.mid=uid();
+      msg.innerHTML='<div class="agent-msg-head"><div class="avatar user">'+(who.img||who.initial)+'</div><span class="agent-msg-role">'+escapeHtml(who.label)+'</span></div><div class="agent-msg-body">'+escapeHtml(displayGoal)+'</div>';
+      box.appendChild(msg);
+      this.paintMsgActions(msg,{kind:'agent',id:msg.dataset.mid,role:'user',text:displayGoal});
+    }
   }
   const qFresh=!!this._wantNewAgentChat||!this._currentAgentSessionId;
   const qid=qFresh?uid():this._currentAgentSessionId;
   const prevQ=(!qFresh&&qid)?this.agentSessions().find(x=>x.id===qid):null;
   this._wantNewAgentChat=false;
-  const seed=((prevQ&&prevQ.messages)||[]).concat([{role:'user',content:goal}]);
-  const sess=this.saveAgentSession({id:qid,title:(prevQ&&prevQ.title)||goal.slice(0,40),messages:seed});
+  const prior=((prevQ&&prevQ.messages)||[]).slice();
+  const last=prior[prior.length-1];
+  if(!(last&&last.role==='user'&&String(last.content||'').trim()===displayGoal)){
+    prior.push({role:'user',content:displayGoal,id:uid(),ts:Date.now()});
+  }
+  const sess=this.saveAgentSession({id:qid,title:(prevQ&&prevQ.title)||displayGoal.slice(0,40),messages:prior});
   this._currentAgentSessionId=sess.id;
+  this._agentFollowupReady=true;
   this.setAgentRunningUi(true);
   this._quickAbort=new AbortController();
+  // Live supervisor bubble
+  let liveEl=null;
+  if(box){
+    liveEl=document.createElement('div');liveEl.className='agent-msg assistant supervisor';
+    liveEl.dataset.mid=uid();
+    liveEl.innerHTML='<div class="agent-msg-head"><div class="avatar">S</div><span class="agent-msg-role">Supervisor</span></div><div class="agent-msg-body"><em style="opacity:.7">Working…</em></div>';
+    box.appendChild(liveEl);
+    box.scrollTop=box.scrollHeight;
+  }
   try{
     const mem=this.supervisorMemoryContext?this.supervisorMemoryContext():'';
-    const data=await this.app.provider.chat([
-      {role:'system',content:'You are Think Deeper in quick-ask mode. Use SHARED MEMORY.\n'+mem+'\nAnswer clearly and briefly. No multi-agent orchestration. Markdown and LaTeX are fine.'},
-      {role:'user',content:goal}
-    ],{temperature:0.4,maxTokens:2000,signal:this._quickAbort.signal});
-    const ans=((data&&data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'').trim()||'(No reply)';
-    if(box){
-      const div=document.createElement('div');div.className='agent-msg assistant supervisor';
-      div.dataset.mid=uid();
-      div.innerHTML='<div class="agent-msg-head"><div class="avatar">S</div><span class="agent-msg-role">Supervisor</span></div><div class="agent-msg-body">'+(this.renderMarkdown?this.renderMarkdown(ans):escapeHtml(ans))+'</div>';
-      box.appendChild(div);if(this._renderMath)this._renderMath(div);box.scrollTop=box.scrollHeight;
-      this.paintMsgActions(div,{kind:'agent',id:div.dataset.mid,role:'assistant',text:ans});
+    const hist=prior.filter(m=>m.role==='user'||m.role==='assistant').slice(0,-1);
+    // Use Agent tool loop so write_file / previews work, with memory
+    const prevExtra=this.app.agent.intensityExtra||'';
+    this.app.agent.intensityExtra='QUICK ASK mode: single supervisor, no worker team. Use tools when needed (write_file, read_file, run_python, web_search). When you create HTML, end with [[preview:exact/path]] and [[file:exact/path]] using real paths. Never emit broken markers like path}. SHARED MEMORY:\n'+mem;
+    let ans='';
+    await this.app.agent.run(sendGoal,hist,qAtt||[],(ev)=>{
+      if(ev.type==='final'||(ev.type==='status'&&ev.text==='')){
+        if(ev.content)ans=ev.content;
+      }
+      if(ev.type==='final'&&ev.content)ans=ev.content;
+    },{deepThink:false});
+    this.app.agent.intensityExtra=prevExtra;
+    ans=String(ans||'').trim();
+    if(this.sanitizeFinalAnswer)ans=this.sanitizeFinalAnswer(ans);
+    if(!ans)ans='(No reply)';
+    if(liveEl){
+      const body=liveEl.querySelector('.agent-msg-body');
+      if(body){
+        body.innerHTML=this.renderMarkdown?this.renderMarkdown(ans):escapeHtml(ans);
+        try{this.wireFileChips&&this.wireFileChips(body)}catch(e){}
+        try{if(this._renderMath)this._renderMath(body)}catch(e){}
+      }
+      this.paintMsgActions(liveEl,{kind:'agent',id:liveEl.dataset.mid,role:'assistant',text:ans});
     }
-    const messages=(sess.messages||[]).concat([{role:'assistant',speaker:'Supervisor',content:ans}]);
-    this.saveAgentSession({id:sess.id,title:sess.title,messages});
+    const messages=(this.agentSessions().find(x=>x.id===sess.id)||sess).messages||prior;
+    const merged=messages.concat([{role:'assistant',speaker:'Supervisor',content:ans,id:liveEl&&liveEl.dataset.mid}]);
+    this.saveAgentSession({id:sess.id,title:sess.title,messages:merged});
   }catch(e){
     if(e&&e.name==='AbortError')toast('Stopped','info');
     else toast(e.message||String(e),'error');
+    if(liveEl){
+      const body=liveEl.querySelector('.agent-msg-body');
+      if(body)body.innerHTML='<span style="color:var(--error)">Error: '+escapeHtml(e.message||String(e))+'</span>';
+    }
   }
   this.setAgentRunningUi(false);
   this._quickAbort=null;
+  try{this.app.agent.stop()}catch(e){}
 }
 async confirmAgentSetup(followup){
   const ov=$('#agent-setup-overlay');
@@ -8334,7 +8432,14 @@ async startSwarm(opts){
     const prev=reuse?this.agentSessions().find(x=>x.id===sid):null;
     const baseMsgs=(prev&&prev.messages)?prev.messages.slice():[];
     const userVisible=String(this._displayGoal||goal||'').trim();
-    const messages=baseMsgs.concat([{role:'user',content:userVisible,id:uid(),ts:Date.now()}]);
+    const last=baseMsgs[baseMsgs.length-1];
+    // Don't push a second identical user bubble into the session on follow-up races
+    let messages;
+    if(last&&last.role==='user'&&String(last.content||'').trim()===userVisible){
+      messages=baseMsgs.slice();
+    }else{
+      messages=baseMsgs.concat([{role:'user',content:userVisible,id:uid(),ts:Date.now()}]);
+    }
     this._wantNewAgentChat=false;
     this._agentFollowupReady=true;
     const sessTitle=String((prev&&prev.title)||goal||'Agent chat').slice(0,40);
@@ -8362,12 +8467,16 @@ async startSwarm(opts){
   const empty=$('#agent-empty');if(empty)empty.style.display='none';
   const box=$('#swarm-think');
   if(box){
-    const msg=document.createElement('div');msg.className='agent-msg user';msg.dataset.mid=uid();
-    {const who=this.userLabel();
-      const shown=String(this._displayGoal||goal||'').trim();
-      msg.innerHTML='<div class="agent-msg-head"><div class="avatar user"'+(who.bg?(' style="'+who.bg+'"'):'')+'>'+(who.img||who.initial)+'</div><span class="agent-msg-role">'+escapeHtml(who.label)+'</span></div><div class="agent-msg-body">'+escapeHtml(shown)+'</div>';}
-    box.appendChild(msg);
-    this.paintMsgActions(msg,{kind:'agent',id:msg.dataset.mid||uid(),role:'user',text:String(this._displayGoal||goal||'')});
+    const shown=String(this._displayGoal||goal||'').trim();
+    const lastUser=[...box.querySelectorAll('.agent-msg.user .agent-msg-body')].pop();
+    const lastTxt=lastUser?(lastUser.textContent||'').trim():'';
+    if(lastTxt!==shown){
+      const msg=document.createElement('div');msg.className='agent-msg user';msg.dataset.mid=uid();
+      {const who=this.userLabel();
+        msg.innerHTML='<div class="agent-msg-head"><div class="avatar user"'+(who.bg?(' style="'+who.bg+'"'):'')+'>'+(who.img||who.initial)+'</div><span class="agent-msg-role">'+escapeHtml(who.label)+'</span></div><div class="agent-msg-body">'+escapeHtml(shown)+'</div>';}
+      box.appendChild(msg);
+      this.paintMsgActions(msg,{kind:'agent',id:msg.dataset.mid||uid(),role:'user',text:shown});
+    }
     // Demote ALL live agent UI ids on prior messages so thought process + final body bind to THIS run
     try{
       const liveIds=['agent-live-msg','agent-work','agent-work-toggle','agent-work-body','agent-work-label','agent-work-meta','agent-work-ico','agent-live-clock','agent-final-body'];
@@ -8396,14 +8505,19 @@ async startSwarm(opts){
   this._agentClockTimer=setInterval(()=>this._tickAgentClock(),500);
   const intentNote={mystery:'Mathematical mystery — SOLVE it. Deliver What was solved / Solution / Evidence. Never claim the problem is impossible or limited by time; keep computing and proving until solved.',code:'Advanced code — implement fully with verification.',document:'Fancy document — polished complete deliverable.',other:'General task — complete solution required.'}[intent]||'';
   // Multi-turn like normal chat: history is internal context, NOT prepended into the user-visible goal
-  const prior=(opts.followup&&this._currentAgentSessionId)?(this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{}).messages:[];
-  const historyNote=(prior&&prior.length)?('\n\n[INTERNAL CHAT HISTORY — do not repeat these messages as the user message]\n'+prior.slice(-12).map(m=>{
+  const prior=(this._currentAgentSessionId)?(this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{}).messages:[];
+  const historyNote=(prior&&prior.length)?('\n\n[INTERNAL CHAT HISTORY — do not repeat these messages as the user message]\n'+prior.slice(-16).map(m=>{
     const role=m.role==='user'?'User':(m.speaker||'Assistant');
     return role+': '+String(m.content||'').slice(0,1200);
   }).join('\n')):'';
+  // Always give supervisor shared memory on follow-ups
+  try{
+    const mem=this.supervisorMemoryContext?this.supervisorMemoryContext():'';
+    if(mem)this._agentMemNote=mem;
+  }catch(e){}
   const modelGoal=String(goal||'').trim(); // clean goal only for this turn
   try{
-    await k.start(modelGoal,{count,conc:1,live,debate,mystery,group,intent,intentNote:(intentNote||'')+historyNote,budgetMs:opts.budgetMs||budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto',chatHistory:prior});
+    await k.start(modelGoal,{count,conc:1,live,debate,mystery,group,intent,intentNote:(intentNote||'')+historyNote+(this._agentMemNote?('\n\nSHARED MEMORY:\n'+this._agentMemNote):''),budgetMs:opts.budgetMs||budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto',chatHistory:prior});
     // Ensure coordinator actually runs (pump can stick after reset)
     try{
       if(k.scheduler){
@@ -9008,7 +9122,7 @@ restoreCodeTranscript(session){
         let md=mdSrc;
         try{
           md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>this.fileChipHtml({folder:p,name:(p.split('/').pop()||p)+'.zip'}));
-          {const seenPrev=new Set();md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;const key=String(rp||p);if(seenPrev.has(key))return '';seenPrev.add(key);if(rp)this._lastPreviewPath=rp;return '<button type="button" class="preview-chip" data-preview="'+escapeHtml(rp)+'">'+((SVG&&SVG.eye)||'')+' Preview '+(escapeHtml((rp.split('/').pop()||p)))+'</button>'});}
+          {const seenPrev=new Set();md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{let rawP=String(p||'').replace(/[}\]\s]+$/g,'').trim();const rp=(this.app.vfs&&this.app.vfs.resolve)?(this.app.vfs.resolve(rawP)||rawP):rawP;const key=String(rp||rawP);if(seenPrev.has(key))return '';seenPrev.add(key);if(rp){this._lastPreviewPath=rp;this._lastWrittenHtml=rp;}return '<button type="button" class="preview-chip" data-preview="'+escapeHtml(rp)+'">'+((SVG&&SVG.eye)||'')+' Preview '+(escapeHtml((rp.split('/').pop()||p)))+'</button>'});}
           md=md.replace(/\[\[file:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;return this.fileChipHtml({path:rp,name:(rp.split('/').pop()||p)})});
         }catch(e){}
         try{final.innerHTML=this.renderMarkdown?this.renderMarkdown(md):escapeHtml(md)}catch(e){final.textContent=mdSrc}
@@ -9118,7 +9232,8 @@ refreshCodePreview(forcePath){
   // Prefer paths in the CURRENT code session only — never another session's HTML
   const pool=scoped.slice();
   let htmlPath=null;
-  const want=forcePath||this._lastPreviewPath||this._lastWrittenHtml||null;
+  let want=forcePath||this._lastPreviewPath||this._lastWrittenHtml||null;
+  if(want)want=String(want).replace(/[}\]\s]+$/g,'').trim();
   if(want){
     let p=String(want);
     try{if(this.app.vfs.resolve)p=this.app.vfs.resolve(p)||p}catch(e){}
@@ -9699,7 +9814,14 @@ const render=(node,depth=0,parent,basePath='')=>{
     const div=document.createElement('div');div.className='file';div.style.paddingLeft=(depth*14+6)+'px';
     const lines=file.meta?.lines??'?';
     div.innerHTML=`${SVG.file} ${escapeHtml(file.name)} <span style="color:var(--text-tertiary);font-size:.75rem">(${lines} lines)</span>`;
-    div.onclick=()=>this.previewFile(file.path);
+    div.title='Double-click to preview · Right-click for more';
+    div.ondblclick=(e)=>{e.preventDefault();e.stopPropagation();this.openWorkspacePreview(file.path)};
+    div.onclick=(e)=>{
+      // single click selects / shows lightweight meta; double-click opens rich preview
+      if(div._clickTimer)return;
+      div._clickTimer=setTimeout(()=>{div._clickTimer=null;try{this.previewFile(file.path)}catch(err){}},280);
+    };
+    div.addEventListener('dblclick',()=>{if(div._clickTimer){clearTimeout(div._clickTimer);div._clickTimer=null}});
     div.oncontextmenu=(e)=>{e.preventDefault();this.showFileMenu(e.clientX,e.clientY,file.path)};
     (parent||el).appendChild(div);
   });
@@ -9759,7 +9881,125 @@ downloadSingleFile(path){
     URL.revokeObjectURL(url);
   }catch(e){this.explainApiError(e)}
 }
-previewFile(path){try{const content=this.app.vfs.read(path);const meta=this.app.vfs.files[path];$('#file-meta').textContent=`${path} · v${meta.version} · ${meta.lines} lines · ${new Date(meta.updated).toLocaleString()}`;$('#file-preview').textContent=content;$('#file-preview-wrap').style.display='block'}catch(e){this.explainApiError(e)}}
+previewFile(path){
+  try{
+    if(this.app.vfs.resolve)path=this.app.vfs.resolve(path)||path;
+    const content=this.app.vfs.read(path);
+    const meta=this.app.vfs.files[path]||{};
+    const wrap=$('#file-preview-wrap'), metaEl=$('#file-meta'), prev=$('#file-preview');
+    if(metaEl)metaEl.textContent=`${path} · v${meta.version||1} · ${meta.lines||'?'} lines · ${meta.updated?new Date(meta.updated).toLocaleString():''}`;
+    if(prev)prev.textContent=typeof content==='string'?content.slice(0,20000):String(content||'');
+    if(wrap)wrap.style.display='block';
+  }catch(e){this.explainApiError?this.explainApiError(e):toast(e.message||String(e),'error')}
+}
+_wsPreviewKind(path){
+  const p=String(path||'').toLowerCase();
+  if(/\.(png|jpe?g|gif|webp|bmp|ico|avif)$/i.test(p))return 'image';
+  if(/\.svg$/i.test(p))return 'svg';
+  if(/\.html?$/i.test(p))return 'html';
+  if(/\.(txt|md|json|csv|log|css|js|ts|py|sh|xml|yml|yaml|toml|ini|cfg|env)$/i.test(p))return 'text';
+  return 'text';
+}
+openWorkspacePreview(path){
+  try{
+    if(!path)return;
+    if(this.app.vfs&&this.app.vfs.resolve)path=this.app.vfs.resolve(path)||path;
+    path=String(path).replace(/[}\]]+$/,'').trim();
+    const kind=this._wsPreviewKind(path);
+    let raw='';
+    try{raw=String(this.app.vfs.read(path)??'')}catch(e){toast('Could not read '+path,'error');return}
+    const ov=$('#ws-preview-overlay'), body=$('#ws-preview-body'), tools=$('#ws-preview-tools'), pathEl=$('#ws-preview-path');
+    if(!ov||!body){this.previewFile(path);return}
+    if(pathEl)pathEl.textContent=path;
+    if(tools)tools.innerHTML='';
+    body.innerHTML='';
+    this._wsPreviewPath=path;
+    this._wsPreviewMode='view';
+
+    const showCode=()=>{
+      this._wsPreviewMode='code';
+      body.innerHTML='<pre></pre>';
+      body.querySelector('pre').textContent=raw;
+      if(tools){
+        [...tools.querySelectorAll('button')].forEach(b=>b.classList.toggle('active',b.dataset.mode==='code'));
+      }
+    };
+    const showPlay=()=>{
+      this._wsPreviewMode='play';
+      if(kind==='html'){
+        // Use same inlining as openHtmlPreview
+        try{
+          this.openHtmlPreview(path);
+          // Also embed in modal iframe if openHtmlPreview uses blob window - dual: prefer modal
+        }catch(e){}
+        let html=raw;
+        try{
+          // lightweight relative asset inline for modal
+          const dir=path.includes('/')?path.slice(0,path.lastIndexOf('/')+1):'';
+          html=html.replace(/<link[^>]+href=["']([^"']+)["'][^>]*>/gi,(m,href)=>{
+            if(/^https?:|data:|\/\//i.test(href))return m;
+            try{return '<style>'+this.app.vfs.read(dir+href.replace(/^\.\//,''))+'</style>'}catch(e){return m}
+          });
+        }catch(e){}
+        body.innerHTML='<iframe sandbox="allow-scripts allow-forms allow-modals" title="Preview"></iframe>';
+        const fr=body.querySelector('iframe');
+        try{fr.srcdoc=html}catch(e){fr.src='about:blank'}
+      }else if(kind==='image'){
+        const blob=new Blob([this._wsDataUrlFromVfs?this._wsDataUrlFromVfs(path,raw):raw],{type:this._wsMime(path)});
+        // For text-stored binary-ish, prefer data URL if content is data: or base64
+        let src='';
+        if(/^data:image\//i.test(raw))src=raw;
+        else if(/^https?:/i.test(raw))src=raw;
+        else{
+          try{src='data:'+this._wsMime(path)+';base64,'+btoa(unescape(encodeURIComponent(raw)))}catch(e){
+            try{src=URL.createObjectURL(new Blob([raw],{type:this._wsMime(path)}))}catch(e2){}
+          }
+        }
+        body.innerHTML='<img alt="'+escapeHtml(path.split('/').pop()||'image')+'" />';
+        body.querySelector('img').src=src;
+      }else if(kind==='svg'){
+        body.innerHTML='<div class="ws-svg-wrap"></div>';
+        body.querySelector('.ws-svg-wrap').innerHTML=raw;
+      }else{
+        showCode();
+        return;
+      }
+      if(tools)[...tools.querySelectorAll('button')].forEach(b=>b.classList.toggle('active',b.dataset.mode==='play'));
+    };
+
+    if(tools){
+      if(kind==='html'||kind==='svg'||kind==='image'){
+        const play=document.createElement('button');play.type='button';play.dataset.mode='play';play.textContent=kind==='html'?'▶ Play':'Preview';
+        play.onclick=()=>showPlay();
+        const code=document.createElement('button');code.type='button';code.dataset.mode='code';code.textContent='</> Code';
+        code.onclick=()=>showCode();
+        tools.appendChild(play);tools.appendChild(code);
+      }
+      const dl=document.createElement('button');dl.type='button';dl.textContent='Download';
+      dl.onclick=()=>{try{this.downloadSingleFile(path)}catch(e){toast(e.message,'error')}};
+      tools.appendChild(dl);
+    }
+
+    // Default view
+    if(kind==='html'||kind==='image'||kind==='svg')showPlay();
+    else showCode();
+
+    ov.classList.add('open');ov.setAttribute('aria-hidden','false');
+    const close=()=>{ov.classList.remove('open');ov.setAttribute('aria-hidden','true');body.innerHTML=''};
+    const cl=$('#ws-preview-close');if(cl)cl.onclick=close;
+    ov.onclick=(e)=>{if(e.target===ov)close()};
+  }catch(e){console.warn('ws preview',e);toast(e.message||String(e),'error')}
+}
+_wsMime(path){
+  const p=String(path||'').toLowerCase();
+  if(/\.png$/i.test(p))return 'image/png';
+  if(/\.jpe?g$/i.test(p))return 'image/jpeg';
+  if(/\.gif$/i.test(p))return 'image/gif';
+  if(/\.webp$/i.test(p))return 'image/webp';
+  if(/\.svg$/i.test(p))return 'image/svg+xml';
+  if(/\.html?$/i.test(p))return 'text/html';
+  return 'text/plain';
+}
 openPlugins(){this.hideSelToolbar();this.renderPluginList();$('#plugin-editor').style.display='none';$('#plugins-overlay').classList.add('open')}
 renderPluginList(){const list=$('#plugin-list');list.innerHTML='';const plugins=this.app.plugins.list().filter(p=>p&&!p.hidden);if(!plugins.length){list.innerHTML='<p style="color:var(--text-tertiary)">No plugins yet.</p>';return}plugins.forEach(p=>{const card=document.createElement('div');card.className='plugin-card';const iconHtml=p.icon?.startsWith('http')?`<img src="${escapeHtml(p.icon)}" alt="">`:`<span style="font-size:1.4rem">${escapeHtml(p.icon||'P')}</span>`;card.innerHTML=`<div class="icon">${iconHtml}</div><div class="info"><div class="name">${escapeHtml(p.name)} ${p.enabled?'<span style="color:var(--success);font-size:.75rem">● on</span>':'<span style="color:var(--text-tertiary);font-size:.75rem">off</span>'}</div><div class="desc">${escapeHtml(p.description||'')}${p.folder?'<div style="font-size:.7rem;color:var(--text-tertiary);margin-top:4px">'+SVG.folder+' '+escapeHtml(p.folder)+'</div>':''}</div></div><div class="actions"><button class="icon-btn" data-act="toggle" title="Toggle on/off">${p.enabled?'⏻':'⭘'}</button><button class="icon-btn" data-act="edit">✎</button><button class="icon-btn" data-act="del">×</button></div>`;card.querySelector('[data-act=toggle]').onclick=()=>{p.enabled=!p.enabled;if(p.enabled)delete p.userDisabled;else p.userDisabled=true;this.app.plugins.save(p);this.renderPluginList();toast(p.enabled?'Plugin enabled':'Plugin disabled','success')};card.querySelector('[data-act=edit]').onclick=()=>this.editPlugin(p.id);card.querySelector('[data-act=del]').onclick=()=>{this.appConfirm('Delete this plugin?','Delete plugin').then(ok=>{if(ok){this.app.plugins.delete(p.id);this.renderPluginList()}})};list.appendChild(card)})}
 editPlugin(id){const p=id?this.app.plugins.get(id):{id:uid(),name:'',description:'',instructions:'',knowledge:'',icon:'',enabled:true};$('#plugin-name').value=p.name;$('#plugin-desc').value=p.description||'';$('#plugin-instructions').value=p.instructions||'';$('#plugin-knowledge').value=p.knowledge||'';$('#plugin-icon').value=p.icon||'';$('#plugin-enabled').checked=!!p.enabled;if($('#plugin-training'))$('#plugin-training').checked=!!p.training;$('#plugin-editor').style.display='block';this._editingPlugin=p}
@@ -10109,7 +10349,7 @@ else if(ev.type==='activity'){
     const skillName=String(ev.skill||String(title).replace(/^Skill used:\s*/i,'')||'Skill');
     step.innerHTML=`<div class="tp-step-head">${SVG.puzzle||''}<span class="tp-step-title">Skill used: ${escapeHtml(skillName)}</span></div>`;
   } else {
-    step.innerHTML=`<div class="tp-step-head"><span style="opacity:.6">▸</span> <span class="tp-step-title"></span> <span class="line-delta" hidden></span> <span class="tp-step-status" style="opacity:.6">${ev.status==='running'?'…':''}</span></div><div class="tp-step-body"></div>`;
+    step.innerHTML=`<div class="tp-step-head"><span class="tp-chev">▸</span> <span class="tp-step-title"></span> <span class="line-delta" hidden></span> <span class="tp-step-status" style="opacity:.6">${ev.status==='running'?'…':''}</span></div><div class="tp-step-body"></div>`;
   }
   let agent=String(ev.agent||'').trim();
   let titleText=String(title||'Step');
@@ -10117,19 +10357,42 @@ else if(ev.type==='activity'){
     titleText=titleText.slice(agent.length).replace(/^[\s·\-:]+/,'').trim()||titleText;
   }
   step.dataset.agent=agent;
+  // Strip any leaked HTML from titles (old SVG icon markup)
+  titleText=String(titleText||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()||'Step';
   if(!isSkill){
-  step.querySelector('.tp-step-title').innerHTML=(agent?('<span class="tp-agent">'+escapeHtml(agent)+'</span> '):'')+escapeHtml(titleText);
+  let icoSvg='';
+  try{
+    const ag=this.app&&this.app.agent;
+    let toolKey='';
+    if(/python/i.test(titleText))toolKey='run_python';
+    else if(/writ/i.test(titleText))toolKey='write_file';
+    else if(/read|list/i.test(titleText))toolKey='read_file';
+    else if(/search/i.test(titleText))toolKey='web_search';
+    else if(/check/i.test(titleText))toolKey='check_code';
+    else if(/remember/i.test(titleText))toolKey='remember';
+    if(toolKey){
+      icoSvg=(ag&&ag._activityIcon)?(ag._activityIcon(toolKey)||''):(SVG.code||'');
+    }
+  }catch(e){}
+  const icoHtml=icoSvg?('<span class="tp-ico">'+icoSvg+'</span> '):'';
+  step.querySelector('.tp-step-title').innerHTML=icoHtml+(agent?('<span class="tp-agent">'+escapeHtml(agent)+'</span> '):'')+escapeHtml(titleText);
+  // Preserve source code for Python so updates don't wipe it
+  if(/python/i.test(titleText)&&ev.detail&&!/^Idle while|^Running Python/i.test(String(ev.detail))){
+    step.dataset.sourceCode=String(ev.detail).slice(0,20000);
+  }
   if(ev.detail){
     const b=step.querySelector('.tp-step-body');
     let d=String(ev.detail);
     if(/plan|think/i.test(ev.name||'')){
       const codeHot=(this.mode==='code'||this.app.mode==='code');
-      d=d.replace(/\r/g,'').replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim().slice(0,(codeHot||/deep/i.test(ev.name||''))?6000:800);
+      d=d.replace(/\r/g,'').replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim().slice(0,(codeHot||/deep/i.test(ev.name||''))?8000:4000);
       b.textContent=d;
-      step.classList.add('open');
-      b.style.display='block';
+      try{if(this._renderMath)this._renderMath(b)}catch(e){}
+    }else if(/python/i.test(titleText)){
+      // Show code in a pre block
+      b.innerHTML='<div class="tp-code-label">Code</div><pre class="tp-code">'+escapeHtml(d.slice(0,12000))+'</pre>';
     }else{
-      try{b.innerHTML=this.renderMarkdown(d.slice(0,4000))}catch{b.textContent=d.slice(0,4000)}
+      try{b.innerHTML=this.renderMarkdown(d.slice(0,6000));if(this._renderMath)this._renderMath(b)}catch(e){b.textContent=d.slice(0,6000)}
     }
   }
   } // end !isSkill
@@ -10138,7 +10401,7 @@ else if(ev.type==='activity'){
     if(isWrite||ev.expand){step.classList.add('open');const ch=step.querySelector('.tp-step-head > span');if(ch)ch.textContent='▾';}
     if(isWrite){step.classList.add('writing-live');const root=step.closest('.thought-process');if(root){root.classList.add('open');const c=root.querySelector('.tp-chevron');if(c)c.textContent='▾'}}
   }
-  if(!isSkill){step.querySelector('.tp-step-head').onclick=(e)=>{e.stopPropagation();step.classList.toggle('open');const chev=step.querySelector('.tp-step-head span');if(chev)chev.textContent=step.classList.contains('open')?'▾':'▸'};}
+  if(!isSkill){step.querySelector('.tp-step-head').onclick=(e)=>{e.preventDefault();e.stopPropagation();step.classList.toggle('open');const chev=step.querySelector('.tp-chev');if(chev)chev.textContent=step.classList.contains('open')?'▾':'▸'};}
   panel.appendChild(step);
   const n=panel.querySelectorAll('.tp-step').length;
   root.querySelector('.tp-meta').textContent=`${n} step${n>1?'s':''}`;
@@ -10184,13 +10447,50 @@ if(ev.type==='activity-update'){
   }
   if(ev.full||ev.detail){
     const body=step.querySelector('.tp-step-body');
-    if(body)body.textContent=ev.full||ev.detail;
+    if(body){
+      const titleTxt=(step.querySelector('.tp-step-title')||{}).innerText||'';
+      const isPy=/python/i.test(titleTxt)||!!step.dataset.sourceCode;
+      // Don't wipe Python source with status chatter
+      const chatter=/^Idle while|^Running Python \(agent/i.test(String(ev.detail||''));
+      if(isPy){
+        if(!chatter){
+          let src=step.dataset.sourceCode||'';
+          let out='';
+          const full=String(ev.full||'').trim();
+          const det=String(ev.detail||'').trim();
+          if(/^CODE:\n/i.test(full)){
+            const parts=full.split(/\n\n/);
+            const codePart=parts[0].replace(/^CODE:\n/i,'');
+            if(codePart){src=codePart;step.dataset.sourceCode=codePart.slice(0,20000)}
+            out=parts.slice(1).join('\n\n').trim();
+          }else if(ev.status==='running'&&det&&!step.dataset.sourceCode&&!/stdout:|stderr:|→ /i.test(det)){
+            step.dataset.sourceCode=det.slice(0,20000);
+            src=step.dataset.sourceCode;
+          }else if(ev.status==='done'||ev.status==='error'){
+            out=full||det;
+          }
+          if(!src)src=step.dataset.sourceCode||'';
+          // Strip CODE: prefix from out if still present
+          if(out.startsWith(src))out=out.slice(src.length).trim();
+          out=out.replace(/^CODE:[\s\S]*?(?=stdout:|stderr:|→ |$)/i,'').trim()||out;
+          let html='';
+          if(src)html+='<div class="tp-code-label">Code</div><pre class="tp-code">'+escapeHtml(src.slice(0,12000))+'</pre>';
+          if(out&&out!==src)html+='<div class="tp-code-label">Output</div><pre class="tp-out">'+escapeHtml(out.slice(0,8000))+'</pre>';
+          if(html)body.innerHTML=html;
+        }
+      }else{
+        const content=ev.full||ev.detail;
+        try{
+          body.innerHTML=this.renderMarkdown(String(content).slice(0,8000));
+          if(this._renderMath)this._renderMath(body);
+        }catch(e){body.textContent=String(content).slice(0,8000)}
+      }
+    }
     if(ev.stream&&ev.status==='running'){
       step.classList.add('open','writing-live');
-      const ch=step.querySelector('.tp-step-head > span');if(ch)ch.textContent='▾';
+      const ch=step.querySelector('.tp-chev');if(ch)ch.textContent='▾';
       const root=step.closest('.thought-process');
       if(root){root.classList.add('open');const c=root.querySelector('.tp-chevron');if(c)c.textContent='▾'}
-      // Live preview while writing HTML
       if(ev.previewHtml&&(this.mode==='code'||this.app.mode==='code')){
         try{this.livePreviewHtml&&this.livePreviewHtml(ev.previewHtml)}catch(e){}
       }
@@ -10331,10 +10631,12 @@ contentEl.querySelectorAll('.file-chip-dl').forEach(a=>{
 contentEl.querySelectorAll('.preview-chip').forEach(btn=>{
   if(btn.dataset.wiredPreview==='1')return;btn.dataset.wiredPreview='1';
   btn.onclick=e=>{e.preventDefault();e.stopPropagation();
-    const p=btn.dataset.preview;if(p)this._lastPreviewPath=p;
+    let p=String(btn.dataset.preview||'').replace(/[}\]\s]+$/g,'').trim();
+    if(this.app.vfs&&this.app.vfs.resolve)p=this.app.vfs.resolve(p)||p;
+    if(p){this._lastPreviewPath=p;this._lastWrittenHtml=p;}
     const inCode=(this.mode==='code'||this.app.mode==='code');
     if(inCode){try{this.refreshCodePreview(p);this.showCodePreviewPane&&this.showCodePreviewPane()}catch(err){}}
-    else{try{if(p)this.openHtmlPreview(p)}catch(err){}}
+    else{try{if(p)this.openHtmlPreview(p)}catch(err){toast('Preview failed: '+(err.message||err),'error')}}
   };
 });
 let actions=aiEl.querySelector('.message-actions');
@@ -10409,34 +10711,37 @@ updateLiveThinkRail(root){
   const steps=[...root.querySelectorAll('.tp-panel .tp-step')];
   const latest=steps.slice(-3);
   const labels=latest.map(st=>{
-    const t=(st.querySelector('.tp-step-title')||{}).innerText||'';
-    const d=((st.querySelector('.tp-step-body')||{}).innerText||'').trim().split('\n')[0]||'';
-    const line=(t+(d?(' — '+d):'')).replace(/\s+/g,' ').trim().slice(0,90);
-    return line||'Thinking…';
+    const t=((st.querySelector('.tp-step-title')||{}).innerText||'').replace(/\s+/g,' ').trim();
+    return (t||'Thinking…').slice(0,90);
   });
-  // Animate: mark excess old items as leaving
-  const existing=[...rail.querySelectorAll('.tp-live-item')];
-  const keep=labels.length;
-  if(existing.length>keep){
-    existing.slice(0,existing.length-keep).forEach(el=>{
-      el.classList.add('leaving');
-      setTimeout(()=>{try{el.remove()}catch(e){}},300);
-    });
+  // Incremental DOM: reuse existing nodes, only add/remove the delta — no full refresh flash
+  const items=[...rail.querySelectorAll('.tp-live-item:not(.leaving)')];
+  // If we have more than 3, slide the oldest out
+  while(items.length>labels.length){
+    const old=items.shift();
+    if(!old)break;
+    old.classList.add('leaving');
+    setTimeout(()=>{try{old.remove()}catch(e){}},280);
   }
-  // Rebuild remaining as newest 3
-  setTimeout(()=>{
-    if(!rail.isConnected)return;
-    const stillLeaving=rail.querySelectorAll('.tp-live-item.leaving');
-    // clear non-leaving
-    [...rail.querySelectorAll('.tp-live-item:not(.leaving)')].forEach(n=>n.remove());
-    labels.forEach((lab,i)=>{
+  // Update text on existing slots (no recreate)
+  labels.forEach((lab,i)=>{
+    if(i<items.length){
+      const el=items[i];
+      const next='<span class="tp-live-dot"></span>'+escapeHtml(lab);
+      if(el.dataset.lab!==lab){
+        el.dataset.lab=lab;
+        el.innerHTML=next;
+      }
+    }else{
+      // New item — slide in without wiping siblings
       const item=document.createElement('div');
-      item.className='tp-live-item';
-      item.style.animationDelay=(i*0.04)+'s';
+      item.className='tp-live-item is-new';
+      item.dataset.lab=lab;
       item.innerHTML='<span class="tp-live-dot"></span>'+escapeHtml(lab);
       rail.appendChild(item);
-    });
-  }, existing.length>keep ? 120 : 0);
+      requestAnimationFrame(()=>{requestAnimationFrame(()=>item.classList.add('is-in'))});
+    }
+  });
 }
 
 hydrateThoughts(div,msg){
@@ -10489,8 +10794,25 @@ hydrateThoughts(div,msg){
     if(agent)step.dataset.agent=agent;
     step.innerHTML=`<div class="tp-step-head"><span class="tp-step-title"></span><span class="tp-step-status" style="margin-left:auto;opacity:.6">${escapeHtml(a.status||'')}</span></div><div class="tp-step-body"></div>`;
     step.querySelector('.tp-step-title').innerHTML=(agent?('<span class="tp-agent">'+escapeHtml(agent)+'</span> '):'')+escapeHtml(name);
-    if(detail)step.querySelector('.tp-step-body').textContent=detail.slice(0,8000);
-    step.querySelector('.tp-step-head').onclick=()=>step.classList.toggle('open');
+    const b=step.querySelector('.tp-step-body');
+    if(detail&&b){
+      try{
+        b.innerHTML=this.renderMarkdown(detail.slice(0,8000));
+        if(this._renderMath)this._renderMath(b);
+      }catch(e){b.textContent=detail.slice(0,8000)}
+    }
+    step.querySelector('.tp-step-head').onclick=(e)=>{
+      e.preventDefault();e.stopPropagation();
+      step.classList.toggle('open');
+      const chev=step.querySelector('.tp-chev')||step.querySelector('.tp-step-head span');
+      if(chev&&chev.classList.contains('tp-chev'))chev.textContent=step.classList.contains('open')?'▾':'▸';
+    };
+    // Ensure chevron exists on hydrated steps
+    const head=step.querySelector('.tp-step-head');
+    if(head&&!head.querySelector('.tp-chev')){
+      const c=document.createElement('span');c.className='tp-chev';c.textContent='▸';
+      head.insertBefore(c,head.firstChild);
+    }
     panel.appendChild(step);
   });
   const body=div.querySelector('.message-body');
@@ -10673,6 +10995,13 @@ sanitizeSupervisorFinal(text){
 sanitizeFinalAnswer(text,aiEl){
   let s=String(text||'').trim();
   s=s.replace(/^(Worked for[\s\S]{0,40}\n)+/i,'').trim();
+  // Fix broken preview/file markers the model sometimes emits
+  s=s.replace(/\[\[\s*(preview|file)\s*:\s*([^\]\}\|\n]+?)\s*[\]\}]+/gi,(_,k,p)=>{
+    p=String(p||'').replace(/[\s\}\]]+$/,'').replace(/^[\s\[\{]+/,'').trim();
+    return '[['+k.toLowerCase()+':'+p+']]';
+  });
+  // Orphan path-looking lines ending with } after artifacts/
+  s=s.replace(/(^|\n)\s*(artifacts\/[^\s\n]+\.html?)\}/gim,(_,a,p)=>a+'[[preview:'+p+']]');
   if(s && !/^(Working…|Working\.\.\.|Thinking|Planned|Planning|Deep thought|Deep thinking)\b/i.test(s) && s.length>8){
     // strip a leading thought dump if the model echoed it
     s=s.replace(/^(Planning|Planned|Deep thinking|Deep thought|Thinking)[:\s][\s\S]{0,400}?(\n\n|$)/i,'').trim();
@@ -13284,11 +13613,14 @@ wireFileChips(root){
     if(btn.dataset.wired==='1'||btn.dataset.wiredPreview==='1')return;
     btn.dataset.wired='1';btn.dataset.wiredPreview='1';
     btn.onclick=e=>{e.preventDefault();e.stopPropagation();
-      const p=btn.dataset.preview;if(p)this._lastPreviewPath=p;
+      let p=String(btn.dataset.preview||'').replace(/[}\]\s]+$/g,'').trim();
+      if(this.app.vfs&&this.app.vfs.resolve)p=this.app.vfs.resolve(p)||p;
+      if(p){this._lastPreviewPath=p;this._lastWrittenHtml=p;}
       const inCode=(this.mode==='code'||(this.app&&this.app.mode==='code'));
       try{
         if(inCode){this.refreshCodePreview(p);this.showCodePreviewPane&&this.showCodePreviewPane()}
-        else if(p)this.openHtmlPreview(p);
+        else if(p&&/\.html?$/i.test(p))this.openHtmlPreview(p);
+        else if(p)this.openWorkspacePreview(p);
       }catch(err){toast(err.message||'Preview failed','error')}
     };
   });
