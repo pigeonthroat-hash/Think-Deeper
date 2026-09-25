@@ -117,7 +117,7 @@ button.phone-only{display:none}
 .model-btn:hover{border-color:var(--accent)}
 .suggestion:hover{border-color:var(--accent)}
 .deep-think-on{color:var(--accent)!important;font-weight:600}
-.message-actions{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;opacity:0;transition:opacity .15s}
+.message-actions{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;opacity:1;visibility:visible;transition:opacity .15s}
 .message:hover .message-actions,.message:focus-within .message-actions,
 .agent-msg:hover .message-actions,.agent-msg:focus-within .message-actions,
 .code-msg:hover .message-actions,.code-msg:focus-within .message-actions{opacity:1}
@@ -828,6 +828,8 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .agent-dot.live{background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);animation:softPulse 1.6s ease infinite}
 .agent-chat-actions{display:flex;gap:8px;align-items:center}
 .agent-stop-btn{padding:6px 12px;font-size:.8rem}
+.agent-complete-btn{padding:6px 14px;font-size:.8rem;font-weight:600;border-radius:8px;margin-left:6px}
+.agent-complete-btn:disabled{opacity:.5;cursor:not-allowed}
 .agent-chat-body{flex:1;overflow:auto;padding:24px 20px 32px;scroll-behavior:smooth}
 .agent-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:52vh;text-align:center;padding:32px 16px}
 .agent-empty h1{font-family:var(--font-display);font-size:2.2rem;font-weight:400;letter-spacing:-.03em;margin-bottom:10px}
@@ -1563,8 +1565,8 @@ body.mode-canvas .sidebar-footer.collapsed{
 .msg-img{max-width:min(100%,420px);border-radius:10px;border:1px solid var(--border);margin:8px 0;display:block}
 .msg-link{color:var(--accent);text-decoration:underline;word-break:break-all}
 
-.message-actions,.agent-msg .message-actions{
-  display:inline-flex;align-items:center;gap:2px;flex-wrap:wrap;margin-top:6px;vertical-align:middle
+.message-actions,.agent-msg .message-actions,.code-msg .message-actions{
+  display:inline-flex!important;align-items:center;gap:2px;flex-wrap:wrap;margin-top:6px;vertical-align:middle;opacity:1!important;visibility:visible!important
 }
 .message-actions button,.message-actions .msg-act-btn{
   display:inline-flex;align-items:center;justify-content:center;
@@ -1741,7 +1743,7 @@ body.mode-canvas .sidebar-footer.collapsed{
       </div>
       <div class="agent-chat-actions">
         <button type="button" class="agent-quality-btn" id="agent-quality-btn" title="Quality">Auto</button>
-        <button type="button" class="btn-secondary agent-stop-btn" id="swarm-stop" style="display:none">Stop</button>
+        <button type="button" class="btn-primary agent-complete-btn" id="agent-complete-btn" style="display:none" title="Ask Supervisor to finalize now">Complete</button>
       </div>
     </header>
     <div class="agent-chat-body" id="swarm-think">
@@ -4527,7 +4529,7 @@ async run(code){
 }
 class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.python=py;this.definitions=[
 {type:'function',function:{name:'list_files',description:'List files and folders in the AI internal filesystem. Use when you need to see what exists before reading or writing. Paths include artifacts/, archive/, uploads/, memory/, plugins/. For an external workspace use path prefix \"external:\".',parameters:{type:'object',properties:{path:{type:'string',description:'Directory path to list. Use \"\" or \"/\" or \"artifacts\" for roots.'}},required:[]}}},
-{type:'function',function:{name:'read_file',description:'Read a file from the workspace. For large files, pass start and length to page through it instead of loading everything.',parameters:{type:'object',properties:{path:{type:'string'},start:{type:'number',description:'Character offset'},length:{type:'number',description:'Max characters to return'}},required:['path']}}},
+{type:'function',function:{name:'read_file',description:'Read a file from the workspace (including files YOU wrote earlier). Always call this before editing an existing file so you update it instead of recreating it from scratch. For large files, pass start and length to page through it.',parameters:{type:'object',properties:{path:{type:'string'},start:{type:'number',description:'Character offset'},length:{type:'number',description:'Max characters to return'}},required:['path']}}},
 {type:'function',function:{name:'search_file',description:'Search a workspace file (or all uploads/) for a keyword or regex. Returns matching snippets with character offsets so you can read_file that section. Use this on large HTML/text instead of loading the whole file.',parameters:{type:'object',properties:{path:{type:'string',description:'File path or folder. Empty = search uploads/ and artifacts/'},query:{type:'string'},regex:{type:'boolean'},context:{type:'number',description:'Chars of context around each hit'},limit:{type:'number'}},required:['query']}}},
 {type:'function',function:{name:'run_onnx',description:'Run a workspace ONNX model in the browser with ONNX Runtime Web. path defaults to the last converted model. input is a number or JSON array of floats.',parameters:{type:'object',properties:{path:{type:'string'},input:{description:'Number or array of floats'}},required:[]}}},
 {type:'function',function:{name:'write_file',description:'Create or overwrite a file in the internal FS. In CODE MODE always write under the current session folder (code/<sessionId>/…), e.g. index.html or style.css — the runtime rewrites bare names into that folder. In chat mode prefer artifacts/ for work products and memory/ for durable facts. Previous versions are archived automatically.',parameters:{type:'object',properties:{path:{type:'string',description:'Destination path (code mode: relative to session code root, e.g. index.html)'},content:{type:'string',description:'Full file contents to write'}},required:['path','content']}}},
@@ -4658,7 +4660,7 @@ case'write_file':{
       isNew:!!result.isNew,
       persisted:result.persisted!==false,
       message:really
-        ?((result.isNew?'Created ':'Updated ')+finalPath+' ('+(result.lines||0)+' lines). File is in your Files workspace — open Files or use [[file:'+finalPath+']].')
+        ?((result.isNew?'Created ':'Updated ')+finalPath+' ('+(result.lines||0)+' lines). File is in your Files workspace — open Files or use [[file:'+finalPath+']]. To edit later, call read_file on "'+finalPath+'" first, then write_file with the updated content (do not recreate from scratch).')
         :('Write reported but file missing from workspace: '+finalPath)
     });
   }catch(err){
@@ -5458,7 +5460,7 @@ class AgentManager{
             const why=tooEarly
               ?('TOO EARLY — '+Math.ceil(leftMs/60000)+'m still on the clock. Keep every agent working until ~80% of the budget is used.')
               :('SOLVED rejected — need every agent, verification tests, and a concrete NEW result. Budget left ~'+Math.ceil(leftMs/60000)+'m.');
-            a.thoughts.push({name:'Thought',detail:why,status:'running'});
+            a.thoughts.push({name:(why&&String(why).slice(0,48))||'Working',detail:why,status:'running'});
             const workers=this.list().filter(x=>x.role!=='supervisor');
             let next=workers.find(x=>x.status==='idle')||workers.find(x=>x.status==='completed'||x.status==='failed')||workers[0];
             if(next){
@@ -5620,6 +5622,8 @@ class AgentManager{
       const start=Number(this.k.budgetStart)|| (Number(this.k.deadline)||Date.now())-budget;
       const elapsed=Date.now()-start;
       // Must consume at least 80% of the user time budget before any final is allowed
+      // unless user pressed Complete (force finalize)
+      if(this.k&&this.k._forceComplete)return true;
       if(elapsed < budget*0.80)return false;
       return true;
     }catch(e){return false}
@@ -5726,7 +5730,7 @@ class AgentManager{
       a.thoughts=a.thoughts||[];
       a.pendingCode=code;
       this.k.events.emit('agent.code',{id:a.id,code:code,phase:'run'});
-      a.thoughts.push({name:'Thought',detail:'Running Python…',status:'running'});
+      a.thoughts.push({name:'Running Python',detail:'Running Python…',status:'running'});
       this.k.events.emit('agent.tool',{id:a.id,name:'run_python',status:'running',code:code.slice(0,2000)});
       a.status='running';
       await new Promise(r=>setTimeout(r,40));
@@ -5801,7 +5805,8 @@ if(groupMode){
     }
     if(this.k.intentNote)supPrompt+='\nUSER INTENT: '+this.k.intentNote;
     if(this.k.budgetMs)supPrompt+='\nTIME BUDGET: about '+Math.round(this.k.budgetMs/1000)+' seconds. Use the time wisely but do not declare SOLVED early.';
-    if(this.k.mustFullySolve!==false)supPrompt+='\nYou must not SOLVED until the task is fully complete. After any partial conclusion keep assigning workers — completed workers may be reused.';
+    if(this.k._forceComplete)supPrompt+='\nUSER PRESSED COMPLETE: Time budget is gone. Immediately synthesize the best final answer from all worker results and output SOLVED: <answer>. Do not assign more exploratory work.';
+    if(this.k.mustFullySolve!==false&&!this.k._forceComplete)supPrompt+='\nYou must not SOLVED until the task is fully complete. After any partial conclusion keep assigning workers — completed workers may be reused.';
     const sup=this.k.agents.register({id:'coordinator',role:'supervisor',model,fallbacks,task:'Coordinate until solved: '+goal,rounds:0,perms:{python:true,files:true,messaging:true,spawn:true,network:true,sharedWs:true},systemPrompt:supPrompt,limits:{maxTokens:500000,maxReqs:500},maxTokens:4000});
     const count=Math.max(1,Math.min(10000,n||1));
     const roles=['builder','planner','reviewer','researcher','tester'];
@@ -5925,9 +5930,16 @@ _pickModel(deepThink){const c=this.provider.config;const roles=this.storage.get(
   const real=list.map(m=>m.id||m).find(ok);
   return real||'gpt-4o-mini';
 }
-_memoryContext(){try{const bits=[];try{if(typeof window!=='undefined'&&window.__app&&window.__app.ui&&window.__app.ui.supervisorMemoryContext){const extra=window.__app.ui.supervisorMemoryContext();if(extra)bits.push(extra)}}catch(e){}const paths=this.tools.vfs.list('memory/')||[];for(const p of paths.slice(0,16)){try{const c=this.tools.vfs.read(p);if(c)bits.push('### '+p+'\n'+String(c).slice(0,900))}catch{}}if(!bits.length)return '';return '\n\nSHARED MEMORY (files, chats, agent thinking — keep these facts across chat and agent mode):\n'+bits.join('\n\n').slice(0,10000)}catch{return ''}}
+_memoryContext(){try{const bits=[];try{if(typeof window!=='undefined'&&window.__app&&window.__app.ui&&window.__app.ui.supervisorMemoryContext){const extra=window.__app.ui.supervisorMemoryContext();if(extra)bits.push(extra)}}catch(e){}const paths=this.tools.vfs.list('memory/')||[];for(const p of paths.slice(0,16)){try{const c=this.tools.vfs.read(p);if(c)bits.push('### '+p+'\n'+String(c).slice(0,900))}catch{}}
+// Recently written workspace files — read_file these instead of rewriting from scratch
+try{
+  const files=this.tools.vfs.files||{};
+  const recent=Object.keys(files).filter(p=>p&&!p.startsWith('archive/')&&!p.startsWith('memory/')).map(p=>({p,u:(files[p]&&files[p].updated)||0})).sort((a,b)=>b.u-a.u).slice(0,18);
+  if(recent.length)bits.push('RECENT WORKSPACE FILES (call read_file on these paths to continue editing — do not recreate from scratch):\n'+recent.map(x=>'- '+x.p).join('\n'));
+}catch(e){}
+if(!bits.length)return '';return '\n\nSHARED MEMORY (files, chats, agent thinking — keep these facts across chat and agent mode):\n'+bits.join('\n\n').slice(0,10000)}catch{return ''}}
 getSystemPrompt(deepThink=false){const personality=this.storage.get('personality','')||'';const pluginsOn=this.storage.get('pluginsGlobal',true)!==false;const pluginInj=pluginsOn?this.plugins.getSystemInjection():'';
-const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector: After YOU write or edit JS/TS/HTML/CSS/Python with write_file, you may call check_code. Do not run check_code on files the user only shared for reading/explanation.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nFILES — READ vs WRITE (critical):\n- Only treat files as attached if THIS user message lists them (or [[path]] / tool results in this turn). Do NOT invent attachments from older chats.\n- If the user ATTACHED a file or asks what is IN a file / to explain / summarize / review it: READ and EXPLAIN the contents. Use the file text already in the message when present. Otherwise call read_file (or ws_read). Do NOT call write_file, check_code, or run_python just to "inspect" an attached file.\n- Never create a new file when the user only asked what is inside an existing one.\n- write_file is available at every intensity ONLY when the user clearly asks to create, save, edit, or generate a file. After write_file, give a short final summary with the path.\n- check_code is only for code YOU just wrote or edited — not for user-shared files they only want explained.\nTHINKING: Keep all work in this single reply. When Python runs, pause other steps until it finishes, then continue.\n';
+const monacoPlug='\nINTEGRATED PLUGIN — Monaco Inspector: After YOU write or edit JS/TS/HTML/CSS/Python with write_file, you may call check_code. Do not run check_code on files the user only shared for reading/explanation.\nWhen generate_image succeeds, include the markdown image ![](generated/...) in the visible answer so the user sees the picture.\nFILES — READ vs WRITE (critical):\n- Only treat files as attached if THIS user message lists them (or [[path]] / tool results in this turn). Do NOT invent attachments from older chats.\n- If the user ATTACHED a file or asks what is IN a file / to explain / summarize / review it: READ and EXPLAIN the contents. Use the file text already in the message when present. Otherwise call read_file (or ws_read). Do NOT call write_file, check_code, or run_python just to "inspect" an attached file.\n- Never create a new file when the user only asked what is inside an existing one.\n- EDITING EXISTING WORK: If you already created a file in this chat/session (or list_files / RECENT WORKSPACE FILES shows it), call read_file on that exact path BEFORE changing it. Reuse and update the existing content — do NOT rewrite the whole file from scratch unless the user asks for a full rewrite.\n- After write_file, the path is real. To continue on the same file: read_file that path, then write_file with the improved full content.\n- write_file is available at every intensity ONLY when the user clearly asks to create, save, edit, or generate a file. After write_file, give a short final summary with the path.\n- check_code is only for code YOU just wrote or edited — not for user-shared files they only want explained.\nTHINKING: Keep all work in this single reply. Prefer short, concrete thoughts (1–3 sentences per step) over long narration. Skip restating the user request. When Python runs, pause other steps until it finishes, then continue.\n';
 const deep=deepThink?`
 DEEP THINK MODE IS ON.
 - Keep working until the problem is FULLY solved and verified.
@@ -6414,7 +6426,17 @@ if((deepThink||(this.storage.get('intensity','')==='ultra')||this.storage.get('i
     }
   }catch(e){console.warn('team',e)}
 }
-if(!finalContent)finalContent='Stopped before a final answer. Press Stop to cancel a long run, or send again if the model returned nothing.';
+if(!finalContent||!String(finalContent).trim()){
+  // Always produce a user-visible final response — never end on tools-only silence
+  try{
+    const synth=await this.provider.chat([
+      {role:'system',content:'Write a clear final answer for the user based on the conversation so far. Be concrete. Do not call tools. Do not say you cannot answer if tools already ran — summarize what was done and the outcome.'},
+      {role:'user',content:String(userMessage||'').slice(0,3000)+'\n\n(Tools already ran; produce the final reply now.)'}
+    ],{temperature:0.3,maxTokens:Math.min(2000,this.maxTokens||2000),signal});
+    finalContent=(synth&&synth.choices&&synth.choices[0]&&synth.choices[0].message&&synth.choices[0].message.content)||'';
+  }catch(e){console.warn('final synth',e)}
+  if(!finalContent||!String(finalContent).trim())finalContent='Work finished. If you expected more detail, send a short follow-up and I will continue from here.';
+}
 if((this.teamSize||1)>1){
   try{
     const codeMode=this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code');
@@ -6934,15 +6956,42 @@ openHtmlPreview(path){
 async regenerateLast(){
   const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
   if(this.app.agent.running){toast('Wait for the current run to finish or press Stop','error');return}
-  const msgs=conv.messages;let lastUserIdx=-1;
+  const msgs=conv.messages;let lastUserIdx=-1;let lastAiIdx=-1;
   for(let i=msgs.length-1;i>=0;i--){if(msgs[i].role==='user'){lastUserIdx=i;break}}
   if(lastUserIdx<0)return;
+  for(let i=msgs.length-1;i>lastUserIdx;i--){if(msgs[i].role==='assistant'){lastAiIdx=i;break}}
   const userMsg=msgs[lastUserIdx];
-  conv.messages=msgs.slice(0,lastUserIdx+1);this.app.conversations.persist();
-  this.loadConversation(conv.id);
-  const aiMsg={id:uid(),role:'assistant',content:'',activities:[],ts:now()};
-  this.app.conversations.addMessage(conv.id,aiMsg);
-  const aiEl=this.renderMessage(aiMsg,true);
+  let aiMsg=lastAiIdx>=0?msgs[lastAiIdx]:null;
+  // Snapshot current answer as a version before regenerating
+  if(aiMsg&&String(aiMsg.content||'').trim()){
+    if(!Array.isArray(aiMsg.versions))aiMsg.versions=[];
+    // Save current view as a version entry
+    const cur={content:String(aiMsg.content||''),activities:Array.isArray(aiMsg.activities)?aiMsg.activities.slice():[],thinkMs:aiMsg.thinkMs||0,ts:aiMsg.ts||Date.now()};
+    // Avoid pushing identical consecutive versions
+    const lastV=aiMsg.versions[aiMsg.versions.length-1];
+    if(!(lastV&&lastV.content===cur.content))aiMsg.versions.push(cur);
+    // Cap versions
+    if(aiMsg.versions.length>12)aiMsg.versions=aiMsg.versions.slice(-12);
+    // Clear for new generation but keep id so nav stays on same bubble
+    aiMsg.content='';
+    aiMsg.activities=[];
+    aiMsg.thinkMs=0;
+    aiMsg.versionIdx=(aiMsg.versions.length); // will point at new answer after gen (versions.length means "latest new")
+    aiMsg.ts=now();
+    this.app.conversations.persist();
+    // Re-render message shell
+    try{
+      const oldEl=document.querySelector('.message[data-id="'+aiMsg.id+'"]');
+      if(oldEl)oldEl.remove();
+    }catch(e){}
+  }else{
+    // No prior AI msg — create one
+    aiMsg={id:uid(),role:'assistant',content:'',activities:[],versions:[],versionIdx:0,ts:now()};
+    this.app.conversations.addMessage(conv.id,aiMsg);
+  }
+  this.hideEmpty();
+  let aiEl=document.querySelector('.message[data-id="'+aiMsg.id+'"]');
+  if(!aiEl)aiEl=this.renderMessage(aiMsg,true);
   $('#stop-btn').classList.add('visible');$('#send-btn').style.display='none';$('#send-btn').disabled=true;
   const inten=this.getIntensity();
   const prevSettings={...this.app.agent.settings};
@@ -6958,8 +7007,80 @@ async regenerateLast(){
   finally{
     this.app.agent.settings=prevSettings;this.app.agent.intensityExtra='';
     $('#stop-btn').classList.remove('visible');$('#send-btn').style.display='flex';$('#send-btn').disabled=false;
+    // After regen, versionIdx points to the new answer (beyond versions array = live content)
+    if(aiMsg){
+      if(!Array.isArray(aiMsg.versions))aiMsg.versions=[];
+      aiMsg.versionIdx=aiMsg.versions.length; // live = last
+      try{this.paintVersionNav(document.querySelector('.message[data-id="'+aiMsg.id+'"]'),aiMsg)}catch(e){}
+    }
     this.app.conversations.persist();
+    try{if(this.app.cloud)this.app.cloud.pushNow(this.app,conv.id)}catch(e){}
   }
+}
+paintVersionNav(el,msg){
+  if(!el||!msg)return;
+  const vers=Array.isArray(msg.versions)?msg.versions:[];
+  const total=vers.length+(String(msg.content||'').trim()?1:0);
+  if(total<=1){
+    const old=el.querySelector('.msg-version-nav');if(old)old.remove();
+    return;
+  }
+  let nav=el.querySelector('.msg-version-nav');
+  if(!nav){
+    nav=document.createElement('div');
+    nav.className='msg-version-nav';
+    const actions=el.querySelector('.message-actions');
+    if(actions)actions.appendChild(nav);
+    else{
+      const host=el.querySelector('.message-content')||el.querySelector('.message-body')||el;
+      host.appendChild(nav);
+    }
+  }
+  const idx=Math.min(Math.max(0,Number(msg.versionIdx!=null?msg.versionIdx:total-1)),total-1);
+  msg.versionIdx=idx;
+  nav.innerHTML='<button type="button" data-ver="prev" aria-label="Previous response" title="Previous">‹</button><span class="msg-ver-label">'+(idx+1)+' / '+total+'</span><button type="button" data-ver="next" aria-label="Next response" title="Next">›</button>';
+  const prev=nav.querySelector('[data-ver=prev]');
+  const next=nav.querySelector('[data-ver=next]');
+  if(prev){prev.disabled=idx<=0;prev.onclick=e=>{e.preventDefault();this.switchMessageVersion(msg.id,idx-1)}}
+  if(next){next.disabled=idx>=total-1;next.onclick=e=>{e.preventDefault();this.switchMessageVersion(msg.id,idx+1)}}
+}
+switchMessageVersion(msgId,toIdx){
+  try{
+    const conv=this.app.conversations.get(this.app.conversations.currentId);if(!conv)return;
+    const msg=(conv.messages||[]).find(m=>m.id===msgId);if(!msg)return;
+    const vers=Array.isArray(msg.versions)?msg.versions:[];
+    const total=vers.length+(String(msg.content||'').trim()?1:0);
+    if(total<=1)return;
+    toIdx=Math.min(Math.max(0,toIdx),total-1);
+    const liveIdx=vers.length;
+    if(!msg._liveCache)msg._liveCache={content:String(msg.content||''),activities:(msg.activities||[]).slice(),thinkMs:msg.thinkMs||0};
+    if((msg.versionIdx==null||msg.versionIdx===liveIdx||msg.versionIdx>=vers.length)&&toIdx<vers.length){
+      msg._liveCache={content:String(msg.content||''),activities:Array.isArray(msg.activities)?msg.activities.slice():[],thinkMs:msg.thinkMs||0};
+    }
+    if(toIdx<vers.length){
+      const v=vers[toIdx];
+      msg.content=v.content||'';
+      msg.activities=Array.isArray(v.activities)?v.activities.slice():[];
+      msg.thinkMs=v.thinkMs||0;
+    }else{
+      const live=msg._liveCache||{content:msg.content,activities:msg.activities,thinkMs:msg.thinkMs};
+      msg.content=live.content||'';
+      msg.activities=Array.isArray(live.activities)?live.activities.slice():[];
+      msg.thinkMs=live.thinkMs||0;
+    }
+    msg.versionIdx=toIdx;
+    const el=document.querySelector('.message[data-id="'+msgId+'"]');
+    if(el){
+      const parent=el.parentNode;
+      const next=el.nextSibling;
+      el.remove();
+      const fresh=this.renderMessage(msg,false);
+      if(next&&parent)parent.insertBefore(fresh,next);
+      this.paintVersionNav(fresh,msg);
+    }
+    this.app.conversations.persist();
+    try{if(this.app.cloud)this.app.cloud.schedulePush(this.app)}catch(e){}
+  }catch(e){console.warn('switchVersion',e)}
 }
 async continueLast(){
   if(this.app.agent.running){toast('Already running','error');return}
@@ -7083,7 +7204,7 @@ persistChatRun(force){
         if(!thinkingText&&Array.isArray(lastAi.activities))thinkingText=lastAi.activities.map(a=>String((a&&(a.detail||a.text||a.name))||'')).filter(Boolean).join('\n').slice(0,8000);
       }
     }catch(e){}
-    const snap={v:1,ts:Date.now(),alive:running&&!!(lastUser&&lastAi&&!String(lastAi.content||'').trim()),convId:conv?conv.id:null,userMsgId:lastUser&&lastUser.id,aiMsgId:lastAi&&lastAi.id,userText:lastUser?String(lastUser.content||'').slice(0,8000):'',attachments:(lastUser&&lastUser.attachments)||[],activities:(lastAi&&lastAi.activities)||[],thinkingText:thinkingText};
+    const snap={v:1,ts:Date.now(),alive:running&&!!(lastUser&&lastAi&&!String(lastAi.content||'').trim()),convId:conv?conv.id:null,userMsgId:lastUser&&lastUser.id,aiMsgId:lastAi&&lastAi.id,userText:lastUser?String(lastUser.content||'').slice(0,8000):'',attachments:(lastUser&&lastUser.attachments)||[],activities:(lastAi&&lastAi.activities)||[],thinkingText:thinkingText,thinkMs:(lastAi&&lastAi.thinkMs)||0};
     this.app.storage.set('chatRunState',snap);
     if(this.app.cloud){
       try{this.app.cloud.pushLiveThinking&&this.app.cloud.pushLiveThinking(this.app,{kind:'chat',convId:snap.convId,alive:snap.alive})}catch(e){}
@@ -7111,60 +7232,79 @@ tryResumeAgentRun(){
 }
 tryResumeChatRun(){
   try{
-    if(this._chatResumed)return;
-    if(typeof navigator!=='undefined'&&navigator.onLine===false)return;
+    if(this._chatResumeBannerShown)return;
     if(this.app.agent&&this.app.agent.running)return;
     const snap=this.app.storage.get('chatRunState',null);
     if(!snap||!snap.alive||!snap.convId||!snap.userText)return;
-    if(snap.ts&&(Date.now()-Number(snap.ts))>3*60*60*1000)return;
+    if(snap.ts&&(Date.now()-Number(snap.ts))>6*60*60*1000)return;
     const conv=this.app.conversations.get(snap.convId);if(!conv)return;
     const aiMsg=(conv.messages||[]).find(m=>m.id===snap.aiMsgId);
     if(aiMsg&&String(aiMsg.content||'').trim()){this.app.storage.set('chatRunState',Object.assign({},snap,{alive:false}));return}
-    this._chatResumed=true;
+    this._chatResumeBannerShown=true;
     this.app.conversations.setCurrent(snap.convId);
     this.setMode('chat');
-    const liveAi=aiMsg||{id:snap.aiMsgId||uid(),role:'assistant',content:'',activities:snap.activities||[],ts:Date.now()};
-    if(!aiMsg)this.app.conversations.addMessage(conv.id,liveAi);
+    // Ensure prior thinking is on the message so user can open it
+    if(aiMsg){
+      if((!aiMsg.activities||!aiMsg.activities.length)&&snap.activities)aiMsg.activities=snap.activities;
+      if(!aiMsg.thinkMs&&snap.thinkMs)aiMsg.thinkMs=snap.thinkMs;
+    }else{
+      const liveAi={id:snap.aiMsgId||uid(),role:'assistant',content:'',activities:snap.activities||[],thinkMs:snap.thinkMs||0,ts:Date.now()};
+      this.app.conversations.addMessage(conv.id,liveAi);
+    }
     this.loadConversation(snap.convId);
+    this.showDisconnectContinueBanner(snap);
+  }catch(e){console.warn('[resume chat]',e)}
+}
+showDisconnectContinueBanner(snap){
+  try{
+    let bar=$('#td-disconnect-banner');
+    if(bar)bar.remove();
+    bar=document.createElement('div');
+    bar.id='td-disconnect-banner';
+    bar.innerHTML='<div class="td-disc-inner"><div class="td-disc-text"><strong>You seemed to disconnect during the request.</strong><span>Would you like to continue from where you left off?</span></div><button type="button" class="btn-primary td-disc-go" id="td-disc-continue">Continue</button><button type="button" class="btn-secondary td-disc-dismiss" id="td-disc-dismiss">Dismiss</button></div>';
+    const host=$('#messages')||$('.main')||document.body;
+    host.prepend(bar);
+    const dismiss=()=>{try{bar.remove()}catch(e){} try{this.app.storage.set('chatRunState',Object.assign({},snap,{alive:false}))}catch(e){}};
+    bar.querySelector('#td-disc-dismiss').onclick=dismiss;
+    bar.querySelector('#td-disc-continue').onclick=()=>this.continueFromDisconnect(snap);
+  }catch(e){console.warn('banner',e)}
+}
+continueFromDisconnect(snap){
+  try{
+    const bar=$('#td-disconnect-banner');if(bar)bar.remove();
+    const conv=this.app.conversations.get(snap.convId);if(!conv)return;
+    this.app.conversations.setCurrent(snap.convId);
+    this.setMode('chat');
+    let liveAi=(conv.messages||[]).find(m=>m.id===snap.aiMsgId);
+    if(!liveAi){
+      liveAi={id:snap.aiMsgId||uid(),role:'assistant',content:'',activities:snap.activities||[],ts:Date.now()};
+      this.app.conversations.addMessage(conv.id,liveAi);
+    }
+    // User-visible bubble says they are continuing; model gets the real prior request
+    const visibleUser={id:uid(),role:'user',content:'Continue from where you left off',displayContent:'Continue from where you left off',ts:Date.now(),_resume:true};
+    this.app.conversations.addMessage(conv.id,visibleUser);
+    this.renderMessage(visibleUser,false);
     const aiEl=document.querySelector('.message[data-id="'+liveAi.id+'"]')||this.renderMessage(liveAi,true);
-    // Seamless resume: no "continuing" toast — same thinking panel looks "Working" again
-    try{
-      const th=aiEl&&(aiEl.querySelector('.thinking-compact')||aiEl.querySelector('.th-head')||aiEl.querySelector('.agent-work'));
-      if(th){th.classList.add('open');const lab=aiEl.querySelector('#agent-work-label,.th-label');if(lab)lab.textContent='Working…'}
-    }catch(e){}
     this.ensureAgent();
     const stop=$('#stop-btn');if(stop)stop.classList.add('visible');
     const sendBtn=$('#send-btn');if(sendBtn){sendBtn.style.display='none';sendBtn.disabled=true}
-    const history=(conv.messages||[]).filter(m=>m.id!==liveAi.id);
+    const history=(conv.messages||[]).filter(m=>m.id!==liveAi.id&&m.id!==visibleUser.id);
     const acts=liveAi.activities||snap.activities||[];
-    const hasThinking=!!(acts&&acts.length)||!!(liveAi.reasoning||liveAi.thinking||(snap.thinkingText));
-    const hasFinal=!!String(liveAi.content||'').trim();
-    // Secret prompts — never shown as user bubbles; model must not mention resuming
-    let resumeUser=snap.userText;
-    let deepThink=false;
-    if(hasThinking&&!hasFinal){
-      resumeUser='[SYSTEM INTERNAL — do not mention this note] The previous turn already produced thinking/activities but no final user-facing answer. Using that thinking as context, write only the final response now. Do not restate that you are continuing. Do not open a new deep-think phase.';
-      deepThink=false;
-    }else if(!hasFinal){
-      resumeUser='[SYSTEM INTERNAL — do not mention this note] Continue the interrupted answer to the user request below. Do not say you were interrupted, paused, or are continuing — reply as if this is one unbroken response.\n\nUser request:\n'+String(snap.userText||'');
-      deepThink=false;
+    const hasThinking=!!(acts&&acts.length)||!!(liveAi.reasoning||snap.thinkingText);
+    let resumeUser=String(snap.userText||'');
+    if(hasThinking){
+      resumeUser='[SYSTEM INTERNAL — do not mention this note] The previous turn already produced thinking/activities but no final user-facing answer. Using that thinking as context, write only the final response now. Do not restate that you are continuing.\n\nOriginal user request:\n'+String(snap.userText||'');
     }else{
-      // already complete
-      this.app.storage.set('chatRunState',Object.assign({},snap,{alive:false}));
-      return;
+      resumeUser='[SYSTEM INTERNAL — do not mention this note] Continue the interrupted answer. Do not say you were interrupted. Reply as one unbroken response.\n\nUser request:\n'+String(snap.userText||'');
     }
-    // Attach prior thinking into history for the model only
     const histForModel=history.slice();
     if(hasThinking){
       const thinkBits=[];
-      (acts||[]).forEach(a=>{if(a&&(a.detail||a.text||a.name))thinkBits.push(String(a.detail||a.text||a.name).slice(0,600))});
-      if(liveAi.reasoning)thinkBits.push(String(liveAi.reasoning).slice(0,2000));
-      if(snap.thinkingText)thinkBits.push(String(snap.thinkingText).slice(0,2000));
-      if(thinkBits.length){
-        histForModel.push({role:'assistant',content:'(prior thinking notes — internal)\n'+thinkBits.join('\n').slice(0,6000)});
-      }
+      (acts||[]).forEach(a=>{if(a&&(a.detail||a.text||a.name))thinkBits.push(String(a.detail||a.text||a.name).slice(0,800))});
+      if(snap.thinkingText)thinkBits.push(String(snap.thinkingText).slice(0,3000));
+      if(thinkBits.length)histForModel.push({role:'assistant',content:'(prior thinking notes — internal)\n'+thinkBits.join('\n').slice(0,8000)});
     }
-    this.app.agent.run(resumeUser,histForModel,snap.attachments||[],ev=>this.handleAgentEvent(ev,aiEl,liveAi),{deepThink:deepThink,resume:true,reuseMsgId:liveAi.id})
+    this.app.agent.run(resumeUser,histForModel,snap.attachments||[],ev=>this.handleAgentEvent(ev,aiEl,liveAi),{deepThink:false,resume:true,reuseMsgId:liveAi.id})
       .catch(e=>toast(e.message||String(e),'error'))
       .finally(()=>{
         this.app.storage.set('chatRunState',Object.assign({},this.app.storage.get('chatRunState',{})||{},{alive:false,ts:Date.now()}));
@@ -7172,7 +7312,7 @@ tryResumeChatRun(){
         const se=$('#send-btn');if(se){se.style.display='flex';se.disabled=false}
         try{this.app.conversations.persist();if(this.app.cloud)this.app.cloud.pushNow(this.app,snap.convId)}catch(e){}
       });
-  }catch(e){console.warn('[resume chat]',e)}
+  }catch(e){console.warn('[continue disconnect]',e)}
 }
 renderProjects(){
   const el=$('#project-list');if(!el)return;
@@ -7443,6 +7583,8 @@ initSwarmUi(){
   if(quick)quick.onclick=()=>{this._agentQuick=!this._agentQuick;quick.classList.toggle('on',!!this._agentQuick);toast(this._agentQuick?'Quick ask on — short replies without a full team':'Team mode on','info')};
   const stopIn=$('#agent-stop-inline');
   if(stopIn)stopIn.onclick=()=>this.stopAgentRun();
+  const completeBtn=$('#agent-complete-btn');
+  if(completeBtn)completeBtn.onclick=()=>this.completeAgentRun&&this.completeAgentRun();
 
   this.renderAgentHist();
 }
@@ -7766,7 +7908,8 @@ loadAgentSession(id){
     if(m.role!=='user'&&(hasThink||m.workHtml)){
       const tp=document.createElement('div');
       tp.className='thought-process';
-      const dur=m.thinkMs?('Worked for '+formatDuration(m.thinkMs)):'Thinking';
+      const ms=Number(m.thinkMs||0)||(m.ts?Math.max(0,Date.now()-Number(m.ts)):0);
+      const dur=ms>0?('Worked for '+formatDuration(ms)):'Worked for a moment';
       tp.innerHTML='<div class="tp-toggle">'+(SVG.bulb||'')+'<span class="tp-chevron">▸</span> <span class="tp-label">'+escapeHtml(dur)+'</span></div><div class="tp-panel"></div>';
       tp.querySelector('.tp-toggle').onclick=()=>{
         tp.classList.toggle('open');
@@ -7978,11 +8121,37 @@ stopAgentRun(){
   try{this.renderSwarm({t:'swarm.stop'})}catch(e){}
   toast('Stopped','info');
 }
+/** User pressed Complete: drop time budget and force Supervisor to finalize now */
+completeAgentRun(){
+  try{
+    const k=this.app&&this.app.swarm;
+    if(!k||!k.alive){toast('No active agent run','info');return}
+    // Remove remaining budget so clock is no longer a constraint
+    try{k.budgetMs=0;k.deadline=Date.now();k.budgetStart=Date.now()-999999;this._agentDeadline=Date.now()}catch(e){}
+    const meta=$('#agent-work-meta');if(meta)meta.textContent='finalizing…';
+    // Soft-lock further worker assignment; demand a final response
+    try{k._forceComplete=true;k.mustFullySolve=true}catch(e){}
+    try{
+      // Nudge coordinator with an explicit finalize instruction
+      if(k.bus&&k.bus.send){
+        k.bus.send({from:'user',to:'coordinator',text:'[USER PRESSED COMPLETE] Time budget is lifted. Synthesize the best final answer NOW from all worker results. Call createfinalresponse / output SOLVED: with the complete answer. Do not assign more exploratory work.'});
+      }
+      if(k.scheduler){
+        k.scheduler._pumping=false;
+        if(!k.scheduler.q.includes('coordinator'))k.scheduler.enqueue('coordinator','complete');
+        else if(k.scheduler.schedulePump)k.scheduler.schedulePump();
+      }
+    }catch(e){console.warn('complete nudge',e)}
+    this._setAgentStatus('Completing…');
+    const btn=$('#agent-complete-btn');if(btn){btn.disabled=true;btn.textContent='Completing…'}
+    toast('Supervisor is writing the final response…','info');
+  }catch(e){toast((e&&e.message)||'Complete failed','error')}
+}
 setAgentRunningUi(running){try{this._agentRunning=!!running;if(window.__app)window.__app._agentRunning=!!running}catch(e){}
   const send=$('#swarm-send-btn');
   const stop=$('#agent-stop-inline');
   const ta=$('#swarm-goal');
-  const topStop=$('#swarm-stop');
+  const completeBtn=$('#agent-complete-btn');
   if(running){
     if(send){send.classList.add('hidden-by-stop');send.style.display='none'}
     if(stop){
@@ -7990,9 +8159,8 @@ setAgentRunningUi(running){try{this._agentRunning=!!running;if(window.__app)wind
       stop.style.display='inline-flex';
       stop.setAttribute('aria-hidden','false');
     }
+    if(completeBtn){completeBtn.style.display='inline-flex';completeBtn.disabled=false}
     if(ta){ta.disabled=false;ta.placeholder='Send another message in this chat…'}
-    // Header Stop as backup (always available while running)
-    if(topStop){topStop.style.display='inline-flex';topStop.textContent='Stop'}
   }else{
     if(send){send.classList.remove('hidden-by-stop');send.style.display=''}
     if(stop){
@@ -8000,8 +8168,8 @@ setAgentRunningUi(running){try{this._agentRunning=!!running;if(window.__app)wind
       stop.style.display='none';
       stop.setAttribute('aria-hidden','true');
     }
+    if(completeBtn)completeBtn.style.display='none';
     if(ta){ta.disabled=false;const ph=(this.app.i18n&&this.app.i18n.t('agent.placeholder'))||'Message Agent…';ta.placeholder=(ph==='agent.placeholder'?'Message Agent…':ph)}
-    if(topStop)topStop.style.display='none';
   }
 }
 
@@ -8261,7 +8429,7 @@ renderSwarm(ev){
     }
     if(this._agentClockTimer){clearInterval(this._agentClockTimer);this._agentClockTimer=null}
     this.setAgentRunningUi(false);
-    this._setAgentStatus('Done');this.setAgentRunningUi(false);
+    this._setAgentStatus('Done');this.setAgentRunningUi(false);try{const b=$('#agent-complete-btn');if(b){b.disabled=false;b.textContent='Complete';b.style.display='none'}}catch(e){}
     try{
       if(this._currentAgentSessionId&&k.solved){
         const s=this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{id:this._currentAgentSessionId,messages:[]};
@@ -9462,7 +9630,7 @@ downloadSingleFile(path){
 }
 previewFile(path){try{const content=this.app.vfs.read(path);const meta=this.app.vfs.files[path];$('#file-meta').textContent=`${path} · v${meta.version} · ${meta.lines} lines · ${new Date(meta.updated).toLocaleString()}`;$('#file-preview').textContent=content;$('#file-preview-wrap').style.display='block'}catch(e){this.explainApiError(e)}}
 openPlugins(){this.hideSelToolbar();this.renderPluginList();$('#plugin-editor').style.display='none';$('#plugins-overlay').classList.add('open')}
-renderPluginList(){const list=$('#plugin-list');list.innerHTML='';const plugins=this.app.plugins.list().filter(p=>p&&!p.hidden);if(!plugins.length){list.innerHTML='<p style="color:var(--text-tertiary)">No plugins yet.</p>';return}plugins.forEach(p=>{const card=document.createElement('div');card.className='plugin-card';const iconHtml=p.icon?.startsWith('http')?`<img src="${escapeHtml(p.icon)}" alt="">`:`<span style="font-size:1.4rem">${escapeHtml(p.icon||'P')}</span>`;card.innerHTML=`<div class="icon">${iconHtml}</div><div class="info"><div class="name">${escapeHtml(p.name)} ${p.enabled?'<span style="color:var(--success);font-size:.75rem">● on</span>':'<span style="color:var(--text-tertiary);font-size:.75rem">off</span>'}</div><div class="desc">${escapeHtml(p.description||'')}${p.folder?'<div style="font-size:.7rem;color:var(--text-tertiary);margin-top:4px">'+SVG.folder+' '+escapeHtml(p.folder)+'</div>':''}</div></div><div class="actions"><button class="icon-btn" data-act="toggle" title="Toggle on/off">${p.enabled?'⏻':'⭘'}</button><button class="icon-btn" data-act="edit">✎</button><button class="icon-btn" data-act="del">×</button></div>`;card.querySelector('[data-act=toggle]').onclick=()=>{p.enabled=!p.enabled;this.app.plugins.save(p);this.renderPluginList();toast(p.enabled?'Plugin enabled':'Plugin disabled','success')};card.querySelector('[data-act=edit]').onclick=()=>this.editPlugin(p.id);card.querySelector('[data-act=del]').onclick=()=>{this.appConfirm('Delete this plugin?','Delete plugin').then(ok=>{if(ok){this.app.plugins.delete(p.id);this.renderPluginList()}})};list.appendChild(card)})}
+renderPluginList(){const list=$('#plugin-list');list.innerHTML='';const plugins=this.app.plugins.list().filter(p=>p&&!p.hidden);if(!plugins.length){list.innerHTML='<p style="color:var(--text-tertiary)">No plugins yet.</p>';return}plugins.forEach(p=>{const card=document.createElement('div');card.className='plugin-card';const iconHtml=p.icon?.startsWith('http')?`<img src="${escapeHtml(p.icon)}" alt="">`:`<span style="font-size:1.4rem">${escapeHtml(p.icon||'P')}</span>`;card.innerHTML=`<div class="icon">${iconHtml}</div><div class="info"><div class="name">${escapeHtml(p.name)} ${p.enabled?'<span style="color:var(--success);font-size:.75rem">● on</span>':'<span style="color:var(--text-tertiary);font-size:.75rem">off</span>'}</div><div class="desc">${escapeHtml(p.description||'')}${p.folder?'<div style="font-size:.7rem;color:var(--text-tertiary);margin-top:4px">'+SVG.folder+' '+escapeHtml(p.folder)+'</div>':''}</div></div><div class="actions"><button class="icon-btn" data-act="toggle" title="Toggle on/off">${p.enabled?'⏻':'⭘'}</button><button class="icon-btn" data-act="edit">✎</button><button class="icon-btn" data-act="del">×</button></div>`;card.querySelector('[data-act=toggle]').onclick=()=>{p.enabled=!p.enabled;if(p.enabled)delete p.userDisabled;else p.userDisabled=true;this.app.plugins.save(p);this.renderPluginList();toast(p.enabled?'Plugin enabled':'Plugin disabled','success')};card.querySelector('[data-act=edit]').onclick=()=>this.editPlugin(p.id);card.querySelector('[data-act=del]').onclick=()=>{this.appConfirm('Delete this plugin?','Delete plugin').then(ok=>{if(ok){this.app.plugins.delete(p.id);this.renderPluginList()}})};list.appendChild(card)})}
 editPlugin(id){const p=id?this.app.plugins.get(id):{id:uid(),name:'',description:'',instructions:'',knowledge:'',icon:'',enabled:true};$('#plugin-name').value=p.name;$('#plugin-desc').value=p.description||'';$('#plugin-instructions').value=p.instructions||'';$('#plugin-knowledge').value=p.knowledge||'';$('#plugin-icon').value=p.icon||'';$('#plugin-enabled').checked=!!p.enabled;if($('#plugin-training'))$('#plugin-training').checked=!!p.training;$('#plugin-editor').style.display='block';this._editingPlugin=p}
 savePlugin(){const p=this._editingPlugin||{id:uid()};p.name=$('#plugin-name').value.trim()||'Untitled';p.description=$('#plugin-desc').value.trim();p.instructions=$('#plugin-instructions').value;p.knowledge=$('#plugin-knowledge').value;p.icon=$('#plugin-icon').value.trim()||'🧩';p.enabled=$('#plugin-enabled').checked;p.training=!!$('#plugin-training')?.checked;this.app.plugins.save(p);$('#plugin-editor').style.display='none';this.renderPluginList();toast('Plugin saved','success')}
 async importPlugin(file){if(!file)return;try{const text=await file.text();let data;try{data=JSON.parse(text)}catch{data=null}const p=data?{id:uid(),name:data.name||file.name.replace(/\.\w+$/,''),description:data.description||'',instructions:data.instructions||data.prompt||'',knowledge:data.knowledge||'',icon:data.icon||'plugin',enabled:true,training:!!data.training,folder:data.folder||'',files:data.files||null}:{id:uid(),name:file.name.replace(/\.\w+$/,''),description:'Imported text',instructions:text,knowledge:'',icon:'file',enabled:true};this.app.plugins.save(p);this.renderPluginList();toast('Imported','success')}catch(e){toast('Import failed: '+e.message,'error')}$('#import-plugin-file').value=''}
@@ -9488,7 +9656,7 @@ newChat(){
   this.showEmpty();
   const msgs=$('#messages');if(msgs)msgs.innerHTML='';
 }
-loadConversation(id){this.hideSelToolbar();if(this.isPhone&&this.isPhone())this.toggleSidebar(true);if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>{if(m&&m.content){try{m.content=extractTextToolCalls(m.content).text}catch(e){}}if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);this.renderMessage(m,false)});this.scrollToBottom();this._loadingConv=null}
+loadConversation(id){this.hideSelToolbar();if(this.isPhone&&this.isPhone())this.toggleSidebar(true);if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>{if(m&&m.content){try{m.content=extractTextToolCalls(m.content).text}catch(e){}}if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);if(m&&Array.isArray(m.activities)&&m.activities.length){const seen=new Set();m.activities=m.activities.filter(a=>{if(!a)return false;const k=String(a.agent||'')+'|'+String(a.name||'')+'|'+String(a.detail||'').slice(0,100);if(seen.has(k))return false;if(/^Thought$/i.test(String(a.name||''))&&!String(a.detail||'').trim())return false;seen.add(k);return true})}this.renderMessage(m,false)});this.scrollToBottom();this._loadingConv=null}
 renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>String(p.id)===String(pid)):null;
   const gone=new Set((this.app.storage.get('deletedConversations',[])||[]).map(String));
   let chats=this.app.conversations.list()||[];
@@ -9779,6 +9947,27 @@ else if(ev.type==='activity'){
   }
   const panel=root.querySelector('.tp-panel');
   if(!panel){console.error('thought panel missing');return null}
+  // Collapse duplicate consecutive steps (same agent+name) to stop thinking glitches
+  try{
+    const last=panel.querySelector('.tp-step:last-child');
+    if(last&&!last.classList.contains('skill-chip')){
+      const lastTitle=(last.querySelector('.tp-step-title')||{}).innerText||'';
+      const agent=String(ev.agent||'').trim();
+      const want=String(ev.name||'Step');
+      const norm=s=>String(s||'').replace(/\s+/g,' ').trim().toLowerCase();
+      if(norm(lastTitle).includes(norm(want))||norm(want)&&norm(lastTitle)===norm((agent?agent+' ':'')+want)){
+        // Refresh detail on the existing step instead of cloning it
+        const b=last.querySelector('.tp-step-body');
+        if(b&&ev.detail){
+          try{b.innerHTML=this.renderMarkdown(String(ev.detail).slice(0,4000))}catch(e){b.textContent=String(ev.detail).slice(0,4000)}
+        }
+        const st=last.querySelector('.tp-step-status');
+        if(st)st.textContent=ev.status==='running'?'…':(ev.status==='done'?'✓':'');
+        const existingId=last.dataset.id;
+        if(existingId){this.activityMap.set(existingId,last);this.snapshotThoughts(aiMsg,aiEl);return existingId}
+      }
+    }
+  }catch(e){}
   const id=uid();
   const isNarration=/thinking|plan|deep/i.test(ev.name||'');
   const isSkill=/^Skill used:/i.test(String(ev.name||'')) || !!ev.skill;
@@ -9858,7 +10047,7 @@ if(ev.type==='activity-update'){
     try{this.refreshCodePreview&&this.refreshCodePreview()}catch(e){}
     try{if(this.mode==='code'||this.app.mode==='code'){this.renderCodeFiles&&this.renderCodeFiles();this.showCodePreviewPane&&this.showCodePreviewPane()}}catch(e){}
     const t=step.querySelector('.tp-step-title');
-    if(t){t.innerHTML=t.innerHTML.replace(/Writing file/gi,'Wrote file').replace(/Writing/g,'Wrote').replace(/Reading/g,'Read').replace(/Running/g,'Ran').replace(/Searching/g,'Searched').replace(/Checking/g,'Checked').replace(/Listing/g,'Listed').replace(/Creating/g,'Created').replace(/Committing/g,'Committed').replace(/Thinking/g,'Thought')}
+    if(t){t.innerHTML=t.innerHTML.replace(/Writing file/gi,'Wrote file').replace(/Writing/g,'Wrote').replace(/Reading/g,'Read').replace(/Running/g,'Ran').replace(/Searching/g,'Searched').replace(/Checking/g,'Checked').replace(/Listing/g,'Listed').replace(/Creating/g,'Created').replace(/Committing/g,'Committed').replace(/\bThinking\b/g,'Thought through')}
   }
   if(ev.full||ev.detail){
     const body=step.querySelector('.tp-step-body');
@@ -10026,7 +10215,19 @@ snapshotThoughts(aiMsg,aiEl){
         detail:(st.querySelector('.tp-step-body')?.innerText||'').trim().slice(0,12000)
       };
     });
-    const useful=steps.filter(s=>(s.detail&&s.detail.trim())||(s.name&&!/^plan/i.test(s.name)));
+    // Keep steps that have real content; drop empty "Thought" shells; strong dedupe
+    const seenK=new Set();
+    const useful=steps.filter(s=>{
+      if(!s)return false;
+      const name=String(s.name||'').trim();
+      const detail=String(s.detail||'').trim();
+      if(/^Thought$/i.test(name)&&!detail)return false;
+      if(!detail&&(!name||/^plan$/i.test(name)))return false;
+      const k=(s.agent||'')+'|'+name+'|'+detail.slice(0,120);
+      if(seenK.has(k))return false;
+      seenK.add(k);
+      return true;
+    });
     if(!useful.length){
       root.remove();
       aiMsg.activities=[];
@@ -10047,8 +10248,11 @@ snapshotThoughts(aiMsg,aiEl){
 }
 hydrateThoughts(div,msg){
   if(!msg||!msg.activities||!msg.activities.length)return;
+  // Never stack duplicate thinking cards on the same message
+  try{div.querySelectorAll('.thought-process').forEach(n=>n.remove())}catch(e){}
   const root=document.createElement('div');root.className='thought-process';
-  const dur=msg.thinkMs?('Worked for '+formatDuration(msg.thinkMs)):'Planned';
+  const ms=Number(msg.thinkMs||0);
+  const dur=ms>0?('Worked for '+formatDuration(ms)):'Worked for a moment';
   root.innerHTML=`<div class="tp-toggle">${SVG.bulb}<span class="tp-chevron">▸</span> <span class="tp-label">${dur}</span></div><div class="tp-panel"></div>`;
   root.querySelector('.tp-toggle').onclick=()=>{
     root.classList.toggle('open');
@@ -10060,6 +10264,13 @@ hydrateThoughts(div,msg){
     if(!a)return;
     let agent=String(a.agent||'').trim();
     let name=String(a.name||'Step').trim();
+    let detail=String(a.detail||a.text||'').trim();
+    // Never show an empty "Thought" shell — skip or promote detail to the title
+    if(/^Thought$/i.test(name)&&!detail)return;
+    if(/^Thought$/i.test(name)&&detail){
+      name=detail.slice(0,72)+(detail.length>72?'…':'');
+      // keep full text in body
+    }
     // Strip any stacked agent prefixes from prior bad saves
     if(agent){
       const esc=agent.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
@@ -10072,16 +10283,16 @@ hydrateThoughts(div,msg){
     name=name.replace(/^(Supervisor\s*)+/i, agent==='Supervisor'?'':name.replace(/^(Supervisor\s*)+/i,'')).trim()||'Step';
     if(/^Planning$/i.test(name))name='Planned';
     if(/^Deep thinking$/i.test(name))name='Deep thought';
-    // If name is only repeated "Supervisor", collapse
     if(/^(Supervisor\s*)+$/i.test(name))name='received';
-    const key=agent+'|'+name+'|'+(a.detail||'').slice(0,80);
+    const key=agent+'|'+name+'|'+detail.slice(0,80);
     if(seen.has(key))return;
     seen.add(key);
-    const step=document.createElement('div');step.className='tp-step';
+    const step=document.createElement('div');step.className='tp-step'+(detail?' open':'');
     if(agent)step.dataset.agent=agent;
     step.innerHTML=`<div class="tp-step-head"><span class="tp-step-title"></span><span class="tp-step-status" style="margin-left:auto;opacity:.6">${escapeHtml(a.status||'')}</span></div><div class="tp-step-body"></div>`;
     step.querySelector('.tp-step-title').innerHTML=(agent?('<span class="tp-agent">'+escapeHtml(agent)+'</span> '):'')+escapeHtml(name);
-    if(a.detail)step.querySelector('.tp-step-body').textContent=String(a.detail).slice(0,4000);
+    if(detail)step.querySelector('.tp-step-body').textContent=detail.slice(0,8000);
+    step.querySelector('.tp-step-head').onclick=()=>step.classList.toggle('open');
     panel.appendChild(step);
   });
   const body=div.querySelector('.message-body');
@@ -10572,7 +10783,7 @@ deleteAiTurn(msgId){
 forgetAiTurn(msgId){this.deleteAiTurn(msgId)} /* alias */
 renderMessage(msg,isStreaming=false){const container=$('#messages');const div=document.createElement('div');div.className=`message ${msg.role}`;div.dataset.id=msg.id;const who=this.userLabel();const roleLabel=msg.role==='user'?who.label:'Think Deeper';const avatarText=msg.role==='user'?who.initial:'TD';let attachHtml='';if(msg.attachments?.length){attachHtml='<div class="attachments">';msg.attachments.forEach(a=>{if(a.dataUrl)attachHtml+=`<div class="attachment"><img src="${a.dataUrl}" alt=""></div>`;else attachHtml+=`<div class="attachment"><div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div></div>`});attachHtml+='</div>'}
 const bodyContent=msg.role==='user'?escapeHtml(this.visibleUserText(msg)).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
-div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.activities&&msg.activities.length){try{this.hydrateThoughts(div,msg)}catch(e){console.warn('hydrate',e)}}this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);try{this.wireFileChips(mb)}catch(e){}}if(msg.role==='assistant'&&msg.content&&!isStreaming)this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'assistant',text:msg.content});if(msg.role==='user')this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'user',text:msg.content||''});if(msg.role==='assistant')this.hydrateThoughts(div,msg);this.setupMessageSelection(div);this.scrollToBottom();return div}
+div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.activities&&msg.activities.length){try{this.hydrateThoughts(div,msg)}catch(e){console.warn('hydrate',e)}}try{if(msg.role==='assistant'&&(msg.versions&&msg.versions.length))this.paintVersionNav(div,msg)}catch(e){}this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);try{this.wireFileChips(mb)}catch(e){}}if(msg.role==='assistant'&&msg.content&&!isStreaming)this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'assistant',text:msg.content});if(msg.role==='user')this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'user',text:msg.content||''});this.setupMessageSelection(div);this.scrollToBottom();return div}
 renderMarkdown(text){
   if(!text)return '';
   let t=String(text);
@@ -12984,13 +13195,13 @@ this.ensureDefaultPlugins=function(){
   ];
   const existing=new Set(this.plugins.list().map(p=>p.id));
   for(const d of defaults){
-    if(!existing.has(d.id))this.plugins.save(Object.assign({},d,{created:Date.now()}));
+    if(!existing.has(d.id))this.plugins.save(Object.assign({},d,{created:Date.now(),enabled:true}));
     else {
-      // Upgrade older installs: turn built-ins on and fill missing instructions
+      // Built-in skills stay on by default (user can still toggle off later via Plugins UI)
       const cur=this.plugins.get(d.id);
       if(cur){
         let changed=false;
-        if(cur.enabled===false && !cur.userDisabled){cur.enabled=true;changed=true}
+        if(cur.enabled!==true){cur.enabled=true;delete cur.userDisabled;changed=true}
         if(!cur.instructions && d.instructions){cur.instructions=d.instructions;changed=true}
         if(!cur.knowledge && d.knowledge){cur.knowledge=d.knowledge;changed=true}
         if(d.hidden)cur.hidden=true;
@@ -12998,6 +13209,13 @@ this.ensureDefaultPlugins=function(){
       }
     }
   }
+  // Also re-enable any other plugins that were never explicitly user-disabled
+  try{
+    this.plugins.list().forEach(p=>{
+      if(!p||p.userDisabled)return;
+      if(p.enabled!==true){p.enabled=true;this.plugins.save(p)}
+    });
+  }catch(e){}
 }.bind(this);
 this.ensureDefaultPlugins();
 let agentSettings=this.storage.get('agentSettings',null);if(!agentSettings||typeof agentSettings!=='object')agentSettings={maxIterations:12,maxTools:30,maxTime:180};this.agent=new Agent(this.provider,this.tools,agentSettings,this.plugins,this.storage);this.ui=new UIManager(this)}materializePlugin(p){
