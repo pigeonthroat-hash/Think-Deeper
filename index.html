@@ -244,12 +244,24 @@ input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:po
   max-height:280px;overflow:auto;opacity:1;margin-top:4px;padding:6px 8px;
 }
 .thought-process .tp-panel{
-  overflow:hidden;max-height:0;opacity:0;
-  transition:max-height .32s cubic-bezier(.2,.8,.2,1),opacity .22s ease,margin .22s ease;
+  overflow:hidden;max-height:0;opacity:0;margin-top:0;padding-top:0;padding-bottom:0;
+  transition:max-height .38s cubic-bezier(.22,.8,.2,1),opacity .28s ease,margin .28s ease,padding .28s ease;
 }
 .thought-process.open .tp-panel{
-  display:block;max-height:420px;opacity:1;overflow:auto;
+  display:block;max-height:420px;opacity:1;overflow:auto;margin-top:6px;
 }
+/* Live rail slides out cleanly when panel opens or run ends */
+.tp-live-rail{
+  transition:max-height .32s cubic-bezier(.22,.8,.2,1),opacity .28s ease,margin .28s ease,transform .32s cubic-bezier(.22,.8,.2,1);
+  max-height:80px;opacity:1;transform:translateY(0);
+}
+.thought-process.open .tp-live-rail,
+.thought-process.done .tp-live-rail{
+  max-height:0!important;opacity:0!important;margin:0!important;transform:translateY(-6px);pointer-events:none;
+  overflow:hidden;
+}
+.thought-process .tp-toggle{transition:color .2s ease}
+.thought-process.done .tp-toggle{opacity:.9}
 .tp-step-head .tp-chev{display:inline-block;width:12px;text-align:center;opacity:.55;transition:transform .2s ease;flex-shrink:0}
 .tp-step.open .tp-step-head .tp-chev{transform:rotate(90deg);opacity:.85}
 .tp-code-label{font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-tertiary);margin:6px 0 2px}
@@ -849,6 +861,20 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .agent-stop-btn{padding:6px 12px;font-size:.8rem}
 .agent-complete-btn{padding:6px 14px;font-size:.8rem;font-weight:600;border-radius:8px;margin-left:6px}
 .agent-complete-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Firefox flex/chat visibility */
+#chat-area{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0}
+#chat-area[style*="display: none"]{display:none!important}
+.input-area{display:block;flex-shrink:0;visibility:visible}
+#swarm-view{display:none;flex-direction:column;flex:1;min-height:0;min-width:0}
+#swarm-view.active{display:flex!important}
+.agent-chat-shell{display:flex;flex-direction:column;flex:1;min-height:0;height:100%}
+.agent-chat-body{flex:1;min-height:0;overflow-y:auto}
+.agent-chat-input-area{flex-shrink:0;display:block;visibility:visible;padding:10px 12px 14px}
+.agent-input-box{display:flex!important;align-items:flex-end;visibility:visible;opacity:1}
+#swarm-goal{display:block!important;visibility:visible!important;opacity:1!important;min-height:28px}
+#user-input{display:block!important;visibility:visible;min-height:28px}
+
 .ws-preview-overlay{position:fixed;inset:0;z-index:13000;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:16px}
 .ws-preview-overlay.open{display:flex}
 .ws-preview-card{background:var(--bg-elevated);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-lg);width:min(920px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
@@ -6546,30 +6572,44 @@ if((deepThink||(this.storage.get('intensity','')==='ultra')||this.storage.get('i
           onEvent({type:'activity',name:nm+' skipped',agent:nm,status:'done',detail:'No extra help needed.'});
           continue;
         }
+        // Helpers only contribute to the thinking panel — Agent 1 alone owns the final reply
         onEvent({type:'activity',name:nm+' notes',agent:nm,status:'done',detail:txt.slice(0,4000)});
-        // Fold useful notes into final content once
-        if(txt.length>20&&!/SKIP/i.test(txt)){
-          finalContent=String(finalContent||'').trim()+'\n\n'+txt.slice(0,1200);
-        }
       }
     }
   }catch(e){console.warn('helpers',e)}
 }
-if(!finalContent||!String(finalContent).trim()){
-  // Always produce a user-visible final response — never end on tools-only silence
+// STEP 2 final response: if Agent 1 produced no user-visible answer, force a dedicated final pass
+async function agent1FinalPass(reason){
+  onEvent({type:'activity',name:'Writing final answer',agent:'Agent 1',status:'running',detail:reason||'Composing the final response…'});
   try{
     const synth=await this.provider.chat([
-      {role:'system',content:'Write a clear final answer for the user based on the conversation so far. Be concrete. Do not call tools. Do not say you cannot answer if tools already ran — summarize what was done and the outcome. Start with a <think>...</think> block of full reasoning, then the answer.'},
-      {role:'user',content:String(userMessage||'').slice(0,3000)+'\n\n(Tools already ran; produce the final reply now.)'}
-    ],{temperature:0.3,maxTokens:Math.min(2000,this.maxTokens||2000),signal});
-    finalContent=(synth&&synth.choices&&synth.choices[0]&&synth.choices[0].message&&synth.choices[0].message.content)||'';
+      {role:'system',content:'You are Agent 1. Write the FINAL user-visible answer only. Be concrete and complete. Do not call tools. Do not leave the user with only thinking. If tools already ran, summarize outcomes with real paths as [[file:...]] / [[preview:...]]. Optional short <think>...</think> then the answer.'},
+      {role:'user',content:'User request:\n'+String(userMessage||'').slice(0,3000)+'\n\nReason for this pass: '+(reason||'missing final')+'\n\nProduce the final reply now.'}
+    ],{temperature:0.35,maxTokens:Math.min(2500,this.maxTokens||2500),signal});
+    let out=(synth&&synth.choices&&synth.choices[0]&&synth.choices[0].message&&synth.choices[0].message.content)||'';
     try{
-      const et=extractThinkBlocks(finalContent);
-      finalContent=et.text||finalContent;
-      if(et.thinking)onEvent({type:'activity',name:'Thinking',agent:'Agent 1',status:'done',detail:et.thinking.slice(0,12000),expand:true});
+      const et=extractThinkBlocks(out);
+      out=et.text||out;
+      if(et.thinking){this._emittedThink=true;onEvent({type:'activity',name:'Thinking',agent:'Agent 1',status:'done',detail:et.thinking.slice(0,12000),expand:true})}
     }catch(e){}
-  }catch(e){console.warn('final synth',e)}
-  if(!finalContent||!String(finalContent).trim())finalContent='Work finished. If you expected more detail, send a short follow-up and I will continue from here.';
+    onEvent({type:'activity',name:'Final answer ready',agent:'Agent 1',status:'done',detail:'Agent 1 completed the final response.'});
+    return String(out||'').trim();
+  }catch(e){
+    console.warn('agent1 final pass',e);
+    onEvent({type:'activity',name:'Final answer',agent:'Agent 1',status:'error',detail:e.message||String(e)});
+    return '';
+  }
+}
+if(!finalContent||!String(finalContent).trim()){
+  finalContent=await agent1FinalPass.call(this,'No final content after tools/thinking — Agent 1 must answer.');
+}
+// Detect "thinking-only" leakage: answer is empty or looks like pure planning
+if(finalContent&&/^(Planning|Planned|Thinking|Deep thinking|Working)/i.test(String(finalContent).trim())&&String(finalContent).trim().length<200){
+  const retry=await agent1FinalPass.call(this,'Previous output looked like thinking only — write the real final answer.');
+  if(retry)finalContent=retry;
+}
+if(!finalContent||!String(finalContent).trim()){
+  finalContent='Work finished. If you expected more detail, send a short follow-up and I will continue from here.';
 }
 // If the model never produced visible thinking, request a dedicated reasoning pass (Think Deeper requirement)
 try{
@@ -8253,15 +8293,23 @@ async runAgentQuickAsk(goal){
     this.app.agent.intensityExtra='QUICK ASK mode: single supervisor, no worker team. Use tools when needed (write_file, read_file, run_python, web_search). When you create HTML, end with [[preview:exact/path]] and [[file:exact/path]] using real paths. Never emit broken markers like path}. SHARED MEMORY:\n'+mem;
     let ans='';
     await this.app.agent.run(sendGoal,hist,qAtt||[],(ev)=>{
-      if(ev.type==='final'||(ev.type==='status'&&ev.text==='')){
-        if(ev.content)ans=ev.content;
-      }
-      if(ev.type==='final'&&ev.content)ans=ev.content;
+      if(ev.type==='final'&&ev.content!=null)ans=String(ev.content||'');
     },{deepThink:false});
     this.app.agent.intensityExtra=prevExtra;
     ans=String(ans||'').trim();
     if(this.sanitizeFinalAnswer)ans=this.sanitizeFinalAnswer(ans);
-    if(!ans)ans='(No reply)';
+    // Guard: thinking-only or empty → one more Agent 1 pass
+    if(!ans||/^(Working|Thinking|Planning)\b/i.test(ans)&&ans.length<120){
+      try{
+        const mem2=this.supervisorMemoryContext?this.supervisorMemoryContext():'';
+        const data2=await this.app.provider.chat([
+          {role:'system',content:'You are the Supervisor (Agent 1). Write a clear final answer for the user. No tools. SHARED MEMORY:\n'+mem2},
+          {role:'user',content:sendGoal}
+        ],{temperature:0.4,maxTokens:2000,signal:this._quickAbort&&this._quickAbort.signal});
+        ans=((data2&&data2.choices&&data2.choices[0]&&data2.choices[0].message&&data2.choices[0].message.content)||'').trim()||ans;
+      }catch(e2){console.warn('quick final retry',e2)}
+    }
+    if(!ans)ans='(No reply — try again or check your API key / model.)';
     if(liveEl){
       const body=liveEl.querySelector('.agent-msg-body');
       if(body){
@@ -8293,7 +8341,13 @@ async confirmAgentSetup(followup){
     ov.classList.remove('open');
     ov.setAttribute('aria-hidden','true');
   }
-  let goal=($('#swarm-response')?.value||$('#swarm-goal')?.value||'').trim();
+  // Follow-ups MUST read the live composer (#swarm-goal). Never reuse #swarm-response from the first setup panel.
+  let goal='';
+  if(followup){
+    goal=($('#swarm-goal')?.value||'').trim();
+  }else{
+    goal=($('#swarm-goal')?.value||$('#swarm-response')?.value||'').trim();
+  }
   this._displayGoal=goal;
   const agentAtt=this.consumePendingAttachments?this.consumePendingAttachments():[];
   if(!goal&&!(agentAtt&&agentAtt.length))return;
@@ -8324,7 +8378,8 @@ async confirmAgentSetup(followup){
   }
   const t=$('#swarm-goal');if(t){t.value='';t.style.height='auto'}
   const r=$('#swarm-response');if(r)r.value='';
-  await this.startSwarm({goal,count,live,debate,group,mystery,intent,budgetMs,followup:!!followup});
+  // Each send is a fresh request; history is only for memory context
+  await this.startSwarm({goal,count,live,debate,group,mystery,intent,budgetMs,followup:!!followup,freshRequest:true});
 }
 
 stopAgentRun(){
@@ -8516,8 +8571,15 @@ async startSwarm(opts){
     if(mem)this._agentMemNote=mem;
   }catch(e){}
   const modelGoal=String(goal||'').trim(); // clean goal only for this turn
+  // Frame as a brand-new request; prior turns are memory only
   try{
-    await k.start(modelGoal,{count,conc:1,live,debate,mystery,group,intent,intentNote:(intentNote||'')+historyNote+(this._agentMemNote?('\n\nSHARED MEMORY:\n'+this._agentMemNote):''),budgetMs:opts.budgetMs||budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto',chatHistory:prior});
+    if(opts.followup||opts.freshRequest){
+      // Intent note already has history; prefix model goal clarity for supervisor
+      // (do not mutate modelGoal — history is in intentNote)
+    }
+  }catch(e){}
+  try{
+    await k.start(modelGoal,{count,conc:1,live,debate,mystery,group,intent,intentNote:(intentNote||'')+'\n\nTHIS IS A NEW USER REQUEST (answer this message; prior turns are context only).'+historyNote+(this._agentMemNote?('\n\nSHARED MEMORY:\n'+this._agentMemNote):''),budgetMs:opts.budgetMs||budgetMs,deadline:this._agentDeadline,mustFullySolve:true,quality:this._agentQuality||'auto',chatHistory:prior});
     // Ensure coordinator actually runs (pump can stick after reset)
     try{
       if(k.scheduler){
@@ -8924,9 +8986,40 @@ setMode(mode){
   if(code)code.classList.toggle('active',mode==='code');
   if(auto)auto.classList.toggle('active',mode==='canvas');
   if(hub)hub.classList.toggle('active',mode==='auto');
-  if(chat)chat.style.display=mode==='chat'?'':'none';
-  if(inputArea)inputArea.style.display=mode==='chat'?'':'none';
+  // Explicit display values — Firefox ignores empty-string display restores in some flex layouts
+  if(chat){
+    if(mode==='chat'){chat.style.display='flex';chat.style.flex='1';chat.style.minHeight='0';chat.style.flexDirection='column'}
+    else chat.style.display='none';
+  }
+  if(inputArea){
+    if(mode==='chat'){inputArea.style.display='block';inputArea.style.flexShrink='0';inputArea.style.visibility='visible';inputArea.style.opacity='1'}
+    else inputArea.style.display='none';
+  }
   if(intensityChat)intensityChat.style.display='none';
+  // Agent / swarm view: ensure input row is visible in Firefox
+  try{
+    const swarm=$('#swarm-view');
+    const agentInput=document.querySelector('.agent-chat-input-area');
+    if(swarm){
+      if(mode==='swarm'){
+        swarm.style.display='flex';
+        swarm.style.flexDirection='column';
+        swarm.style.flex='1';
+        swarm.style.minHeight='0';
+        swarm.classList.add('active');
+      }else{
+        swarm.classList.remove('active');
+      }
+    }
+    if(agentInput){
+      if(mode==='swarm'){
+        agentInput.style.display='block';
+        agentInput.style.visibility='visible';
+        agentInput.style.opacity='1';
+        agentInput.style.flexShrink='0';
+      }
+    }
+  }catch(e){}
   if(mode==='code'){
     this._currentCodeId=this._currentCodeId||this.app.storage.get('currentCodeId',null);
     try{this.renderCodeFiles()}catch(e){}
@@ -10593,6 +10686,11 @@ if(tp){
 
 let contentEl=body.querySelector('.final-content');
 if(!contentEl){contentEl=document.createElement('div');contentEl.className='final-content';body.appendChild(contentEl)}
+// Never leave the user staring at thinking alone — if final is empty, show a short recovery line
+if(!String(ev.content||'').trim()){
+  ev.content='I finished working but the final answer did not come through. Please send a short follow-up and I will continue.';
+  aiMsg.content=ev.content;
+}
 try{contentEl.dataset.md=String(ev.content||'');if(aiEl)aiEl.dataset.md=String(ev.content||'')}catch(e){}
 let md=ev.content||'';md=md.replace(/\[\[folder:([^\]]+)\]\]/g,(_,p)=>this.fileChipHtml({folder:p,name:(p.split('/').pop()||p)+'.zip'}));
 {const seenPrev=new Set();md=md.replace(/\[\[preview:([^\]]+)\]\]/g,(_,p)=>{const rp=(this.app.vfs&&this.app.vfs.resolve)?this.app.vfs.resolve(p):p;const key=String(rp||p);if(seenPrev.has(key))return '';seenPrev.add(key);if(rp)this._lastPreviewPath=rp;return `<button type="button" class="preview-chip" data-preview="${rp}" aria-label="Preview ${rp.split('/').pop()||p}">${SVG.eye} Preview ${rp.split('/').pop()||p}</button>`});}
@@ -10891,7 +10989,17 @@ paintMsgActions(el,ctx){
     this.setupMessageSelection(el);
     return;
   }
-  actions.innerHTML=this.msgActionsHtml(tokEst);
+  // Agent mode: rewrite/continue only on the newest assistant reply
+  let html=this.msgActionsHtml(tokEst);
+  if(kind==='agent'||kind==='swarm'){
+    const isLatest=this._isLatestAgentAssistant(el,id);
+    if(!isLatest){
+      html=html.replace(/<button[^>]*data-act="regen"[^>]*>[\s\S]*?<\/button>/i,'')
+               .replace(/<button[^>]*data-act="continue"[^>]*>[\s\S]*?<\/button>/i,'')
+               .replace(/<button[^>]*data-act="branch"[^>]*>[\s\S]*?<\/button>/i,'');
+    }
+  }
+  actions.innerHTML=html;
   const go=(act,fn)=>{const b=actions.querySelector('[data-act="'+act+'"]');if(b)b.onclick=e=>{e.preventDefault();e.stopPropagation();fn()}};
   go('copy',()=>this.copyMessage(text));
   go('pin',()=>this.pinText(text));
@@ -10900,6 +11008,18 @@ paintMsgActions(el,ctx){
   go('regen',()=>this.retryThread(kind));
   go('continue',()=>this.continueThread(kind));
   this.setupMessageSelection(el);
+}
+_isLatestAgentAssistant(el,id){
+  try{
+    const box=$('#swarm-think');
+    if(!box)return true;
+    const all=[...box.querySelectorAll('.agent-msg.assistant,.agent-msg.supervisor')];
+    if(!all.length)return true;
+    const last=all[all.length-1];
+    if(el&&last===el)return true;
+    if(id&&last.dataset&&String(last.dataset.mid)===String(id))return true;
+    return false;
+  }catch(e){return true}
 }
 msgElText(el){
   if(!el)return '';
