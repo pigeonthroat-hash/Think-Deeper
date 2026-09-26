@@ -862,12 +862,24 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .agent-complete-btn{padding:6px 14px;font-size:.8rem;font-weight:600;border-radius:8px;margin-left:6px}
 .agent-complete-btn:disabled{opacity:.5;cursor:not-allowed}
 
+.rate-limit-banner{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);z-index:14000;background:#7f1d1d;color:#fecaca;border:1px solid #ef4444;padding:10px 18px;border-radius:12px;font-size:.85rem;font-weight:600;box-shadow:0 8px 28px rgba(0,0,0,.35);display:none;align-items:center;gap:10px;max-width:92vw}
+.rate-limit-banner.show{display:flex}
+.rate-limit-banner .rl-count{font-variant-numeric:tabular-nums;color:#fff;min-width:2.5em;text-align:center}
+
+
+.live-badge{display:inline-flex;align-items:center;gap:4px;font-size:.62rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#ef4444;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);padding:1px 6px;border-radius:999px;margin-left:6px;flex-shrink:0;animation:livePulse 1.4s ease-in-out infinite}
+.live-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:#ef4444;box-shadow:0 0 0 0 rgba(239,68,68,.5);animation:liveDot 1.4s ease-in-out infinite}
+@keyframes livePulse{0%,100%{opacity:1}50%{opacity:.7}}
+@keyframes liveDot{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.45)}50%{box-shadow:0 0 0 4px rgba(239,68,68,0)}}
+
+
 /* Firefox flex/chat visibility */
 #chat-area{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0}
 #chat-area[style*="display: none"]{display:none!important}
 .input-area{display:block;flex-shrink:0;visibility:visible}
 #swarm-view{display:none;flex-direction:column;flex:1;min-height:0;min-width:0}
-#swarm-view.active{display:flex!important}
+#swarm-view.active{display:flex!important;visibility:visible!important;opacity:1!important;pointer-events:auto}
+#swarm-view:not(.active){display:none!important;visibility:hidden!important;pointer-events:none!important}
 .agent-chat-shell{display:flex;flex-direction:column;flex:1;min-height:0;height:100%}
 .agent-chat-body{flex:1;min-height:0;overflow-y:auto}
 .agent-chat-input-area{flex-shrink:0;display:block;visibility:visible;padding:10px 12px 14px}
@@ -4393,7 +4405,7 @@ async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTo
         console.warn('[API] rate limited — switching to fallback');
         return await this.chat(messages,{model,tools,signal,toolChoice,temperature,useFallback:true,maxTokens});
       }
-      throw Object.assign(new Error('Quota/rate limit. Waited and retried 3 times. Try again in a few seconds or switch model.'),{rateLimit:true,waitSec:Math.ceil(waitMs/1000),status:429,body:rawText});
+      const waitSec=Math.max(5,Math.ceil(waitMs/1000)*2);throw Object.assign(new Error('Rate limited (429). Try again in '+waitSec+' seconds or switch model.'),{rateLimit:true,waitSec,status:429,body:rawText});
     }
     throw Object.assign(new Error(`API ${res.status}: ${String(msg).slice(0,800)}`),{status:res.status,body:rawText});
   }
@@ -5432,22 +5444,35 @@ class Scheduler{
     this._pumpTimer=setTimeout(()=>{this._pumpTimer=null;this.pump()},0);
   }
   async pump(){
-    if(this._pumping)return;
+    // Unstick if a previous pump crashed without clearing the flag
+    if(this._pumping){
+      if(this._pumpStartedAt&&(Date.now()-this._pumpStartedAt)>45000){
+        console.warn('[scheduler] pump stuck >45s — force release');
+        this._pumping=false;
+      }else return;
+    }
     this._pumping=true;
+    this._pumpStartedAt=Date.now();
     try{
-      while(this.q.length && this.inflight.size<this.conc && this.k.alive){
+      while(this.q.length && this.inflight.size<this.conc && this.k.alive&&!this.k.solved){
         const id=this.q.shift();
         if(!id||this.inflight.has(id))continue;
         const a=this.k.agents.get(id);
         if(!a)continue;
         if(a.status==='running')continue;
         this.inflight.add(id);
-        this.runOne(id).catch(e=>console.warn('[scheduler]',id,e)).finally(()=>{
+        this.runOne(id).catch(e=>{
+          console.warn('[scheduler]',id,e);
+          try{
+            if(a){a.status='failed';a.error=String(e&&e.message||e)}
+            if(id!=='coordinator'&&this.k.alive&&!this.k.solved)this.enqueue('coordinator','recover-error');
+          }catch(e2){}
+        }).finally(()=>{
           this.inflight.delete(id);
           this.schedulePump();
         });
       }
-    }finally{this._pumping=false}
+    }finally{this._pumping=false;this._pumpStartedAt=0}
   }
   async runOne(id){
     const a=this.k.agents.get(id);
@@ -7754,18 +7779,68 @@ purgeGhostConversations(){
   try{
     const gone=new Set((this.app.storage.get('deletedConversations',[])||[]).map(String));
     const map=new Map();
+    let removed=0;
     (this.app.conversations.conversations||[]).forEach(c=>{
       if(!c||!c.id)return;
       const id=String(c.id);
       if(gone.has(id))return;
       const msgs=c.messages||[];
-      if(!msgs.length&&(!c.title||c.title==='New conversation'))return;
+      // Empty shell
+      if(!msgs.length&&(!c.title||c.title==='New conversation')){removed++;return}
+      // Glitched: has user message(s) but ZERO assistant replies with content
+      const hasUser=msgs.some(m=>m&&m.role==='user'&&String(m.content||'').trim());
+      const hasAi=msgs.some(m=>m&&m.role==='assistant'&&String(m.content||'').trim());
+      if(hasUser&&!hasAi){
+        // Only delete the glitched user-only chat — never touch chats with any AI reply
+        try{
+          gone.add(id);
+          const list=this.app.storage.get('deletedConversations',[])||[];
+          if(!list.map(String).includes(id)){list.push(id);this.app.storage.set('deletedConversations',list.slice(-200))}
+        }catch(e){}
+        removed++;
+        return;
+      }
       if(!map.has(id))map.set(id,c);
     });
     const clean=[...map.values()];
-    if(clean.length!==(this.app.conversations.conversations||[]).length){
+    if(clean.length!==(this.app.conversations.conversations||[]).length||removed){
       this.app.conversations.conversations=clean;
       this.app.storage.set('conversations',clean);
+      // Drop from projects too
+      try{
+        const projects=this.app.storage.get('projects',[])||[];
+        const live=new Set(clean.map(c=>String(c.id)));
+        projects.forEach(p=>{
+          if(!p)return;
+          p.chatIds=(p.chatIds||[]).filter(x=>live.has(String(x)));
+          if(Array.isArray(p.chats))p.chats=p.chats.filter(ch=>ch&&live.has(String(ch.id)));
+        });
+        this.app.storage.set('projects',projects);
+      }catch(e){}
+      if(removed)console.log('[purge] removed',removed,'glitched user-only chats');
+    }
+  }catch(e){}
+  // Agent sessions: drop ones with only a user message and no supervisor reply
+  try{
+    const list=(this.agentSessions?this.agentSessions():(this.app.storage.get('agentSessions',[])||[])).slice();
+    const kept=list.filter(s=>{
+      if(!s||!s.id)return false;
+      const msgs=s.messages||[];
+      if(!msgs.length)return false;
+      const hasUser=msgs.some(m=>m&&m.role==='user'&&String(m.content||'').trim());
+      const hasAi=msgs.some(m=>m&&(m.role==='assistant'||m.speaker)&&String(m.content||'').trim());
+      // Keep if still actively running in background
+      if(s.runAlive)return true;
+      try{
+        const snap=this.app.storage.get('agentRunState',null);
+        if(snap&&snap.alive&&String(snap.sessionId||'')===String(s.id))return true;
+      }catch(e){}
+      if(hasUser&&!hasAi)return false;
+      return true;
+    });
+    if(kept.length!==list.length){
+      this.app.storage.set('agentSessions',kept);
+      try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
     }
   }catch(e){}
 }
@@ -8040,10 +8115,21 @@ renderAgentHist(){
     .filter(s=>s&&(!pid||String(s.projectId||'')===String(pid)))
     .slice()
     .sort((a,b)=>Number(b.updated||b.lastTalked||b.created||0)-Number(a.updated||a.lastTalked||a.created||0));
+  // LIVE: session has an active background (or foreground) run
+  let liveId=null;
+  try{
+    const k=this.app.swarm;
+    if(k&&k.alive&&!k.solved&&k.sessionId)liveId=String(k.sessionId);
+    else{
+      const snap=this.app.storage.get('agentRunState',null);
+      if(snap&&snap.alive&&snap.sessionId)liveId=String(snap.sessionId);
+    }
+  }catch(e){}
   listEl.innerHTML=list.slice(0,40).map(s=>{
     const cts=s.created||s.updated||0;
     const tlab=cts?new Date(cts).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):'';
-    return '<div class="agent-hist-item hist-item-wrap'+(s.id===this._currentAgentSessionId?' active':'')+'" data-id="'+s.id+'"><div class="conv-main"><span class="ah-title">'+escapeHtml(s.title||'Agent chat')+'</span>'+(tlab?'<span class="conv-ts">Created '+escapeHtml(tlab)+'</span>':'')+'</div><button type="button" class="ah-more" data-act="menu" aria-label="Menu">⁝</button><div class="hist-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div></div>';
+    const isLive=!!(liveId&&String(s.id)===liveId)||!!s.runAlive;
+    return '<div class="agent-hist-item hist-item-wrap'+(s.id===this._currentAgentSessionId?' active':'')+(isLive?' is-live':'')+'" data-id="'+s.id+'"><div class="conv-main"><span class="ah-title">'+escapeHtml(s.title||'Agent chat')+(isLive?'<span class="live-badge">LIVE</span>':'')+'</span>'+(tlab?'<span class="conv-ts">Created '+escapeHtml(tlab)+'</span>':'')+'</div><button type="button" class="ah-more" data-act="menu" aria-label="Menu">⁝</button><div class="hist-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button><button type="button" data-act="delete">Delete</button></div></div>';
   }).join('')||'<div class="hint" style="padding:8px">No agent chats yet</div>';
   listEl.querySelectorAll('.agent-hist-item').forEach(el=>el.onclick=e=>this._histMenuClick(e,el,'agent'));
   const nb=$('#agent-new-btn');if(nb)nb.onclick=()=>{this.resetAgentChatView()};
@@ -8132,6 +8218,19 @@ loadAgentSession(id){
   this._currentAgentSessionId=id;
   this.setMode('swarm');
   const box=$('#swarm-think');if(!box)return;
+  // Reconnect to a live background run for this session
+  try{
+    const k=this.app.swarm;
+    if(k&&k.alive&&!k.solved&&String(k.sessionId||'')===String(id)){
+      box.innerHTML='';
+      // Re-render saved messages then re-attach live working block
+      this._rebuildAgentSessionDom(s,true);
+      this.setAgentRunningUi(true);
+      try{this.renderSwarm({t:'swarm.reconnect'})}catch(e){}
+      this.renderAgentHist&&this.renderAgentHist();
+      return;
+    }
+  }catch(e){}
   box.innerHTML='';
   const who=this.userLabel();
   // Drop ephemeral / in-progress noise; collapse consecutive identical assistant messages
@@ -8217,6 +8316,23 @@ loadAgentSession(id){
     try{this.wireFileChips&&this.wireFileChips(final)}catch(e){}
     this.paintMsgActions(div,{kind:'agent',id:m.id,role:m.role==='user'?'user':'assistant',text:m.content||'',thinking:hasThink?'1':''});
   });
+  // Reconnect live working UI if this session is still processing in the background
+  if(reconnectLive){
+    try{
+      const k=this.app.swarm;
+      // Remove any stale live ids, then create a fresh live block
+      const liveIds=['agent-live-msg','agent-work','agent-work-toggle','agent-work-body','agent-work-label','agent-work-meta','agent-work-ico','agent-live-clock','agent-final-body'];
+      liveIds.forEach(lid=>document.querySelectorAll('#'+lid).forEach(el=>el.removeAttribute('id')));
+      const work=document.createElement('div');work.className='agent-msg assistant';work.id='agent-live-msg';
+      work.dataset.mid=uid();
+      work.innerHTML='<div class="agent-msg-head"><div class="avatar">TD</div><span class="agent-msg-role">Supervisor</span><span class="agent-clock" id="agent-live-clock">…</span></div><div class="agent-work open" id="agent-work"><button type="button" class="agent-work-toggle" id="agent-work-toggle"><span class="aw-ico spinning" id="agent-work-ico">'+(SVG.thinkOrbit||SVG.spin)+'</span> <span id="agent-work-label">Working…</span> <span style="margin-left:auto;opacity:.6" id="agent-work-meta"></span></button><div class="agent-work-body" id="agent-work-body"><div class="hint">Reconnected — still processing in the background…</div></div></div><div class="agent-msg-body" id="agent-final-body" style="display:none"></div>';
+      box.appendChild(work);
+      const tog=$('#agent-work-toggle');
+      if(tog)tog.onclick=()=>$('#agent-work')?.classList.toggle('open');
+      this.setAgentRunningUi(true);
+      try{this.renderSwarm({t:'swarm.reconnect'})}catch(e){}
+    }catch(e){console.warn('reconnect live',e)}
+  }
   this.renderAgentHist();
 }
 resetAgentChatView(){
@@ -8226,11 +8342,12 @@ resetAgentChatView(){
   this._lastAgentOpts=null;
   this._agentResumed=false;
   this._agentSession=null;
-  try{if(this.app.swarm){this.app.swarm.stop();this.app.swarm.sessionId=null;this.app.swarm.solved=null}}catch(e){}
+  // Do NOT stop a live swarm — let it keep processing in the background with a LIVE badge
+  // Explicit Stop / starting a new confirmed team still cancels via those paths
   try{if(this._quickAbort)this._quickAbort.abort()}catch(e){}
   this._quickAbort=null;
-  try{this.app.storage.set('agentRunState',{v:2,alive:false,ts:Date.now(),sessionId:null})}catch(e){}
   try{this.setAgentRunningUi(false)}catch(e){}
+  try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
   const box=$('#swarm-think');
   if(box){
     box.innerHTML='<div class="agent-empty" id="agent-empty"><h1>Agent</h1><p>Describe what you need. A Supervisor will assemble a team, assign roles, and keep working until the goal is fully solved.</p><div class="agent-suggest-row"><button type="button" class="agent-suggest" data-prompt="Prove or disprove a concrete case of the Collatz conjecture with rigorous computation.">Mathematical mystery</button><button type="button" class="agent-suggest" data-prompt="Design and implement a small production-ready module with tests.">Advanced code</button><button type="button" class="agent-suggest" data-prompt="Write a polished long-form document with clear structure and citations where needed.">Fancy document</button></div></div>';
@@ -8241,33 +8358,15 @@ resetAgentChatView(){
 
 openAgentSetup(){
   try{
-  if(this.isAppBusy&&this.isAppBusy()&&!(this.app.swarm&&this.app.swarm.alive&&this._currentAgentSessionId)){
-    toast('Wait for the current response to finish (or press Stop)','info');return;
-  }
   const goal=($('#swarm-goal')?.value||'').trim();
   if(!goal&&!(this.pendingAttachments&&this.pendingAttachments.length)){toast('Type a message or attach a file first','error');return}
-  // Keep the current agent thread when a run is already live — queue as follow-up
-  if(this.app.swarm&&this.app.swarm.alive&&this._currentAgentSessionId&&!this._wantNewAgentChat){
-    this._agentFollowupReady=true;
-    return this.confirmAgentSetup(true);
-  }
-  if(this.app.swarm&&this.app.swarm.alive){
-    try{this.app.swarm.stop()}catch(e){}
-    this._agentDeadline=0;
-  }
-  if(this._wantNewAgentChat){
-    this._currentAgentSessionId=null;
-    this._agentFollowupReady=false;
-  }
+  // Quick ask skips the team setup panel
   if(this._agentQuick){
     return this.runAgentQuickAsk(goal);
   }
-  // Same agent chat: every later message stays in this thread
-  if(this._currentAgentSessionId && !this._wantNewAgentChat){
-    this._agentFollowupReady=true;
-    return this.confirmAgentSetup(true);
-  }
-  // First message: show agent settings panel (team size, time, intent)
+  // Every agent message opens the setup panel so the user can pick settings (team size, time, intent)
+  const isFollowup=!!(this._currentAgentSessionId && !this._wantNewAgentChat);
+  this._agentFollowupReady=isFollowup;
   const ov=$('#agent-setup-overlay');
   if(ov){
     ov.classList.add('open');
@@ -8275,17 +8374,30 @@ openAgentSetup(){
     ov.style.display='flex';
     ov.style.zIndex='12050';
     try{
-      if($('#swarm-count')&&!$('#swarm-count').value)$('#swarm-count').value='5';
-      if($('#swarm-mins')&&!$('#swarm-mins').value)$('#swarm-mins').value='10';
+      // Prefill from last opts when follow-up, else defaults
+      const last=this._lastAgentOpts||{};
+      if($('#swarm-count'))$('#swarm-count').value=String(last.count||$('#swarm-count').value||5);
+      if($('#swarm-count-range'))$('#swarm-count-range').value=String($('#swarm-count').value||5);
+      if($('#swarm-mins')&&!$('#swarm-mins').value)$('#swarm-mins').value=String(Math.floor((last.budgetMs||600000)/60000)||10);
+      if($('#swarm-secs')&&last.budgetMs!=null){
+        const secs=Math.floor(((last.budgetMs||0)%60000)/1000);
+        if(!$('#swarm-secs').value)$('#swarm-secs').value=String(secs);
+      }
       const resp=$('#swarm-response');
       const typed=($('#swarm-goal')?.value||'').trim();
-      if(resp) resp.value=typed||'Complete the goal thoroughly and report a clear final answer.';
+      if(resp) resp.value=typed||'';
+      // Title hint
+      const title=ov.querySelector('h2,h3,.panel-title');
+      if(title)title.textContent=isFollowup?'Continue with new settings':'Start team';
     }catch(e){}
     const go=$('#agent-setup-go');
-    if(go)go.onclick=()=>this.confirmAgentSetup(false);
+    if(go){
+      go.textContent=isFollowup?'Continue':'Start team';
+      go.onclick=()=>this.confirmAgentSetup(!!isFollowup);
+    }
     return;
   }
-  return this.confirmAgentSetup(false);
+  return this.confirmAgentSetup(!!isFollowup);
   }catch(err){console.error('openAgentSetup',err);toast(err.message||'Could not start agent','error')}
 }
 async runAgentQuickAsk(goal){
@@ -8469,8 +8581,38 @@ completeAgentRun(){
     toast('Supervisor is writing the final response…','info');
   }catch(e){toast((e&&e.message)||'Complete failed','error')}
 }
+
+armRateLimit(waitSec,msg){
+  waitSec=Math.max(1,Math.ceil(Number(waitSec)||15));
+  this._rateLimitUntil=Date.now()+waitSec*1000;
+  try{this.setSendLocked(true)}catch(e){}
+  const banner=$('#rate-limit-banner');
+  const countEl=$('#rate-limit-count');
+  if(banner)banner.classList.add('show');
+  const tick=()=>{
+    const left=Math.max(0,Math.ceil((this._rateLimitUntil-Date.now())/1000));
+    if(countEl)countEl.textContent=String(left);
+    if(left<=0){
+      this._rateLimitUntil=0;
+      if(banner)banner.classList.remove('show');
+      if(this._rateLimitTimer){clearInterval(this._rateLimitTimer);this._rateLimitTimer=null}
+      try{this.setSendLocked(false)}catch(e){}
+      try{toast('You can send messages again','success')}catch(e){}
+      return;
+    }
+  };
+  tick();
+  if(this._rateLimitTimer)clearInterval(this._rateLimitTimer);
+  this._rateLimitTimer=setInterval(tick,250);
+  try{toast(msg||('Rate limited — try again in '+waitSec+'s'),'error')}catch(e){}
+}
+isRateLimited(){
+  return !!(this._rateLimitUntil&&Date.now()<this._rateLimitUntil);
+}
+
 isAppBusy(){
   try{
+    if(this.isRateLimited&&this.isRateLimited())return true;
     if(this._agentRunning)return true;
     if(this.app&&this.app.agent&&this.app.agent.running)return true;
     if(this.app&&this.app.swarm&&this.app.swarm.alive&&!this.app.swarm.solved)return true;
@@ -8493,8 +8635,71 @@ setSendLocked(locked){
     const ata=$('#swarm-goal');if(ata){if(locked){ata.placeholder='AI is working… stop or wait';}else{const ph=(this.app.i18n&&this.app.i18n.t('agent.placeholder'))||'Message Agent…';ata.placeholder=(ph==='agent.placeholder'?'Message Agent…':ph)}}
   }catch(e){}
 }
+
+_startAgentWatchdog(){
+  if(this._agentWatchdog)return;
+  this._agentIdleTicks=0;
+  this._agentWatchdog=setInterval(()=>{
+    try{
+      const k=this.app&&this.app.swarm;if(!k||!k.alive||k.solved){
+        if(this._agentWatchdog){clearInterval(this._agentWatchdog);this._agentWatchdog=null}
+        return;
+      }
+      const sch=k.scheduler;
+      const qLen=(sch&&sch.q&&sch.q.length)||0;
+      const inflight=(sch&&sch.inflight&&sch.inflight.size)||0;
+      if(k.deadline&&Date.now()>k.deadline&&!k.solved){
+        try{
+          k._forceComplete=true;
+          if(sch){
+            sch._pumping=false;
+            if(!sch.q.includes('coordinator'))sch.enqueue('coordinator','deadline-final');
+            else if(sch.schedulePump)sch.schedulePump();
+          }
+          if(k.bus&&k.bus.send)k.bus.send({from:'user',to:'coordinator',text:'[DEADLINE] Budget exhausted. Call createfinalresponse / SOLVED: NOW with the best answer from worker results. Do not assign more exploratory work.'});
+        }catch(e){}
+        return;
+      }
+      if(qLen===0&&inflight===0){
+        this._agentIdleTicks=(this._agentIdleTicks||0)+1;
+        if(this._agentIdleTicks>=2){
+          this._agentIdleTicks=0;
+          console.warn('[watchdog] agent idle — kicking coordinator');
+          try{
+            if(sch){
+              sch._pumping=false;
+              try{
+                (k.agents.list?k.agents.list():[]).forEach(a=>{
+                  if(a&&a.status==='running'&&a.started&&(Date.now()-a.started)>90000){
+                    a.status='failed';a.error='watchdog-timeout';
+                  }
+                });
+              }catch(e){}
+              if(!sch.q.includes('coordinator'))sch.enqueue('coordinator','watchdog-kick');
+              if(sch.schedulePump)sch.schedulePump();
+            }
+          }catch(e){}
+        }
+      }else{
+        this._agentIdleTicks=0;
+      }
+      try{this.persistLiveAgent&&this.persistLiveAgent(false)}catch(e){}
+    }catch(e){}
+  },4000);
+}
+
 setAgentRunningUi(running){try{this._agentRunning=!!running;if(window.__app)window.__app._agentRunning=!!running}catch(e){}
   try{this.setSendLocked(!!running||this.isAppBusy())}catch(e){}
+  try{
+    if(running){
+      if(!this._liveHistTimer)this._liveHistTimer=setInterval(()=>{try{this.renderAgentHist&&this.renderAgentHist();this.renderConversations&&this.renderConversations()}catch(e){}},4000);
+      this._startAgentWatchdog&&this._startAgentWatchdog();
+    }else{
+      if(this._liveHistTimer){clearInterval(this._liveHistTimer);this._liveHistTimer=null}
+      if(this._agentWatchdog){clearInterval(this._agentWatchdog);this._agentWatchdog=null}
+      try{this.renderAgentHist&&this.renderAgentHist();this.renderConversations&&this.renderConversations()}catch(e){}
+    }
+  }catch(e){}
   const send=$('#swarm-send-btn');
   const stop=$('#agent-stop-inline');
   const ta=$('#swarm-goal');
@@ -8522,6 +8727,11 @@ setAgentRunningUi(running){try{this._agentRunning=!!running;if(window.__app)wind
 
 async startSwarm(opts){
   opts=opts||{};
+  // New confirmed request takes over the kernel — stop any previous background run
+  try{
+    const k0=this.app.swarm;
+    if(k0&&k0.alive){k0.stop()}
+  }catch(e){}
   if(this._referQuote){
     opts.goal='User referred to the following statement:\n"'+this._referQuote+'"\n\nUser response: '+(opts.goal||($('#swarm-goal')?.value||'').trim());
     const bar=$('#refer-bar');if(bar)bar.remove();this._referQuote=null;
@@ -8706,6 +8916,21 @@ async testSwarm(n){
 }
 renderSwarm(ev){
   const k=this.app.swarm;if(!k)return;
+  // Background mode: if user is viewing another chat, keep processing but only persist + update LIVE badges
+  try{
+    const viewing=this._currentAgentSessionId;
+    const runningFor=k.sessionId;
+    if(runningFor&&viewing&&String(viewing)!==String(runningFor)){
+      try{this.persistLiveAgent&&this.persistLiveAgent(!!(k.alive&&!k.solved))}catch(e){}
+      try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
+      // If finished in background, clear running UI flags globally
+      if(!k.alive||k.solved){
+        try{this._agentRunning=false;if(window.__app)window.__app._agentRunning=false}catch(e){}
+        try{this.setSendLocked(false)}catch(e){}
+      }
+      return;
+    }
+  }catch(e){}
   if(ev&&(ev.t==='agent.code'||ev.type==='agent.code')){
     const p=ev.p||ev;
     if(p&&(p.code||p.result)){
@@ -9072,19 +9297,28 @@ setMode(mode){
     else inputArea.style.display='none';
   }
   if(intensityChat)intensityChat.style.display='none';
-  // Agent / swarm view: ensure input row is visible in Firefox
+  // Agent / swarm view — must fully hide when leaving so background runs are not visible in other modes
   try{
     const swarm=$('#swarm-view');
     const agentInput=document.querySelector('.agent-chat-input-area');
+    const agentHist=$('#agent-hist-section');
+    const agentHistList=$('#agent-hist-list');
     if(swarm){
       if(mode==='swarm'){
         swarm.style.display='flex';
         swarm.style.flexDirection='column';
         swarm.style.flex='1';
         swarm.style.minHeight='0';
+        swarm.style.visibility='visible';
+        swarm.style.opacity='1';
         swarm.classList.add('active');
       }else{
+        // Clear inline display:flex from when we entered agent mode — otherwise it stays visible over chat
         swarm.classList.remove('active');
+        swarm.style.display='none';
+        swarm.style.visibility='hidden';
+        swarm.style.opacity='0';
+        swarm.style.pointerEvents='none';
       }
     }
     if(agentInput){
@@ -9093,8 +9327,13 @@ setMode(mode){
         agentInput.style.visibility='visible';
         agentInput.style.opacity='1';
         agentInput.style.flexShrink='0';
+      }else{
+        agentInput.style.display='none';
       }
     }
+    // Hist list only in agent mode (LIVE badge still updates when re-entering)
+    if(agentHist)agentHist.style.display=mode==='swarm'?'':'none';
+    if(agentHistList)agentHistList.style.display=mode==='swarm'?'':'none';
   }catch(e){}
   if(mode==='code'){
     this._currentCodeId=this._currentCodeId||this.app.storage.get('currentCodeId',null);
@@ -10235,7 +10474,13 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
   const projMenu=projects.length?('<button type="button" data-act="to-project">Move to project…</button>'+(c.projectId?'<button type="button" data-act="leave-project">Remove from project</button>':'')):'';
   const createdTs=c.created||c.updated||0;
   const tsLabel=createdTs?new Date(createdTs).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}):'';
-  div.innerHTML=`<div class="conv-main"><span class="title">${escapeHtml(c.title)}</span>${tsLabel?`<span class="conv-ts" title="Created">Created ${escapeHtml(tsLabel)}</span>`:''}</div><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button>${projMenu}<button type="button" data-act="delete">Delete</button></div>`;
+  let isLiveChat=false;
+  try{
+    if(this.app.agent&&this.app.agent.running&&this.app.conversations.currentId&&String(c.id)===String(this.app.conversations.currentId))isLiveChat=true;
+    const crs=this.app.storage.get('chatRunState',null);
+    if(crs&&crs.alive&&String(crs.convId||'')===String(c.id))isLiveChat=true;
+  }catch(e){}
+  div.innerHTML=`<div class="conv-main"><span class="title">${escapeHtml(c.title)}${isLiveChat?'<span class="live-badge">LIVE</span>':''}</span>${tsLabel?`<span class="conv-ts" title="Created">Created ${escapeHtml(tsLabel)}</span>`:''}</div><button type="button" class="conv-more" data-act="menu" aria-label="Chat menu">⁝</button><div class="conv-pop"><button type="button" data-act="rename">Rename</button><button type="button" data-act="pin">Pin</button><button type="button" data-act="refer">Refer</button>${projMenu}<button type="button" data-act="delete">Delete</button></div>`;
   div.ondragstart=e=>{div.classList.add('dragging');e.dataTransfer.setData('text/td-chat-id',c.id);e.dataTransfer.setData('text/plain',c.id);e.dataTransfer.effectAllowed='move'};
   div.ondragend=()=>div.classList.remove('dragging');
   div.onclick=e=>{
@@ -10385,7 +10630,7 @@ consumePendingAttachments(){
   return saved;
 }
 getThinkingHtml(){const gif=this.app.storage.get('thinkingGif','');if(gif)return`<div class="thinking-indicator"><img src="${escapeHtml(gif)}" alt="working"><span>Working…</span></div>`;return`<div class="thinking-indicator"><div class="dots"><span></span><span></span><span></span></div> Working…</div>`}
-async send(){this.ensureAgent();if(this.isAppBusy&&this.isAppBusy()){toast('Wait for the current response to finish (or press Stop)','info');return}const text=$('#user-input').value.trim();if(!text&&!this.pendingAttachments.length)return;if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');this.openSettings();return}if(!this.app.provider.config.model){toast('Select a model','error');this.openSettings();return}
+async send(){this.ensureAgent();if(this.isRateLimited&&this.isRateLimited()){const left=Math.max(1,Math.ceil((this._rateLimitUntil-Date.now())/1000));toast('Rate limited — try again in '+left+'s','error');return}if(this.isAppBusy&&this.isAppBusy()){toast('Wait for the current response to finish (or press Stop)','info');return}const text=$('#user-input').value.trim();if(!text&&!this.pendingAttachments.length)return;if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');this.openSettings();return}if(!this.app.provider.config.model){toast('Select a model','error');this.openSettings();return}
 this.hideEmpty();let conv=this.app.conversations.get(this.app.conversations.currentId);
 if(!conv){
   // Conversation is created only when the user sends a message — bind to active project immediately
@@ -10450,8 +10695,19 @@ try{
   if(this.applyPinCtx)this.applyPinCtx('agent');
    await this.app.agent.run(sendText,history,userMsg.attachments,ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!(this.isDeepThink&&this.isDeepThink())||!!inten.team});
   // Title is generated once from handleAgentEvent final — do not double-call here
-}catch(e){toast(e.message,'error');const body=aiEl.querySelector('.message-body');if(body&&!body.querySelector('.final-content')?.textContent.trim())body.innerHTML+=`<p style="color:var(--error)">Error: ${escapeHtml(e.message)}</p>`}
-finally{
+}catch(e){
+  const msg=String(e&&e.message||e||'Error');
+  if(e&&e.rateLimit||/429|rate limit|quota|TPM|tokens per minute|resource_exhausted/i.test(msg)){
+    const sec=e.waitSec||(()=>{const m=msg.match(/(\d+)\s*s/);return m?parseInt(m[1],10):20})();
+    try{this.armRateLimit(sec,msg)}catch(e2){toast(msg,'error')}
+  }else{
+    toast(msg,'error');
+  }
+  const body=aiEl.querySelector('.message-body');
+  if(body&&!(body.querySelector('.final-content')&&body.querySelector('.final-content').textContent.trim())){
+    body.innerHTML+=`<p style="color:var(--error)">Error: ${escapeHtml(msg)}</p>`;
+  }
+}finally{
   this._chatBusy=false;
   try{this.setSendLocked(false)}catch(e){}
   this.app.agent.settings=prevSettings;this.app.agent.intensityExtra='';
@@ -10838,7 +11094,13 @@ if(!actions){
 this.paintMsgActions(aiEl,{kind:this.mode==='code'?'code':(this.mode==='swarm'?'agent':'chat'),id:aiMsg&&aiMsg.id,role:'assistant',text:ev.content||(aiMsg&&aiMsg.content)||''});
 this.scrollToBottom()}
 else if(ev.type==='done'){const s=$('#agent-status');if(s)s.textContent='';const it=$('#iteration-info');if(it)it.textContent='';const thinking=aiEl&&aiEl.querySelector&&aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();try{this.app.conversations.persist()}catch{}}
-else if(ev.type==='error')toast(ev.message,'error')}catch(err){console.warn('handleAgentEvent',err)}}
+else if(ev.type==='error'){
+  const msg=String(ev.message||'Error');
+  if(/429|rate limit|quota|TPM|tokens per minute|resource_exhausted/i.test(msg)||ev.rateLimit){
+    const sec=ev.waitSec||(()=>{const m=msg.match(/(\d+)\s*s/);return m?parseInt(m[1],10):20})();
+    try{this.armRateLimit(sec,msg)}catch(e){toast(msg,'error')}
+  }else toast(msg,'error');
+}}catch(err){console.warn('handleAgentEvent',err)}}
 snapshotThoughts(aiMsg,aiEl){
   try{
     if(!aiMsg||!aiEl)return;
@@ -14060,5 +14322,6 @@ const app=new App();app.start();
   </div>
 </div>
 
+<div class="rate-limit-banner" id="rate-limit-banner" role="status" aria-live="polite"><span>Rate limited — try again in</span> <span class="rl-count" id="rate-limit-count">0</span> <span>s</span></div>
 </body>
 </html>
