@@ -3905,7 +3905,12 @@ persist(){this.storage.set('plugins',this.plugins);try{if(window.__app&&window._
 class ConversationManager{constructor(s){this.storage=s;this.conversations=s.get('conversations',[]);this.currentId=s.get('currentConvId',null)}
 list(){return this.conversations.slice()}
 get(id){const sid=String(id||'');return this.conversations.find(c=>c&&String(c.id)===sid)}
-create(t='New conversation'){const c={id:uid(),title:t,messages:[],created:now(),updated:now()};this.conversations.unshift(c);this.currentId=c.id;this.persist();return c}
+create(t='New conversation',opts){
+  opts=opts||{};
+  const c={id:uid(),title:t,messages:[],created:now(),updated:now()};
+  if(opts.projectId)c.projectId=opts.projectId;
+  this.conversations.unshift(c);this.currentId=c.id;this.persist();return c
+}
 update(id,patch){const c=this.get(id);if(!c)return;Object.assign(c,patch,{updated:now()});this.persist()}
 addMessage(id,msg){const c=this.get(id);if(!c)return;c.messages.push(msg);c.updated=now();if((!c.title||c.title==='New conversation')&&msg.role==='user'){c.title=this.draftTitle(msg.content);c.needsAiTitle=true}this.persist()}
 draftTitle(text){const t=String(text||'').replace(/\s+/g,' ').trim();if(!t)return'New conversation';const cut=t.slice(0,42);return cut+(t.length>42?'…':'')}
@@ -4462,9 +4467,42 @@ function extractThinkBlocks(text){
   for(const re of patterns){
     out=out.replace(re,(_,body)=>{chunks.push(String(body||'').trim());return ''});
   }
-  // Also strip leftover orphan open tags
+  // Unclosed <think> ... rest of message is thinking
+  const unclosed=out.match(/<think(?:ing)?>([\s\S]*)$/i);
+  if(unclosed){
+    chunks.push(String(unclosed[1]||'').trim());
+    out=out.replace(/<think(?:ing)?>[\s\S]*$/i,'').trim();
+  }
   out=out.replace(/<\/?think(?:ing)?>/gi,'').trim();
-  return {text:out,thinking:chunks.filter(Boolean).join('\n\n').trim()};
+  let thinking=chunks.filter(Boolean).join('\n\n').trim();
+  // If almost everything was thinking and little remains, treat remainder carefully
+  if(thinking&&out&&out.length<40&&thinking.length>120){
+    // keep short remainder as answer if it looks like a conclusion line
+  }
+  // Heuristic: whole message is pure reasoning with no answer section
+  if(!thinking&&out){
+    const pureThink=/^(Okay[,.]?\s+)?(I need to|Let me think|The user (asked|wants)|Looking at|First[,.]|Step \d|My reasoning|Reasoning:|Analysis:)/i.test(out.trim())
+      && !/\n\n/.test(out.trim().slice(0,200))
+      && out.length>80
+      && !/^(Here|Sure|Yes|No|The answer|Final|Done|Created|Saved)\b/i.test(out.trim());
+    // Also: starts with planning language and never shifts to direct answer
+    const planOnly=/^(Planning|Planned|Thinking|Deep thinking|Working on|I(?:'| a)m (?:going to|thinking)|Let me)\b/i.test(out.trim())
+      && out.length<600
+      && !/\n\n[A-Z]/.test(out);
+    if(pureThink||planOnly){
+      thinking=out;
+      out='';
+    }
+  }
+  return {text:out,thinking:thinking};
+}
+function looksLikeThinkingOnly(text){
+  const s=String(text||'').trim();
+  if(!s)return true;
+  if(/^\s*$/i.test(s))return true;
+  if(/^(Planning|Planned|Thinking|Deep thinking|Working|I need to|Let me think)\b/i.test(s)&&s.length<500)return true;
+  if(s.length<30&&/^(Hmm|OK|Okay|Sure)\.?$/i.test(s))return true;
+  return false;
 }
 function harvestLeakedToolCalls(data){
   try{
@@ -6583,7 +6621,7 @@ async function agent1FinalPass(reason){
   onEvent({type:'activity',name:'Writing final answer',agent:'Agent 1',status:'running',detail:reason||'Composing the final response…'});
   try{
     const synth=await this.provider.chat([
-      {role:'system',content:'You are Agent 1. Write the FINAL user-visible answer only. Be concrete and complete. Do not call tools. Do not leave the user with only thinking. If tools already ran, summarize outcomes with real paths as [[file:...]] / [[preview:...]]. Optional short <think>...</think> then the answer.'},
+      {role:'system',content:'You are Agent 1. Write the FINAL user-visible answer only. Be concrete and complete. Do NOT output thinking, planning, or meta-commentary. Do not call tools. Never start with "I need to" or "Let me think". Answer the user directly. If tools already ran, summarize outcomes with real paths as [[file:...]] / [[preview:...]]. Optional short <think>...</think> then the answer.'},
       {role:'user',content:'User request:\n'+String(userMessage||'').slice(0,3000)+'\n\nReason for this pass: '+(reason||'missing final')+'\n\nProduce the final reply now.'}
     ],{temperature:0.35,maxTokens:Math.min(2500,this.maxTokens||2500),signal});
     let out=(synth&&synth.choices&&synth.choices[0]&&synth.choices[0].message&&synth.choices[0].message.content)||'';
@@ -6600,21 +6638,27 @@ async function agent1FinalPass(reason){
     return '';
   }
 }
-if(!finalContent||!String(finalContent).trim()){
-  finalContent=await agent1FinalPass.call(this,'No final content after tools/thinking — Agent 1 must answer.');
+if(!finalContent||!String(finalContent).trim()||(typeof looksLikeThinkingOnly==='function'&&looksLikeThinkingOnly(finalContent))){
+  if(String(finalContent||'').trim()&&typeof looksLikeThinkingOnly==='function'&&looksLikeThinkingOnly(finalContent)){
+    try{
+      this._emittedThink=true;
+      onEvent({type:'activity',name:'Thinking',agent:'Agent 1',status:'done',detail:String(finalContent).slice(0,12000),expand:true});
+    }catch(e){}
+    finalContent='';
+  }
+  finalContent=await agent1FinalPass.call(this,'No user-visible final answer — Agent 1 must write the real reply (not thinking).');
 }
-// Detect "thinking-only" leakage: answer is empty or looks like pure planning
-if(finalContent&&/^(Planning|Planned|Thinking|Deep thinking|Working)/i.test(String(finalContent).trim())&&String(finalContent).trim().length<200){
-  const retry=await agent1FinalPass.call(this,'Previous output looked like thinking only — write the real final answer.');
-  if(retry)finalContent=retry;
+if(finalContent&&typeof looksLikeThinkingOnly==='function'&&looksLikeThinkingOnly(finalContent)){
+  const retry=await agent1FinalPass.call(this,'Still looks like thinking — write only the final answer for the user.');
+  if(retry&&!looksLikeThinkingOnly(retry))finalContent=retry;
 }
-if(!finalContent||!String(finalContent).trim()){
+if(!finalContent||!String(finalContent).trim()||(typeof looksLikeThinkingOnly==='function'&&looksLikeThinkingOnly(finalContent))){
   finalContent='Work finished. If you expected more detail, send a short follow-up and I will continue from here.';
 }
 // If the model never produced visible thinking, request a dedicated reasoning pass (Think Deeper requirement)
 try{
   const hadThink=!!(this._emittedThink||false);
-  // Check via a soft flag set when we emit Thinking activities
+  // soft flag set when Thinking activities emit
 }catch(e){}
 if((this.teamSize||1)>1){
   try{
@@ -8120,7 +8164,7 @@ loadAgentSession(id){
     const div=document.createElement('div');
     div.className='agent-msg '+(m.role==='user'?'user':'assistant')+(m.speaker==='Supervisor'||m.role==='assistant'?' supervisor':'');
     const role=m.role==='user'?who.label:(m.speaker||'Supervisor');
-    const av=m.role==='user'?(who.img||who.initial):'S';
+    const av=m.role==='user'?(who.img||who.initial):'TD';
     if(!m.id)m.id=uid();
     div.dataset.mid=m.id;
     const bodyWrap=document.createElement('div');
@@ -8197,6 +8241,9 @@ resetAgentChatView(){
 
 openAgentSetup(){
   try{
+  if(this.isAppBusy&&this.isAppBusy()&&!(this.app.swarm&&this.app.swarm.alive&&this._currentAgentSessionId)){
+    toast('Wait for the current response to finish (or press Stop)','info');return;
+  }
   const goal=($('#swarm-goal')?.value||'').trim();
   if(!goal&&!(this.pendingAttachments&&this.pendingAttachments.length)){toast('Type a message or attach a file first','error');return}
   // Keep the current agent thread when a run is already live — queue as follow-up
@@ -8281,7 +8328,7 @@ async runAgentQuickAsk(goal){
   if(box){
     liveEl=document.createElement('div');liveEl.className='agent-msg assistant supervisor';
     liveEl.dataset.mid=uid();
-    liveEl.innerHTML='<div class="agent-msg-head"><div class="avatar">S</div><span class="agent-msg-role">Supervisor</span></div><div class="agent-msg-body"><em style="opacity:.7">Working…</em></div>';
+    liveEl.innerHTML='<div class="agent-msg-head"><div class="avatar">TD</div><span class="agent-msg-role">Supervisor</span></div><div class="agent-msg-body"><em style="opacity:.7">Working…</em></div>';
     box.appendChild(liveEl);
     box.scrollTop=box.scrollHeight;
   }
@@ -8422,7 +8469,32 @@ completeAgentRun(){
     toast('Supervisor is writing the final response…','info');
   }catch(e){toast((e&&e.message)||'Complete failed','error')}
 }
+isAppBusy(){
+  try{
+    if(this._agentRunning)return true;
+    if(this.app&&this.app.agent&&this.app.agent.running)return true;
+    if(this.app&&this.app.swarm&&this.app.swarm.alive&&!this.app.swarm.solved)return true;
+    if(this._quickAbort)return true;
+    if(this._chatBusy)return true;
+  }catch(e){}
+  return false;
+}
+setSendLocked(locked){
+  locked=!!locked;
+  try{
+    const send=$('#send-btn');if(send){send.disabled=locked||(!$('#user-input')||!(!$('#user-input').value.trim()&&!(this.pendingAttachments&&this.pendingAttachments.length)?false:false));
+      // Always disable when locked regardless of input
+      if(locked)send.disabled=true;
+    }
+    const csend=$('#code-send-btn');if(csend){if(locked)csend.disabled=true;else csend.disabled=false}
+    const asend=$('#swarm-send-btn');if(asend){if(locked){asend.disabled=true;asend.style.opacity='.4';asend.style.pointerEvents='none'}else{asend.disabled=false;asend.style.opacity='';asend.style.pointerEvents=''}}
+    const ta=$('#user-input');if(ta)ta.dataset.busy=locked?'1':'';
+    const cta=$('#code-user-input');if(cta)cta.dataset.busy=locked?'1':'';
+    const ata=$('#swarm-goal');if(ata){if(locked){ata.placeholder='AI is working… stop or wait';}else{const ph=(this.app.i18n&&this.app.i18n.t('agent.placeholder'))||'Message Agent…';ata.placeholder=(ph==='agent.placeholder'?'Message Agent…':ph)}}
+  }catch(e){}
+}
 setAgentRunningUi(running){try{this._agentRunning=!!running;if(window.__app)window.__app._agentRunning=!!running}catch(e){}
+  try{this.setSendLocked(!!running||this.isAppBusy())}catch(e){}
   const send=$('#swarm-send-btn');
   const stop=$('#agent-stop-inline');
   const ta=$('#swarm-goal');
@@ -8815,18 +8887,22 @@ createProject(){
   });
 }
 attachChatToProject(chatId){
-  const pid=this.app.storage.get('currentProjectId',null)||this._pendingProjectId;if(!pid||!chatId)return;
+  // Prefer the conversation's own projectId so chats don't "leave" when filter changes
+  const conv=this.app.conversations.get(chatId);
+  const pid=(conv&&conv.projectId)||this.app.storage.get('currentProjectId',null)||this._pendingProjectId;
+  if(!pid||!chatId)return;
   const projects=this.app.storage.get('projects',[])||[];
   const p=projects.find(x=>String(x.id)===String(pid));if(!p)return;
-  // Dedupe chatIds every attach
   p.chatIds=[...new Set((p.chatIds||[]).map(String).filter(Boolean))];
   if(!p.chatIds.includes(String(chatId)))p.chatIds.push(String(chatId));
-  const conv=this.app.conversations.get(chatId);
   if(conv){
-    conv.projectId=pid;
+    if(String(conv.projectId||'')!==String(pid)){
+      conv.projectId=pid;
+      try{this.app.conversations.update(chatId,{projectId:pid})}catch(e){conv.projectId=pid}
+    }
     p.chats=p.chats||[];
-    const snap=snapshotChat(conv);
-    const i=p.chats.findIndex(c=>c&&c.id===chatId);
+    const snap=typeof snapshotChat==='function'?snapshotChat(conv):{id:conv.id,title:conv.title,projectId:pid,updated:conv.updated,messages:(conv.messages||[]).slice(-20)};
+    const i=p.chats.findIndex(c=>c&&String(c.id)===String(chatId));
     if(i>=0)p.chats[i]=snap;else p.chats.push(snap);
   }
   p.updated=Date.now();
@@ -9443,6 +9519,7 @@ renderCodeFiles(){
     });
 }
 async sendCode(){
+  if(this.isAppBusy&&this.isAppBusy()){toast('Wait for the current response to finish (or press Stop)','info');return}
   if(typeof canAccessCodeMode==='function'&&!canAccessCodeMode()){
     toast('Code mode is temporarily limited to developer accounts','info');
     try{this.setMode('chat')}catch(e){}
@@ -9682,7 +9759,7 @@ handleCodeAgentEvent(ev,aiEl,aiMsg){
   return ret;
 }
 bindEvents(){$('#new-chat-btn').onclick=()=>this.newChat();const _sb=$('#settings-btn');if(_sb)_sb.onclick=()=>this.openSettings();document.querySelectorAll('#settings-btn,#settings-btn-footer,#settings-btn-dock,.settings-open-btn').forEach(b=>{if(b)b.onclick=()=>this.openSettings()});$('#close-settings').onclick=()=>this.closeSettings();$('#settings-overlay').onclick=e=>{if(e.target===$('#settings-overlay'))this.closeSettings()};$('#theme-btn').onclick=()=>this.toggleTheme();$('#collapse-sidebar').onclick=()=>this.toggleSidebar(true);$('#open-sidebar').onclick=()=>this.toggleSidebar(false);$('#workspace-btn').onclick=()=>this.selectWorkspace();const wsc=$('#workspace-clear-btn');if(wsc)wsc.onclick=()=>this.clearExternalWorkspace();const fb=$('#chat-files-btn');if(fb)fb.onclick=()=>this.openFiles();$('#files-fab')&&($('#files-fab').onclick=()=>this.openFiles());const hfb=$('#header-files-btn');if(hfb)hfb.onclick=()=>this.openFiles();$('#close-files').onclick=()=>$('#files-overlay').classList.remove('open');$('#files-overlay').onclick=e=>{if(e.target===$('#files-overlay'))$('#files-overlay').classList.remove('open')};$('#plugins-btn').onclick=()=>this.openPlugins();$('#close-plugins').onclick=()=>$('#plugins-overlay').classList.remove('open');$('#plugins-overlay').onclick=e=>{if(e.target===$('#plugins-overlay'))$('#plugins-overlay').classList.remove('open')};$('#new-plugin-btn').onclick=()=>this.editPlugin(null);$('#import-plugin-btn').onclick=()=>$('#import-plugin-file').click();$('#import-plugin-file').onchange=e=>this.importPlugin(e.target.files[0]);$('#save-plugin').onclick=()=>this.savePlugin();$('#cancel-plugin').onclick=()=>{$('#plugin-editor').style.display='none'};
-$('#model-btn').onclick=e=>{e.stopPropagation();this.toggleModelDropdown()};document.addEventListener('click',()=>this.closeModelDropdown());$('#model-search').oninput=e=>this.filterModels(e.target.value);$('#send-btn').onclick=()=>this.send();$('#stop-btn').onclick=()=>this.app.agent.stop();$('#user-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.send()}};$('#user-input').oninput=()=>{this.autoResizeInput();$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length};$('#attach-btn').onclick=()=>$('#file-input').click();const cab=$('#code-attach-btn');if(cab)cab.onclick=()=>$('#file-input').click();const aab=$('#agent-attach-btn');if(aab)aab.onclick=()=>$('#file-input').click();$('#file-input').onchange=e=>this.handleFiles(e.target.files);
+$('#model-btn').onclick=e=>{e.stopPropagation();this.toggleModelDropdown()};document.addEventListener('click',()=>this.closeModelDropdown());$('#model-search').oninput=e=>this.filterModels(e.target.value);$('#send-btn').onclick=()=>this.send();$('#stop-btn').onclick=()=>{try{this.app.agent.stop()}catch(e){}this._chatBusy=false;try{this.setSendLocked(false)}catch(e){}};$('#user-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.send()}};$('#user-input').oninput=()=>{this.autoResizeInput();$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length};$('#attach-btn').onclick=()=>$('#file-input').click();const cab=$('#code-attach-btn');if(cab)cab.onclick=()=>$('#file-input').click();const aab=$('#agent-attach-btn');if(aab)aab.onclick=()=>$('#file-input').click();$('#file-input').onchange=e=>this.handleFiles(e.target.files);
 $$('.suggestion').forEach(btn=>{btn.onclick=()=>{$('#user-input').value=btn.dataset.prompt;$('#send-btn').disabled=false;this.autoResizeInput();this.send()}});
 $$('.preset-btn').forEach(btn=>{btn.onclick=()=>this.applyPreset(btn.dataset.preset)});
 $('#save-api').onclick=()=>this.saveApi();$('#discover-models').onclick=()=>this.discoverModels();const mab=$('#model-add-btn');if(mab)mab.onclick=()=>this.addModelId();$('#save-agent').onclick=()=>this.saveAgentSettings();
@@ -10308,22 +10385,35 @@ consumePendingAttachments(){
   return saved;
 }
 getThinkingHtml(){const gif=this.app.storage.get('thinkingGif','');if(gif)return`<div class="thinking-indicator"><img src="${escapeHtml(gif)}" alt="working"><span>Working…</span></div>`;return`<div class="thinking-indicator"><div class="dots"><span></span><span></span><span></span></div> Working…</div>`}
-async send(){this.ensureAgent();const text=$('#user-input').value.trim();if(!text&&!this.pendingAttachments.length)return;if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');this.openSettings();return}if(!this.app.provider.config.model){toast('Select a model','error');this.openSettings();return}
+async send(){this.ensureAgent();if(this.isAppBusy&&this.isAppBusy()){toast('Wait for the current response to finish (or press Stop)','info');return}const text=$('#user-input').value.trim();if(!text&&!this.pendingAttachments.length)return;if(!this.app.provider.config.apiKey){toast('Configure API key in Settings','error');this.openSettings();return}if(!this.app.provider.config.model){toast('Select a model','error');this.openSettings();return}
 this.hideEmpty();let conv=this.app.conversations.get(this.app.conversations.currentId);
 if(!conv){
-  // Conversation is created only when the user sends a message
-  conv=this.app.conversations.create();
-  const pid=this._pendingProjectId||this.app.storage.get('currentProjectId',null);
+  // Conversation is created only when the user sends a message — bind to active project immediately
+  const pid=this._pendingProjectId||this.app.storage.get('currentProjectId',null)||null;
+  conv=this.app.conversations.create('New conversation', pid?{projectId:pid}:{});
   if(pid){
     conv.projectId=pid;
     this.app.conversations.update(conv.id,{projectId:pid});
-    this.attachChatToProject(conv.id);
+    try{this.attachChatToProject(conv.id)}catch(e){}
   }
   this._pendingProjectId=null;
   this.app.conversations.setCurrent(conv.id);
   this.app.storage.set('currentConvId',conv.id);
   this.renderConversations();
   this.renderProjects&&this.renderProjects();
+}else{
+  // Existing chat: keep it in its project; if we're inside a project and chat has no projectId, attach
+  try{
+    const pid=this.app.storage.get('currentProjectId',null);
+    if(pid&&!conv.projectId){
+      conv.projectId=pid;
+      this.app.conversations.update(conv.id,{projectId:pid});
+      this.attachChatToProject(conv.id);
+    }else if(conv.projectId){
+      // Refresh project membership so it never "falls out"
+      this.attachChatToProject(conv.id);
+    }
+  }catch(e){}
 }
 let sendText=text;
   if(this._referQuote){sendText='User referred to the following statement:\n"'+this._referQuote+'"\n\nUser response: '+text;const bar=$('#refer-bar');if(bar)bar.remove();this._referQuote=null}
@@ -10362,6 +10452,8 @@ try{
   // Title is generated once from handleAgentEvent final — do not double-call here
 }catch(e){toast(e.message,'error');const body=aiEl.querySelector('.message-body');if(body&&!body.querySelector('.final-content')?.textContent.trim())body.innerHTML+=`<p style="color:var(--error)">Error: ${escapeHtml(e.message)}</p>`}
 finally{
+  this._chatBusy=false;
+  try{this.setSendLocked(false)}catch(e){}
   this.app.agent.settings=prevSettings;this.app.agent.intensityExtra='';
   $('#stop-btn').classList.remove('visible');$('#send-btn').style.display='flex';$('#send-btn').disabled=false;{const s=$('#agent-status');if(s)s.textContent='Ready';const it=$('#iteration-info');if(it)it.textContent='';}const thinking=aiEl.querySelector('.thinking-indicator');if(thinking)thinking.remove();this.app.conversations.persist();
   try{this.app.storage.set('chatRunState',Object.assign({},this.app.storage.get('chatRunState',{})||{},{alive:false,ts:Date.now()}));if(this.app.cloud)this.app.cloud.pushNow(this.app,conv.id)}catch(e){}
