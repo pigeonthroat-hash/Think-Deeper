@@ -570,8 +570,10 @@ button,.icon-btn,.conv-item,.project-item,.send-btn,.mode-tab,.intensity-chip,.a
 @keyframes softPulse{0%,100%{opacity:.6}50%{opacity:1}}
 .message{animation:fadeUp .28s ease}
 .code-msg{animation:fadeUp .28s ease}
+.final-content{opacity:1;min-height:1.2em}
 .final-content.td-revealing{opacity:1}
-.final-content.td-revealed{animation:tdFadeSoft .2s ease}
+.final-content.td-revealed{opacity:1}
+@keyframes tdFadeSoft{from{opacity:.92}to{opacity:1}}
 @keyframes tdFadeSoft{from{opacity:.92}to{opacity:1}}
 .tp-step-body{max-height:220px;overflow:auto}
 .tp-step.open .tp-step-body{display:block}
@@ -4601,9 +4603,11 @@ function extractThinkBlocks(text){
 function looksLikeThinkingOnly(text){
   const s=String(text||'').trim();
   if(!s)return true;
-  if(/^\s*$/i.test(s))return true;
-  if(/^(Planning|Planned|Thinking|Deep thinking|Working|I need to|Let me think)\b/i.test(s)&&s.length<500)return true;
-  if(s.length<30&&/^(Hmm|OK|Okay|Sure)\.?$/i.test(s))return true;
+  // Substantial answers are NEVER treated as thinking-only
+  if(s.length>=200)return false;
+  if(/\n\n/.test(s)&&s.length>=80)return false;
+  if(/^(Planning|Planned|Thinking|Deep thinking|Working|I need to|Let me think)\b/i.test(s)&&s.length<120&&!/[.!?].{20,}/.test(s))return true;
+  if(s.length<20&&/^(Hmm|OK|Okay|Sure)\.?$/i.test(s))return true;
   return false;
 }
 function harvestLeakedToolCalls(data){
@@ -6344,7 +6348,7 @@ ${deep}
 ${personality?'Personality:\n'+personality+'\n':''}${pluginInj?'Plugins:\n'+pluginInj+'\n':''}
 User can expand tool cards to see full code and outputs. Finish when the answer is solid unless Deep Think is on.`
 }
-async run(userMessage,history,attachments,onEvent,{deepThink=false}={}){this.running=true;this._toolCallsThisRun=0;this._emittedThink=false;this.abortController=new AbortController();const signal=this.abortController.signal;const maxIter=Number.POSITIVE_INFINITY;const maxTools=Number.POSITIVE_INFINITY;const start=Date.now();const maxMs=Number.POSITIVE_INFINITY;
+async run(userMessage,history,attachments,onEvent,{deepThink=false}={}){this.running=true;this._toolCallsThisRun=0;this._emittedThink=false;this.abortController=new AbortController();const signal=this.abortController.signal;const maxIter=Math.max(8,Number(this.settings&&this.settings.maxIterations)||24);const maxTools=Math.max(20,Number(this.settings&&this.settings.maxTools)||48);const start=Date.now();const maxMs=Math.max(60000,Number(this.settings&&this.settings.maxTime)||300)*1000;
 if(attachments?.length){for(const a of attachments){
   try{
     const isImg=a&&(a.isImage||(a.type&&String(a.type).startsWith('image/'))||a.dataUrl);
@@ -6369,8 +6373,7 @@ try{
 }catch(e){}
 let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- For interactive demos write HTML via write_file and end with [[preview:path]] or [[visual:path]].\n\n\nHARD / IMPOSSIBLE QUESTIONS: If a request seems impossible or blocked, do NOT quit. Take an extra thinking step on how to make it possible (reframe, approximate, split steps, use tools, smaller inputs). Then try the best approach and report what worked.\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
-const hardMax=Number.POSITIVE_INFINITY;
-try{while(iteration<hardMax&&this.running){if(!this.running)break;
+try{while(iteration<maxIter&&this.running){if(!this.running)break;if(Date.now()-start>maxMs){console.warn("[Agent] time budget");break;}if(toolCalls>=maxTools){console.warn("[Agent] tool budget");break;}
 iteration++;
 console.log('[Agent] iteration',iteration,'/',hardMax,'toolCalls so far',toolCalls);
 onEvent({type:'iteration',current:iteration,max:0});onEvent({type:'status',text:`Reasoning cycle ${iteration}`});
@@ -6926,7 +6929,13 @@ if(!this._emittedThink&&String(finalContent||'').trim()&&this.running){
     }
   }catch(e){console.warn('forced think',e)}
 }
-onEvent({type:'final',content:finalContent});onEvent({type:'status',text:''});onEvent({type:'done'});return finalContent}
+if(!String(finalContent||'').trim()){
+  finalContent='I finished processing your request. If you need more detail, send a short follow-up and I will continue.';
+}
+try{onEvent({type:'final',content:String(finalContent)});}catch(e){console.error('final emit',e)}
+try{onEvent({type:'status',text:''});}catch(e){}
+try{onEvent({type:'done'});}catch(e){}
+return finalContent}
 catch(e){if(e.name==='AbortError'){onEvent({type:'status',text:'Stopped'});onEvent({type:'final',content:finalContent||'*(Stopped)*'});onEvent({type:'done'});return finalContent}
 console.error('[Agent] fatal',e);
 try{onEvent({type:'error',message:e.message||String(e)});onEvent({type:'status',text:'Error'});onEvent({type:'done'})}catch(e2){console.warn('fatal ui',e2)}
@@ -11289,7 +11298,17 @@ if(tp){
 }
 const gif=tp&&tp.querySelector('.tp-gif');if(gif){try{gif.style.animationPlayState='paused'}catch(e){}}
 // Keep raw [[file:]] tokens in markdown path — renderMarkdown expands them to download chips
-this.revealAnswer(contentEl,this.renderMarkdown(ev.content||md||''));
+try{
+  const htmlFinal=this.renderMarkdown(ev.content||md||'')||escapeHtml(String(ev.content||md||''));
+  this.revealAnswer(contentEl,htmlFinal);
+  // Safety: if still empty after reveal, force text
+  if(contentEl&&!String(contentEl.textContent||'').trim()){
+    contentEl.textContent=String(ev.content||md||'Done.');
+  }
+}catch(err){
+  console.error('final render',err);
+  try{contentEl.textContent=String(ev.content||md||'Done.')}catch(e2){}
+}
 this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
 try{this.wireFileChips(contentEl)}catch(e){}try{this.wireMessageMedia(contentEl)}catch(e){}
   if(this.mode==='code'||this.app.mode==='code'){
@@ -11701,27 +11720,25 @@ sanitizeSupervisorFinal(text){
 }
 sanitizeFinalAnswer(text,aiEl){
   let s=String(text||'').trim();
+  if(!s)return s;
   s=s.replace(/^(Worked for[\s\S]{0,40}\n)+/i,'').trim();
   // Fix broken preview/file markers the model sometimes emits
   s=s.replace(/\[\[\s*(preview|file)\s*:\s*([^\]\}\|\n]+?)\s*[\]\}]+/gi,(_,k,p)=>{
     p=String(p||'').replace(/[\s\}\]]+$/,'').replace(/^[\s\[\{]+/,'').trim();
     return '[['+k.toLowerCase()+':'+p+']]';
   });
-  // Orphan path-looking lines ending with } after artifacts/
   s=s.replace(/(^|\n)\s*(artifacts\/[^\s\n]+\.html?)\}/gim,(_,a,p)=>a+'[[preview:'+p+']]');
-  if(s && !/^(Working…|Working\.\.\.|Thinking|Planned|Planning|Deep thought|Deep thinking)\b/i.test(s) && s.length>8){
-    // strip a leading thought dump if the model echoed it
-    s=s.replace(/^(Planning|Planned|Deep thinking|Deep thought|Thinking)[:\s][\s\S]{0,400}?(\n\n|$)/i,'').trim();
-    return s;
-  }
-  // Empty or thought-only: never use the thinking panel as the answer
+  // Strip a short leading thought label only — keep the rest of a real answer
+  s=s.replace(/^(Planning|Planned|Deep thinking|Deep thought|Thinking)[:\s][^\n]{0,120}\n+/i,'').trim();
+  // Never replace a substantial answer with "Done."
+  if(s.length>8)return s;
   try{
     const files=(this.app.vfs&&this.app.vfs.filesInFolder)?(this.app.vfs.filesInFolder(this.codeRoot?this.codeRoot():'code')||[]):[];
     const html=files.filter(p=>/\.html$/i.test(p));
     if(html.length) return 'Done. Open preview to view '+html.map(p=>p.replace(/^code\//,'')).join(', ')+'.';
     if(files.length) return 'Done. Files are in the Code pane.';
   }catch(e){}
-  return 'Done.';
+  return s||'Done.';
 }
 pinText(text){
   const t=String(text||'').replace(/\s+/g,' ').trim();
@@ -14507,61 +14524,41 @@ fileChipHtml({path,folder,name}){
 }
 revealAnswer(el,html){
   if(!el)return;
-  // Instant for re-renders / version switches
-  if(el.dataset.revealed==='1'){el.innerHTML=html||'';return}
-  el.dataset.revealed='1';
   const raw=String(html||'');
-  // Fast letter-by-letter reveal: whole answer completes in ~0.35s
+  // ALWAYS paint the full answer first — never leave the user with a blank message
+  try{el.innerHTML=raw}catch(e){try{el.textContent=raw.replace(/<[^>]+>/g,'')}catch(e2){}}
+  if(!raw.trim()){
+    el.innerHTML='<p><em>I finished, but the answer was empty. Please send a short follow-up.</em></p>';
+  }
+  try{if(this._renderMath)this._renderMath(el)}catch(e){}
+  // Re-render path (versions / refresh): no animation
+  if(el.dataset.revealed==='1')return;
+  el.dataset.revealed='1';
+  // Fast sleek fade + optional letter cascade (content already fully present)
   try{
-    el.innerHTML='';
     el.classList.add('td-revealing');
-    // Parse into a temp holder to preserve structure, then animate text nodes
-    const hold=document.createElement('div');
-    hold.innerHTML=raw;
-    // Collect text nodes depth-first
-    const textNodes=[];
-    const walk=(node)=>{
-      if(node.nodeType===3){
-        if(node.nodeValue)textNodes.push(node);
-      }else if(node.nodeType===1){
-        // Don't animate inside pre/code/svg/math — show whole at once
-        if(/^(PRE|CODE|SVG|SCRIPT|STYLE)$/i.test(node.tagName))return;
-        [...node.childNodes].forEach(walk);
-      }
-    };
-    walk(hold);
-    // Move structure into el first (empty text nodes)
-    const originals=textNodes.map(n=>n.nodeValue);
-    textNodes.forEach(n=>{n.nodeValue=''});
-    while(hold.firstChild)el.appendChild(hold.firstChild);
-    if(this._renderMath)try{this._renderMath(el)}catch(e){}
-    const totalChars=originals.reduce((a,s)=>a+s.length,0)||1;
-    const duration=Math.min(400,Math.max(280,120+totalChars*0.4)); // ~0.3–0.4s
-    const t0=performance.now();
-    let done=false;
-    const tick=(now)=>{
-      if(done)return;
-      const p=Math.min(1,(now-t0)/duration);
-      // ease-out
-      const e=1-Math.pow(1-p,2.2);
-      let budget=Math.floor(e*totalChars);
-      for(let i=0;i<textNodes.length;i++){
-        const full=originals[i];
-        const take=Math.min(full.length,Math.max(0,budget));
-        textNodes[i].nodeValue=full.slice(0,take);
-        budget-=full.length;
-      }
-      if(p<1)requestAnimationFrame(tick);
-      else{
-        done=true;
-        for(let i=0;i<textNodes.length;i++)textNodes[i].nodeValue=originals[i];
+    el.style.opacity='0';
+    // Force reflow then fade in over ~0.35s
+    void el.offsetWidth;
+    el.style.transition='opacity .35s ease';
+    el.style.opacity='1';
+    // Letter cascade only on plain text paragraphs (visual polish; content already visible)
+    const nodes=[...el.querySelectorAll('p,li,h1,h2,h3')].slice(0,12);
+    nodes.forEach((n,i)=>{
+      n.style.opacity='0';
+      n.style.transition='opacity .2s ease '+(i*0.03)+'s';
+      requestAnimationFrame(()=>{requestAnimationFrame(()=>{n.style.opacity='1'})});
+    });
+    setTimeout(()=>{
+      try{
         el.classList.remove('td-revealing');
         el.classList.add('td-revealed');
-      }
-    };
-    requestAnimationFrame(tick);
+        el.style.transition='';
+        nodes.forEach(n=>{n.style.opacity='';n.style.transition=''});
+      }catch(e){}
+    },420);
   }catch(e){
-    el.innerHTML=raw;
+    el.style.opacity='1';
     el.classList.remove('td-revealing');
   }
 }
