@@ -862,6 +862,25 @@ html[data-palette="violet"]{--accent:rgba(139,92,246,.72);--accent-hover:rgba(13
 .agent-complete-btn{padding:6px 14px;font-size:.8rem;font-weight:600;border-radius:8px;margin-left:6px}
 .agent-complete-btn:disabled{opacity:.5;cursor:not-allowed}
 
+.td-chart-card{margin:12px 0;padding:14px 16px;border-radius:14px;border:1px solid var(--border);background:var(--bg-elevated);box-shadow:var(--shadow-sm)}
+.td-chart-card .td-chart-title{font-weight:650;font-size:.95rem;margin:0 0 4px;color:var(--text-primary)}
+.td-chart-card .td-chart-sub{font-size:.75rem;color:var(--text-tertiary);margin:0 0 10px}
+.td-chart-card svg{display:block;width:100%;max-width:520px;height:auto;margin:0 auto}
+.td-chart-legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;font-size:.72rem;color:var(--text-secondary)}
+.td-chart-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle}
+.td-img-wrap{position:relative;display:inline-block;max-width:100%;margin:8px 0;border-radius:12px;overflow:hidden;border:1px solid var(--border);background:var(--bg-secondary)}
+.td-img-wrap img{display:block;max-width:min(100%,480px);max-height:360px;object-fit:contain;cursor:zoom-in}
+.td-img-wrap .td-img-dl{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(15,23,42,.45);backdrop-filter:blur(10px);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .2s}
+.td-img-wrap:hover .td-img-dl,.td-img-wrap:focus-within .td-img-dl{opacity:1}
+.td-img-credit{font-size:.7rem;color:var(--text-tertiary);margin:4px 0 10px}
+.td-visual-card{margin:12px 0;border-radius:16px;border:1px solid var(--border);overflow:hidden;background:var(--bg-elevated);position:relative}
+.td-visual-card.working{min-height:180px;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#1f2937,#111827);color:#9ca3af}
+.td-visual-card.working .td-vis-ph{width:min(88%,320px);height:120px;border-radius:18px;background:#374151;opacity:.55}
+.td-visual-card iframe{width:100%;height:min(420px,55vh);border:0;background:#fff;display:block}
+.td-visual-card .td-vis-play{position:absolute;top:10px;right:10px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.4);background:rgba(15,23,42,.4);backdrop-filter:blur(12px);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;font-size:14px}
+.td-visual-card .td-vis-play:hover{background:rgba(15,23,42,.6)}
+
+
 .rate-limit-banner{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);z-index:14000;background:#7f1d1d;color:#fecaca;border:1px solid #ef4444;padding:10px 18px;border-radius:12px;font-size:.85rem;font-weight:600;box-shadow:0 8px 28px rgba(0,0,0,.35);display:none;align-items:center;gap:10px;max-width:92vw}
 .rate-limit-banner.show{display:flex}
 .rate-limit-banner .rl-count{font-variant-numeric:tabular-nums;color:#fff;min-width:2.5em;text-align:center}
@@ -4388,13 +4407,23 @@ async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTo
     console.error('[API] error',res.status,rawText.slice(0,2000));
     const rateLimit=/rate limit|quota|resource_exhausted|tokens per minute|TPM|overloaded|unavailable/i.test(String(msg))||res.status===429||res.status===503||res.status===502;
     if(rateLimit){
-      const raw=String(msg);
-      let waitMs=1000;
-      const msM=raw.match(/retry in ([0-9.]+)\s*ms/i);
-      const sM=raw.match(/(?:retry|try again) in ([0-9.]+)\s*s(?:ec(?:onds)?)?/i);
-      if(msM)waitMs=Math.ceil(parseFloat(msM[1]));
-      else if(sM)waitMs=Math.ceil(parseFloat(sM[1])*1000);
-      waitMs=Math.max(1000,Math.min(20000,waitMs));
+      const raw=String(msg)+' '+String(rawText||'').slice(0,500);
+      let waitMs=2000;
+      // Parse seconds with decimals carefully; never treat huge integers as seconds
+      const parseWaitSec=(s)=>{
+        const n=parseFloat(String(s).replace(/,/g,''));
+        if(!isFinite(n)||n<=0)return 2;
+        // If API gave a huge number, assume ms
+        if(n>600)return Math.min(120,Math.ceil(n/1000));
+        return Math.min(120,Math.max(1,Math.ceil(n)));
+      };
+      const msM=raw.match(/retry(?:[_\s-]*after)?[^0-9]{0,12}([0-9]*\.?[0-9]+)\s*ms\b/i);
+      const sM=raw.match(/(?:retry(?:[_\s-]*after)?|try again)[^0-9]{0,12}([0-9]*\.?[0-9]+)\s*s(?:ec(?:onds)?)?\b/i);
+      const hdr=raw.match(/retry-after["'\s:]+([0-9]*\.?[0-9]+)/i);
+      if(msM)waitMs=Math.min(120000,Math.max(1000,Math.ceil(parseFloat(msM[1])||1000)));
+      else if(sM)waitMs=parseWaitSec(sM[1])*1000;
+      else if(hdr)waitMs=parseWaitSec(hdr[1])*1000;
+      waitMs=Math.max(1000,Math.min(120000,waitMs));
       const attempt=arguments[1]&&arguments[1]._retry||0;
       if(attempt<3){
         console.warn('[API] '+res.status+' — waiting',waitMs,'ms then retry',attempt+1);
@@ -4405,7 +4434,8 @@ async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTo
         console.warn('[API] rate limited — switching to fallback');
         return await this.chat(messages,{model,tools,signal,toolChoice,temperature,useFallback:true,maxTokens});
       }
-      const waitSec=Math.max(5,Math.ceil(waitMs/1000)*2);throw Object.assign(new Error('Rate limited (429). Try again in '+waitSec+' seconds or switch model.'),{rateLimit:true,waitSec,status:429,body:rawText});
+      const waitSec=Math.min(120,Math.max(3,Math.ceil(waitMs/1000)));
+      throw Object.assign(new Error('Rate limited (429). Try again in '+waitSec+' seconds or switch model.'),{rateLimit:true,waitSec,status:429,body:String(rawText||'').slice(0,400)});
     }
     throw Object.assign(new Error(`API ${res.status}: ${String(msg).slice(0,800)}`),{status:res.status,body:rawText});
   }
@@ -4639,6 +4669,9 @@ async run(code){
   if(!guard.ok){try{CrashGuard.note(guard.error)}catch(e){}return{ok:false,error:guard.error,blocked:true}}
   // Agent mode: force smaller recursion + prefer simple iteration
   src='import sys\nsys.setrecursionlimit('+(agentish?'80':'240')+')\n'+src;
+  if(/\bmatplotlib\b|\bpyplot\b|\bplt\./.test(src)){
+    src='import matplotlib\nmatplotlib.use("Agg")\n'+src;
+  }
 
   // Soften blocking sleeps — Pyodide runs on the main thread and time.sleep freezes the UI
   src=src.replace(/\btime\.sleep\s*\(\s*[^)]+\s*\)/g,'pass  # sleep skipped in browser sandbox');
@@ -4681,7 +4714,42 @@ async run(code){
     let stdout='',stderr='';
     try{stdout=this.pyodide.runPython('sys.stdout.getvalue()')}catch(e){}
     try{stderr=this.pyodide.runPython('sys.stderr.getvalue()')}catch(e){}
-    return{ok:true,result:result!=null?String(result):null,stdout:String(stdout||'').slice(0,50000),stderr:String(stderr||'').slice(0,20000)}
+    // Capture matplotlib figures as PNG data URLs for chat display
+    let images=[];
+    try{
+      const cap=this.pyodide.runPython(`
+try:
+    import matplotlib.pyplot as plt
+    import io, base64
+    _imgs = []
+    for _n in plt.get_fignums():
+        _fig = plt.figure(_n)
+        _buf = io.BytesIO()
+        _fig.savefig(_buf, format='png', bbox_inches='tight', dpi=120)
+        _buf.seek(0)
+        _imgs.append('data:image/png;base64,' + base64.b64encode(_buf.read()).decode('ascii'))
+    plt.close('all')
+    _imgs
+except Exception:
+    []
+`);
+      if(cap&&typeof cap.toJs==='function')images=cap.toJs();
+      else if(Array.isArray(cap))images=cap;
+      else if(cap&&cap.length)images=Array.from(cap);
+    }catch(e){}
+    // Persist plots into vfs for markdown embedding
+    const paths=[];
+    try{
+      const vfs=window.__app&&window.__app.vfs;
+      if(vfs&&images&&images.length){
+        images.slice(0,4).forEach((dataUrl,i)=>{
+          const p='generated/plot_'+Date.now()+'_'+i+'.png';
+          try{vfs.write(p,dataUrl,{archiveOld:false});paths.push(p)}catch(e){}
+        });
+      }
+    }catch(e){}
+    const markdown=paths.map(p=>'![]('+p+')').join('\n');
+    return{ok:true,result:result!=null?String(result):null,stdout:String(stdout||'').slice(0,50000),stderr:String(stderr||'').slice(0,20000),images:images||[],paths,markdown:markdown||null}
   }catch(e){return{ok:false,error:e.message||String(e)}}
 
 }
@@ -4697,7 +4765,9 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 {type:'function',function:{name:'self_check',description:'Record a brief self-check of correctness before finalizing an important answer. Use after tool results when stakes are high.',parameters:{type:'object',properties:{observation:{type:'string',description:'What you verified'},passed:{type:'boolean',description:'Whether the check passed'}},required:['observation']}}},
 {type:'function',function:{name:'web_search',description:'Search the public web for up-to-date facts, docs, or news. Use when the answer depends on information you may not have reliably.',parameters:{type:'object',properties:{query:{type:'string',description:'Search query string'}},required:['query']}}},
 {type:'function',function:{name:'check_code',description:'Runtime/syntax check files under code/ (or a specific path). Parses JS, runs Python compile checks, and basic HTML balance checks. Call after writing code and keep fixing until ok=true and errors is empty.',parameters:{type:'object',properties:{path:{type:'string',description:'Optional file path or folder under code/. Empty = check all code/ files.'}},required:[]}}},
-{type:'function',function:{name:'image_search',description:'Search for images related to a research topic. Returns titles, image URLs, and source pages. Use in Code mode for visual research.',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}},
+{type:'function',function:{name:'image_search',description:'Search for images related to a topic. Returns image URLs with source credits. Use when a photo helps explain something.',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}},
+{type:'function',function:{name:'show_chart',description:'Show a bar, pie, or line chart in chat. Use when data is clearer as a visual (trends, shares, comparisons) — user need not say chart.',parameters:{type:'object',properties:{type:{type:'string',description:'bar | pie | line'},title:{type:'string'},subtitle:{type:'string'},labels:{type:'array',items:{type:'string'}},values:{type:'array',items:{type:'number'}},colors:{type:'array',items:{type:'string'}},unit:{type:'string'}},required:['type','labels','values']}}},
+
 {type:'function',function:{name:'github_create_repo',description:'Create a GitHub repository using the configured token. Returns HTML URL and clone info.',parameters:{type:'object',properties:{name:{type:'string'},description:{type:'string'},private:{type:'boolean'},auto_init:{type:'boolean'}},required:['name']}}},
 {type:'function',function:{name:'github_commit_files',description:'Commit files from the code/ workspace folder to a GitHub repo (create blob/tree/commit/ref). paths are relative to code/ or absolute vfs paths under code/.',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},message:{type:'string'},branch:{type:'string'},paths:{type:'array',items:{type:'string'},description:'File paths to include; empty = all under code/'}},required:['owner','repo','message']}}},
 {type:'function',function:{name:'github_enable_pages',description:'Enable GitHub Pages on a repo from a branch folder (e.g. branch main, path / or /docs).',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},branch:{type:'string'},path:{type:'string'}},required:['owner','repo']}}},
@@ -4840,6 +4910,7 @@ case'self_check':return{recorded:true,observation:args.observation,passed:!!args
 case'web_search':return await this.webSearch(args.query||'');
 case'check_code':return await this.checkCode(args.path||'');
 case'image_search':return await this.imageSearch(args.query||'');
+case'show_chart':return this.showChart(args||{});
 case'github_create_repo':return await this.githubCreateRepo(args);
 case'github_commit_files':return await this.githubCommitFiles(args);
 case'github_enable_pages':return await this.githubEnablePages(args);
@@ -5148,7 +5219,7 @@ async imageSearch(query){
   if(!query||!String(query).trim())return{ok:false,error:'Empty image query',results:[]};
   const q=String(query).trim();
   try{
-    const url='https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrlimit=8&gsrnamespace=6&gsrsearch='+encodeURIComponent(q)+'&prop=imageinfo&iiprop=url|mime|size';
+    const url='https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrlimit=6&gsrnamespace=6&gsrsearch='+encodeURIComponent(q)+'&prop=imageinfo&iiprop=url|mime|extmetadata|size';
     const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(12000):undefined;
     const res=await fetch(url,{signal:ctrl,mode:'cors'});
     if(!res.ok)throw new Error('HTTP '+res.status);
@@ -5156,12 +5227,38 @@ async imageSearch(query){
     const pages=(data.query&&data.query.pages)||{};
     const results=Object.values(pages).map(p=>{
       const info=(p.imageinfo&&p.imageinfo[0])||{};
-      return {title:p.title||q,url:info.url||'',thumb:info.url||'',source:'commons'};
+      const meta=info.extmetadata||{};
+      const artist=(meta.Artist&&meta.Artist.value)||'';
+      const credit=(meta.Credit&&meta.Credit.value)||'';
+      const license=(meta.LicenseShortName&&meta.LicenseShortName.value)||'Wikimedia Commons';
+      const clean=s=>String(s||'').replace(/[<>]/g,'');
+      const srcLabel='Wikimedia Commons'+(license&&license!=='Wikimedia Commons'?(' | '+clean(license)):'');
+      return {title:String(p.title||q).replace(/^File:/,''),url:info.url||'',thumb:info.url||'',source:srcLabel,artist:clean(artist).slice(0,80)};
     }).filter(r=>r.url);
-    return {ok:results.length>0,query:q,results};
+    // Markdown the model should paste so images appear with credits
+    const markdown=results.slice(0,4).map(r=>'!'+'['+r.title+']('+r.url+' "source:'+r.source+'")'+'\n*Source: '+r.source+(r.artist?(' — '+r.artist):'')+'*').join('\n\n');
+    return {ok:results.length>0,query:q,results,markdown,hint:'Paste the markdown field into your final answer so images appear with source credits.'};
   }catch(e){
     return {ok:false,query:q,results:[],error:e.message||String(e)};
   }
+}
+showChart(args){
+  try{
+    const type=String((args&&args.type)||'bar').toLowerCase();
+    const labels=Array.isArray(args.labels)?args.labels.map(String):[];
+    const values=Array.isArray(args.values)?args.values.map(Number):[];
+    if(!labels.length||labels.length!==values.length)return{ok:false,error:'labels and values must be same non-empty length'};
+    const payload={
+      type:['bar','pie','line'].includes(type)?type:'bar',
+      title:String(args.title||'Chart'),
+      subtitle:String(args.subtitle||''),
+      labels,values,
+      colors:Array.isArray(args.colors)?args.colors.map(String):[],
+      unit:String(args.unit||'')
+    };
+    const token='[[chart:'+JSON.stringify(payload)+']]';
+    return{ok:true,type:payload.type,token,markdown:token,hint:'Include the token/markdown in your final answer exactly so the chart renders in chat.'};
+  }catch(e){return{ok:false,error:e.message||String(e)}}
 }
 async githubCreateRepo(args){
   const body={name:args.name,description:args.description||'',private:!!args.private,auto_init:args.auto_init!==false};
@@ -5837,7 +5934,9 @@ class AgentManager{
     if(a.perms.network!==false){
       defs.push({type:'function',function:{name:'web_search',description:'Full web search for facts, prior art, papers, news. Required before claiming a mathematical discovery is new.',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}});
       defs.push({type:'function',function:{name:'remember',description:'Silently search related user chats in this section/project and return a brief summary. Never writes into those chats.',parameters:{type:'object',properties:{query:{type:'string'},section:{type:'string'}},required:['query']}}});
-      defs.push({type:'function',function:{name:'image_search',description:'Search images related to a topic',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}});
+      defs.push({type:'function',function:{name:'image_search',description:'Search images related to a topic. Prefer when a photo/illustration helps the user.',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}});
+      defs.push({type:'function',function:{name:'show_chart',description:'Render a bar, pie, or line chart in the chat for the user. Use when numbers, shares, or trends are clearer as a visual. Not only when the user says chart.',parameters:{type:'object',properties:{type:{type:'string',enum:['bar','pie','line']},title:{type:'string'},subtitle:{type:'string'},labels:{type:'array',items:{type:'string'}},values:{type:'array',items:{type:'number'}},colors:{type:'array',items:{type:'string'}},unit:{type:'string'}},required:['type','labels','values']}}});
+      defs.push({type:'function',function:{name:'generate_image',description:'Generate an image from a text prompt when the model/API supports it. Always follow with a short comment in the final answer.',parameters:{type:'object',properties:{prompt:{type:'string'},filename:{type:'string'}},required:['prompt']}}});
     }
     return defs.length?defs:undefined;
   }
@@ -6208,7 +6307,7 @@ try{
     }
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+((this.storage.get('appMode','')==='code'||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- For interactive demos write HTML via write_file and end with [[preview:path]] or [[visual:path]].\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 const hardMax=Number.POSITIVE_INFINITY;
 try{while(iteration<hardMax&&this.running){if(!this.running)break;
@@ -7104,6 +7203,7 @@ _activityTitle(name,args,done=false){
   else if(name==='self_check')label=done?'Self-checked':'Self-check';
   else if(name==='ask_user')label=done?'Asked you':'Asking you';
   else if(name==='generate_image')label=done?'Generated image':'Generating image';
+  else if(name==='show_chart')label=done?'Rendered chart':'Building chart';
   else if(name==='show_site_options')label=done?'Showed layouts':'Showing layouts';
   else if(name==='github_create_repo')label=done?'Created repo':'Creating repo';
   else if(name==='github_commit_files')label=done?'Committed':'Committing';
@@ -7122,9 +7222,12 @@ _activityIcon(name){
 }
 _detailForArgs(name,args){if(name==='remember')return (args&&args.query)||'';if(name==='run_python')return args.code||'';if(name==='write_file')return args.content||'';if(name==='self_check')return args.observation||'';return JSON.stringify(args,null,2)}
 _summarizeResult(name,result){if(result?.error)return{detail:'Error: '+result.error,full:result.error};
-if(name==='run_python'){const parts=[];if(result.stdout)parts.push('stdout:\n'+result.stdout);if(result.stderr)parts.push('stderr:\n'+result.stderr);if(result.result!=null)parts.push('→ '+result.result);const full=parts.join('\n\n')||(result.ok?'(no output)':'Failed');return{detail:full.slice(0,300)+(full.length>300?'…':''),full}}
+if(name==='run_python'){const parts=[];if(result.stdout)parts.push('stdout:\n'+result.stdout);if(result.stderr)parts.push('stderr:\n'+result.stderr);if(result.result!=null)parts.push('→ '+result.result);if(result.markdown)parts.push('PLOTS (embed in final answer):\n'+result.markdown);if(result.paths&&result.paths.length)parts.push('Plot files: '+result.paths.join(', '));const full=parts.join('\n\n')||(result.ok?'(no output)':'Failed');return{detail:full.slice(0,400)+(full.length>400?'…':''),full}}
 if(name==='write_file'){if(result&&(result.error||result.ok===false))return{detail:'Write failed: '+(result.error||result.message||''),full:JSON.stringify(result)};const added=result.added||0,removed=result.removed||0;const p=result.path||'file';return{detail:(result.isNew?'Created ':'Saved ')+p+' ('+(result.lines||0)+' lines) — exists',delta:{added,removed},full:'Path: '+p+'\nLines: '+(result.lines||0)+'\n+'+added+' / -'+removed+'\nFile EXISTS. Link: [[file:'+p+']]'}}
-if(name==='generate_image'){const pth=result.path||'generated/image.png';return{detail:'Saved '+pth,full:'Image stored at '+pth+'\nEmbed in your answer exactly as:\n![]('+pth+')'}}
+if(name==='generate_image'){const pth=result.path||'generated/image.png';return{detail:'Saved '+pth,full:'Image stored at '+pth+'\nEmbed in your final answer exactly as:\n![]('+pth+')\nThen write a short follow-up sentence about the image.'}}
+if(name==='show_chart'){return{detail:'Chart ready ('+(result.type||'bar')+')',full:(result.token||result.markdown||'')+'\nInclude that token in your final answer so the chart renders.'}}
+if(name==='image_search'){return{detail:(result.results&&result.results.length)?('Found '+result.results.length+' images'):'No images',full:(result.markdown||JSON.stringify(result.results||[]).slice(0,2000))+'\n\nPaste the markdown into your final answer. Source credits are included automatically.'}}
+
 if(name==='check_code'){return{detail:result.summary||(result.ok?'Checks passed':'Checks failed'),full:(result.errors&&result.errors.length)?result.errors.join('\n'):'Returned no errors'}}
 if(name==='delete_file')return{detail:'Deleted (archived)',delta:{added:0,removed:result.removed||0},full:JSON.stringify(result)};
 if(name==='list_files'){const n=Array.isArray(result)?result.length:0;return{detail:`${n} entries`,full:JSON.stringify(result,null,2)}}
@@ -7179,7 +7282,7 @@ initCodeMode(){
   this.bindIntensityBars();
 
   const input=$('#code-user-input');
-  if(input)input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.sendCode()}});
+  if(input)input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(this.isRateLimited&&this.isRateLimited()){toast('Rate limited — wait','error');return}if(this.isAppBusy&&this.isAppBusy()){toast('Wait for the current response to finish','info');return}this.sendCode()}});
   this.renderCodeSkills();
   this.renderCodeFiles();
   try{this.restoreCodeTranscript()}catch(e){console.warn('code restore',e)}
@@ -7661,6 +7764,13 @@ leaveProject(){
   this.app.storage.set('currentProjectId',null);
   this._pendingProjectId=null;
   try{this.purgeGhostConversations()}catch(e){}
+  try{
+    // Clear stuck multi-million-second rate locks from older builds
+    if(this._rateLimitUntil&&(this._rateLimitUntil-Date.now()>120000||this._rateLimitUntil-Date.now()<0)){
+      this._rateLimitUntil=0;
+      const b=$('#rate-limit-banner');if(b)b.classList.remove('show');
+    }
+  }catch(e){}
   this.renderProjects();
   this.renderConversations();
   try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
@@ -7861,7 +7971,7 @@ initSwarmUi(){
   const goalEl=$('#swarm-goal');
   if(goalEl&&!goalEl._tdBound){
     goalEl._tdBound=true;
-    goalEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.openAgentSetup()}});
+    goalEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(this.isRateLimited&&this.isRateLimited()){const left=Math.max(1,Math.ceil((this._rateLimitUntil-Date.now())/1000));toast('Rate limited — try again in '+left+'s','error');return}if(this.isAppBusy&&this.isAppBusy()&&!(this.app.swarm&&this.app.swarm.alive&&this._currentAgentSessionId)){toast('Wait for the current response to finish','info');return}this.openAgentSetup()}});
     goalEl.addEventListener('input',()=>{goalEl.style.height='auto';goalEl.style.height=Math.min(160,goalEl.scrollHeight)+'px'});
   }
   // Always rebind starter chips
@@ -8583,7 +8693,11 @@ completeAgentRun(){
 }
 
 armRateLimit(waitSec,msg){
-  waitSec=Math.max(1,Math.ceil(Number(waitSec)||15));
+  // Hard-cap 1–120s; parse decimals; never accept multi-million "seconds"
+  let n=Number(waitSec);
+  if(!isFinite(n)||n<=0)n=15;
+  if(n>600)n=Math.ceil(n/1000); // was likely ms
+  waitSec=Math.min(120,Math.max(1,Math.ceil(n)));
   this._rateLimitUntil=Date.now()+waitSec*1000;
   try{this.setSendLocked(true)}catch(e){}
   const banner=$('#rate-limit-banner');
@@ -8727,10 +8841,16 @@ setAgentRunningUi(running){try{this._agentRunning=!!running;if(window.__app)wind
 
 async startSwarm(opts){
   opts=opts||{};
-  // New confirmed request takes over the kernel — stop any previous background run
+  // Each agent message is a completely fresh team run (new kernel state).
+  // Same chat thread keeps history so the supervisor can see the whole conversation so far.
   try{
     const k0=this.app.swarm;
-    if(k0&&k0.alive){k0.stop()}
+    if(k0){
+      try{k0.stop()}catch(e){}
+      k0.solved=null;k0.alive=false;k0._forceComplete=false;
+      try{if(k0.scheduler){k0.scheduler.q=[];k0.scheduler.inflight.clear();k0.scheduler._pumping=false}}catch(e){}
+      try{if(k0.agents&&k0.agents.reset)k0.agents.reset();else if(k0.agents&&k0.agents._map)k0.agents._map.clear()}catch(e){}
+    }
   }catch(e){}
   if(this._referQuote){
     opts.goal='User referred to the following statement:\n"'+this._referQuote+'"\n\nUser response: '+(opts.goal||($('#swarm-goal')?.value||'').trim());
@@ -8843,9 +8963,12 @@ async startSwarm(opts){
   const intentNote={mystery:'Mathematical mystery — SOLVE it. Deliver What was solved / Solution / Evidence. Never claim the problem is impossible or limited by time; keep computing and proving until solved.',code:'Advanced code — implement fully with verification.',document:'Fancy document — polished complete deliverable.',other:'General task — complete solution required.'}[intent]||'';
   // Multi-turn like normal chat: history is internal context, NOT prepended into the user-visible goal
   const prior=(this._currentAgentSessionId)?(this.agentSessions().find(x=>x.id===this._currentAgentSessionId)||{}).messages:[];
-  const historyNote=(prior&&prior.length)?('\n\n[INTERNAL CHAT HISTORY — do not repeat these messages as the user message]\n'+prior.slice(-16).map(m=>{
-    const role=m.role==='user'?'User':(m.speaker||'Assistant');
-    return role+': '+String(m.content||'').slice(0,1200);
+  // Exclude the just-added current user message from history context (it's the goal)
+  const histSrc=(prior||[]).slice();
+  if(histSrc.length&&histSrc[histSrc.length-1]&&histSrc[histSrc.length-1].role==='user')histSrc.pop();
+  const historyNote=(histSrc.length)?('\n\n[FULL CHAT SO FAR — this is a NEW request; use history only as context]\n'+histSrc.slice(-24).map(m=>{
+    const role=m.role==='user'?'User':(m.speaker||'Supervisor');
+    return role+': '+String(m.content||'').slice(0,1500);
   }).join('\n')):'';
   // Always give supervisor shared memory on follow-ups
   try{
@@ -8916,6 +9039,14 @@ async testSwarm(n){
 }
 renderSwarm(ev){
   const k=this.app.swarm;if(!k)return;
+  // Never paint agent UI while user is in chat/code/other modes — background only
+  try{
+    if(this.mode&&this.mode!=='swarm'){
+      try{this.persistLiveAgent&&this.persistLiveAgent(false)}catch(e){}
+      try{this.renderAgentHist&&this.renderAgentHist()}catch(e){}
+      return;
+    }
+  }catch(e){}
   // Background mode: if user is viewing another chat, keep processing but only persist + update LIVE badges
   try{
     const viewing=this._currentAgentSessionId;
@@ -9998,7 +10129,7 @@ handleCodeAgentEvent(ev,aiEl,aiMsg){
   return ret;
 }
 bindEvents(){$('#new-chat-btn').onclick=()=>this.newChat();const _sb=$('#settings-btn');if(_sb)_sb.onclick=()=>this.openSettings();document.querySelectorAll('#settings-btn,#settings-btn-footer,#settings-btn-dock,.settings-open-btn').forEach(b=>{if(b)b.onclick=()=>this.openSettings()});$('#close-settings').onclick=()=>this.closeSettings();$('#settings-overlay').onclick=e=>{if(e.target===$('#settings-overlay'))this.closeSettings()};$('#theme-btn').onclick=()=>this.toggleTheme();$('#collapse-sidebar').onclick=()=>this.toggleSidebar(true);$('#open-sidebar').onclick=()=>this.toggleSidebar(false);$('#workspace-btn').onclick=()=>this.selectWorkspace();const wsc=$('#workspace-clear-btn');if(wsc)wsc.onclick=()=>this.clearExternalWorkspace();const fb=$('#chat-files-btn');if(fb)fb.onclick=()=>this.openFiles();$('#files-fab')&&($('#files-fab').onclick=()=>this.openFiles());const hfb=$('#header-files-btn');if(hfb)hfb.onclick=()=>this.openFiles();$('#close-files').onclick=()=>$('#files-overlay').classList.remove('open');$('#files-overlay').onclick=e=>{if(e.target===$('#files-overlay'))$('#files-overlay').classList.remove('open')};$('#plugins-btn').onclick=()=>this.openPlugins();$('#close-plugins').onclick=()=>$('#plugins-overlay').classList.remove('open');$('#plugins-overlay').onclick=e=>{if(e.target===$('#plugins-overlay'))$('#plugins-overlay').classList.remove('open')};$('#new-plugin-btn').onclick=()=>this.editPlugin(null);$('#import-plugin-btn').onclick=()=>$('#import-plugin-file').click();$('#import-plugin-file').onchange=e=>this.importPlugin(e.target.files[0]);$('#save-plugin').onclick=()=>this.savePlugin();$('#cancel-plugin').onclick=()=>{$('#plugin-editor').style.display='none'};
-$('#model-btn').onclick=e=>{e.stopPropagation();this.toggleModelDropdown()};document.addEventListener('click',()=>this.closeModelDropdown());$('#model-search').oninput=e=>this.filterModels(e.target.value);$('#send-btn').onclick=()=>this.send();$('#stop-btn').onclick=()=>{try{this.app.agent.stop()}catch(e){}this._chatBusy=false;try{this.setSendLocked(false)}catch(e){}};$('#user-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();this.send()}};$('#user-input').oninput=()=>{this.autoResizeInput();$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length};$('#attach-btn').onclick=()=>$('#file-input').click();const cab=$('#code-attach-btn');if(cab)cab.onclick=()=>$('#file-input').click();const aab=$('#agent-attach-btn');if(aab)aab.onclick=()=>$('#file-input').click();$('#file-input').onchange=e=>this.handleFiles(e.target.files);
+$('#model-btn').onclick=e=>{e.stopPropagation();this.toggleModelDropdown()};document.addEventListener('click',()=>this.closeModelDropdown());$('#model-search').oninput=e=>this.filterModels(e.target.value);$('#send-btn').onclick=()=>this.send();$('#stop-btn').onclick=()=>{try{this.app.agent.stop()}catch(e){}this._chatBusy=false;try{this.setSendLocked(false)}catch(e){}};$('#user-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(this.isRateLimited&&this.isRateLimited()){const left=Math.max(1,Math.ceil((this._rateLimitUntil-Date.now())/1000));toast('Rate limited — try again in '+left+'s','error');return}if(this.isAppBusy&&this.isAppBusy()){toast('Wait for the current response to finish','info');return}this.send()}};$('#user-input').oninput=()=>{this.autoResizeInput();$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length};$('#attach-btn').onclick=()=>$('#file-input').click();const cab=$('#code-attach-btn');if(cab)cab.onclick=()=>$('#file-input').click();const aab=$('#agent-attach-btn');if(aab)aab.onclick=()=>$('#file-input').click();$('#file-input').onchange=e=>this.handleFiles(e.target.files);
 $$('.suggestion').forEach(btn=>{btn.onclick=()=>{$('#user-input').value=btn.dataset.prompt;$('#send-btn').disabled=false;this.autoResizeInput();this.send()}});
 $$('.preset-btn').forEach(btn=>{btn.onclick=()=>this.applyPreset(btn.dataset.preset)});
 $('#save-api').onclick=()=>this.saveApi();$('#discover-models').onclick=()=>this.discoverModels();const mab=$('#model-add-btn');if(mab)mab.onclick=()=>this.addModelId();$('#save-agent').onclick=()=>this.saveAgentSettings();
@@ -11058,7 +11189,7 @@ const gif=tp&&tp.querySelector('.tp-gif');if(gif){try{gif.style.animationPlaySta
 // Keep raw [[file:]] tokens in markdown path — renderMarkdown expands them to download chips
 this.revealAnswer(contentEl,this.renderMarkdown(ev.content||md||''));
 this.enhanceCodeBlocks(contentEl);if(this._renderMath)this._renderMath(contentEl);
-try{this.wireFileChips(contentEl)}catch(e){}
+try{this.wireFileChips(contentEl)}catch(e){}try{this.wireMessageMedia(contentEl)}catch(e){}
   if(this.mode==='code'||this.app.mode==='code'){
     try{this.saveCodeTranscript(true)}catch(e){}
     try{this.renderCodeFiles&&this.renderCodeFiles()}catch(e){}
@@ -11784,7 +11915,134 @@ deleteAiTurn(msgId){
 forgetAiTurn(msgId){this.deleteAiTurn(msgId)} /* alias */
 renderMessage(msg,isStreaming=false){const container=$('#messages');const div=document.createElement('div');div.className=`message ${msg.role}`;div.dataset.id=msg.id;const who=this.userLabel();const roleLabel=msg.role==='user'?who.label:'Think Deeper';const avatarText=msg.role==='user'?who.initial:'TD';let attachHtml='';if(msg.attachments?.length){attachHtml='<div class="attachments">';msg.attachments.forEach(a=>{if(a.dataUrl)attachHtml+=`<div class="attachment"><img src="${a.dataUrl}" alt=""></div>`;else attachHtml+=`<div class="attachment"><div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div></div>`});attachHtml+='</div>'}
 const bodyContent=msg.role==='user'?escapeHtml(this.visibleUserText(msg)).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
-div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.activities&&msg.activities.length){try{this.hydrateThoughts(div,msg)}catch(e){console.warn('hydrate',e)}}try{if(msg.role==='assistant'&&(msg.versions&&msg.versions.length))this.paintVersionNav(div,msg)}catch(e){}this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);try{this.wireFileChips(mb)}catch(e){}}if(msg.role==='assistant'&&msg.content&&!isStreaming)this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'assistant',text:msg.content});if(msg.role==='user')this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'user',text:msg.content||''});this.setupMessageSelection(div);this.scrollToBottom();return div}
+div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.activities&&msg.activities.length){try{this.hydrateThoughts(div,msg)}catch(e){console.warn('hydrate',e)}}try{if(msg.role==='assistant'&&(msg.versions&&msg.versions.length))this.paintVersionNav(div,msg)}catch(e){}this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);try{this.wireFileChips(mb)}catch(e){}try{this.wireMessageMedia(mb)}catch(e){}}if(msg.role==='assistant'&&msg.content&&!isStreaming)this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'assistant',text:msg.content});if(msg.role==='user')this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'user',text:msg.content||''});this.setupMessageSelection(div);this.scrollToBottom();return div}
+
+_imgFigureHtml(src,alt,credit){
+  return '<figure class="td-img-wrap"><img src="'+escapeHtml(src)+'" alt="'+escapeHtml(alt||'')+'" loading="lazy"/><button type="button" class="td-img-dl" title="Download" data-dl-src="'+escapeHtml(src)+'" data-dl-name="'+escapeHtml((alt||'image').replace(/\s+/g,'_').slice(0,40))+'.png" aria-label="Download">⬇</button></figure>'+(credit?('<div class="td-img-credit">'+credit+'</div>'):'');
+}
+_wrapAllImages(html){
+  let h=String(html||'');
+  h=h.replace(/<img\b([^>]*?)src=["']([^"']+)["']([^>]*)>/gi,(m,pre,src,post)=>{
+    if(/td-img-wrap|data-td-wrapped/i.test(m))return m;
+    if(/class=["'][^"']*td-/i.test(m))return m;
+    const alt=(m.match(/alt=["']([^"']*)["']/i)||[])[1]||'Image';
+    const title=(m.match(/title=["']([^"']*)["']/i)||[])[1]||'';
+    let credit='';
+    if(/^source:/i.test(title))credit='Source: '+title.replace(/^source:\s*/i,'');
+    return this._imgFigureHtml(src,alt,credit);
+  });
+  return h;
+}
+renderChartHtml(spec){
+  try{
+    const type=String(spec.type||'bar');
+    const labels=(spec.labels||[]).map(String);
+    const values=(spec.values||[]).map(Number);
+    const n=labels.length;
+    if(!n)return '<em>Empty chart</em>';
+    const colors=spec.colors&&spec.colors.length?spec.colors:['#3b82f6','#8b5cf6','#06b6d4','#10b981','#f59e0b','#ef4444','#ec4899','#6366f1'];
+    const title=escapeHtml(spec.title||'Chart');
+    const sub=escapeHtml(spec.subtitle||'');
+    const unit=escapeHtml(spec.unit||'');
+    const max=Math.max(...values.map(v=>Math.abs(v)||0),1);
+    const W=520,H=280,pad=40;
+    let svg='';
+    if(type==='pie'){
+      const sum=values.reduce((a,b)=>a+Math.max(0,b),0)||1;
+      let ang=-Math.PI/2;
+      const cx=W/2,cy=H/2,r=Math.min(W,H)/2-24;
+      svg='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">';
+      values.forEach((v,i)=>{
+        const slice=Math.max(0,v)/sum*Math.PI*2;
+        const x1=cx+r*Math.cos(ang),y1=cy+r*Math.sin(ang);
+        ang+=slice;
+        const x2=cx+r*Math.cos(ang),y2=cy+r*Math.sin(ang);
+        const large=slice>Math.PI?1:0;
+        svg+='<path d="M'+cx+' '+cy+' L'+x1+' '+y1+' A'+r+' '+r+' 0 '+large+' 1 '+x2+' '+y2+' Z" fill="'+colors[i%colors.length]+'"/>';
+      });
+      svg+='</svg>';
+    }else if(type==='line'){
+      const plotW=W-pad*2,plotH=H-pad*2;
+      const pts=values.map((v,i)=>{
+        const x=pad+(n===1?plotW/2:(i/(n-1))*plotW);
+        const y=pad+plotH-(Math.max(0,v)/max)*plotH;
+        return x+','+y;
+      });
+      svg='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">';
+      svg+='<polyline fill="none" stroke="'+colors[0]+'" stroke-width="2.5" points="'+pts.join(' ')+'"/>';
+      pts.forEach((p,i)=>{const [x,y]=p.split(',');svg+='<circle cx="'+x+'" cy="'+y+'" r="4" fill="'+colors[i%colors.length]+'"/>';});
+      labels.forEach((lb,i)=>{
+        const x=pad+(n===1?plotW/2:(i/(n-1))*plotW);
+        svg+='<text x="'+x+'" y="'+(H-10)+'" text-anchor="middle" font-size="11" fill="#94a3b8">'+escapeHtml(lb.slice(0,12))+'</text>';
+      });
+      svg+='</svg>';
+    }else{
+      const plotW=W-pad*2,plotH=H-pad*2;
+      const gap=6;
+      const bw=Math.max(8,(plotW-(n-1)*gap)/n);
+      svg='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">';
+      values.forEach((v,i)=>{
+        const h=(Math.max(0,v)/max)*plotH;
+        const x=pad+i*(bw+gap);
+        const y=pad+plotH-h;
+        svg+='<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+h+'" rx="4" fill="'+colors[i%colors.length]+'"/>';
+        svg+='<text x="'+(x+bw/2)+'" y="'+(H-10)+'" text-anchor="middle" font-size="11" fill="#94a3b8">'+escapeHtml(String(labels[i]).slice(0,10))+'</text>';
+      });
+      svg+='</svg>';
+    }
+    const legend=labels.map((lb,i)=>'<span><i style="background:'+colors[i%colors.length]+'"></i>'+escapeHtml(lb)+(unit?(' ('+values[i]+unit+')'):(' · '+values[i]))+'</span>').join('');
+    return '<div class="td-chart-card"><div class="td-chart-title">'+title+'</div>'+(sub?'<div class="td-chart-sub">'+sub+'</div>':'')+svg+'<div class="td-chart-legend">'+legend+'</div></div>';
+  }catch(e){return '<em>Chart failed</em>'}
+}
+renderVisualCardHtml(path){
+  const rp=String(path||'');
+  return '<div class="td-visual-card" data-visual-path="'+escapeHtml(rp)+'"><button type="button" class="td-vis-play" title="Pause/Play" data-vis-toggle="1">❚❚</button><iframe sandbox="allow-scripts allow-forms allow-modals" title="Visual" data-visual-frame="1"></iframe></div>';
+}
+_enhanceLinksAndImages(html){return String(html||'')}
+wireMessageMedia(root){
+  if(!root)return;
+  root.querySelectorAll('.td-img-dl').forEach(btn=>{
+    if(btn.dataset.wired==='1')return;btn.dataset.wired='1';
+    btn.onclick=e=>{
+      e.preventDefault();e.stopPropagation();
+      const src=btn.getAttribute('data-dl-src')||'';
+      const name=btn.getAttribute('data-dl-name')||'image.png';
+      try{const a=document.createElement('a');a.href=src;a.download=name;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();a.remove()}catch(err){toast('Download failed','error')}
+    };
+  });
+  root.querySelectorAll('.td-img-wrap img').forEach(img=>{
+    if(img.dataset.zoomWired==='1')return;img.dataset.zoomWired='1';
+    img.onclick=()=>{
+      try{
+        const ov=document.createElement('div');
+        ov.style.cssText='position:fixed;inset:0;z-index:15000;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out';
+        ov.innerHTML='<img src="'+img.src.replace(/"/g,'&quot;')+'" style="max-width:96vw;max-height:92vh;border-radius:12px"/>';
+        ov.onclick=()=>ov.remove();
+        document.body.appendChild(ov);
+      }catch(e){}
+    };
+  });
+  root.querySelectorAll('.td-visual-card').forEach(card=>{
+    if(card.dataset.wired==='1')return;card.dataset.wired='1';
+    const path=card.getAttribute('data-visual-path');
+    const frame=card.querySelector('iframe');
+    const play=card.querySelector('.td-vis-play');
+    try{
+      if(path&&this.app.vfs){
+        let html=String(this.app.vfs.read(path)||'');
+        if(!html){card.classList.add('working');card.innerHTML='<div class="td-vis-ph"></div>';}
+        else if(frame)frame.srcdoc=html;
+      }
+    }catch(e){}
+    if(play)play.onclick=e=>{
+      e.preventDefault();
+      const fr=card.querySelector('iframe');
+      if(!fr)return;
+      if(fr.style.visibility==='hidden'){fr.style.visibility='visible';play.textContent='❚❚'}
+      else{fr.style.visibility='hidden';play.textContent='▶'}
+    };
+  });
+}
 renderMarkdown(text){
   if(!text)return '';
   let t=String(text);
@@ -11816,10 +12074,21 @@ renderMarkdown(text){
   t=t.replace(/!\[([^\]]*)\]\((generated\/[^)]+)\)/g,(m,alt,path)=>{
     try{
       const file=this.app.vfs.read(path);
-      if(file&&String(file).startsWith('data:image'))return '<img alt="'+escapeHtml(alt||'')+'" src="'+file+'" style="max-width:100%;border-radius:12px">';
-      if(/^https?:/.test(file))return '<img alt="'+escapeHtml(alt||'')+'" src="'+escapeHtml(file)+'" style="max-width:100%;border-radius:12px">';
+      if(file&&String(file).startsWith('data:image'))return pushChip(this._imgFigureHtml(file,alt||'Generated image',''));
+      if(/^https?:/.test(file))return pushChip(this._imgFigureHtml(file,alt||'Generated image',''));
     }catch(e){}
     return m;
+  });
+  // Charts: [[chart:{...json...}]]
+  t=t.replace(/\[\[chart:(\{[\s\S]*?\})\]\]/g,(_,json)=>{
+    try{return pushChip(this.renderChartHtml(JSON.parse(json)))}catch(e){return '<em>Chart error</em>'}
+  });
+  // Visual HTML previews: [[visual:path]]
+  t=t.replace(/\[\[visual:([^\]]+)\]\]/g,(_,p)=>{
+    try{
+      const rp=(this.app.vfs&&this.app.vfs.resolve)?(this.app.vfs.resolve(p)||p):p;
+      return pushChip(this.renderVisualCardHtml(rp));
+    }catch(e){return _}
   });
   const fences=[];
   t=t.replace(/```[\s\S]*?```/g,(m)=>{fences.push(m);return '%%FENCE'+(fences.length-1)+'%%'});
@@ -11847,7 +12116,7 @@ renderMarkdown(text){
       out=marked.parse(t);
     }else out=this.builtinMarkdown(t);
   }catch(e){out=this.builtinMarkdown(t)}
-  try{out=this._enhanceLinksAndImages(out)}catch(e){}
+  try{out=this._enhanceLinksAndImages(out)}catch(e){} try{out=this._wrapAllImages(out)}catch(e){}
   out=out.replace(/%%MATH(\d+)%%/g,(_,n)=>this._katexHTML(maths[Number(n)]));
   out=String(out||'').replace(/%%CHIP(\d+)%%/g,(_,n)=>chips[Number(n)]||'');
   return out;
