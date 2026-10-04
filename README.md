@@ -47,8 +47,7 @@
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="docs/screenshots/03-projects.png" alt="Code workspace with live preview" width="100%">
-      <br><sub><b>Projects</b> — preview, file tree, Monaco</sub>
+      <img src="Images/Projects" alt="Code workspace with live preview" width="100%">
     </td>
     <td align="center" width="50%">
       <img src="docs/screenshots/04-agent-team.png" alt="Supervisor agent team" width="100%">
