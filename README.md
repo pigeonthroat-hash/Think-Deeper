@@ -39,7 +39,7 @@
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="Images/Chat Interface" alt="Chat mode — empty state and suggestions" width="100%">
+      <img src="Images/Chat interface" alt="Chat mode — empty state and suggestions" width="100%">
     </td>
     <td align="center" width="50%">
       <img src="Images/Thinking" alt="Thought process and tool activity" width="100%">
