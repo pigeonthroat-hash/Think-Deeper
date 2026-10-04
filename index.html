@@ -6375,7 +6375,7 @@ let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memor
 let toolCalls=0,finalContent='',iteration=0;
 try{while(iteration<maxIter&&this.running){if(!this.running)break;if(Date.now()-start>maxMs){console.warn("[Agent] time budget");break;}if(toolCalls>=maxTools){console.warn("[Agent] tool budget");break;}
 iteration++;
-console.log('[Agent] iteration',iteration,'/',hardMax,'toolCalls so far',toolCalls);
+console.log('[Agent] iteration',iteration,'/',maxIter,'toolCalls so far',toolCalls);
 onEvent({type:'iteration',current:iteration,max:0});onEvent({type:'status',text:`Reasoning cycle ${iteration}`});
 let response;
 const doChat=async(withTools)=>{
@@ -7444,9 +7444,9 @@ async regenerateLast(){
   $('#stop-btn').classList.add('visible');$('#send-btn').style.display='none';$('#send-btn').disabled=true;
   const inten=this.getIntensity();
   const prevSettings={...this.app.agent.settings};
-  this.app.agent.settings.maxIterations=Number.POSITIVE_INFINITY;
-  this.app.agent.settings.maxTools=Number.POSITIVE_INFINITY;
-  this.app.agent.settings.maxTime=Number.POSITIVE_INFINITY;
+  this.app.agent.settings.maxIterations=Math.max(8, Number(inten.maxIterations)||24);
+  this.app.agent.settings.maxTools=Math.max(12, Number(inten.maxTools)||32);
+  this.app.agent.settings.maxTime=Math.max(60, Number(inten.maxTime)||300);
   this.app.agent.temperature=inten.temperature;
   this.app.agent.maxTokens=inten.maxTokens||4000;
   this.app.agent.intensityExtra=inten.extra;
@@ -10905,9 +10905,9 @@ try{this.app.storage.set('chatRunState',{v:1,ts:Date.now(),alive:true,convId:con
 const history=conv.messages.filter(m=>m.id!==aiMsg.id);
 const inten=this.getIntensity();
 const prevSettings={...this.app.agent.settings};
-this.app.agent.settings.maxIterations=Number.POSITIVE_INFINITY;
-this.app.agent.settings.maxTools=Number.POSITIVE_INFINITY;
-this.app.agent.settings.maxTime=Number.POSITIVE_INFINITY;
+this.app.agent.settings.maxIterations=Math.max(8, Number(inten.maxIterations)||24);
+this.app.agent.settings.maxTools=Math.max(12, Number(inten.maxTools)||32);
+this.app.agent.settings.maxTime=Math.max(60, Number(inten.maxTime)||300);
 this.app.agent.temperature=inten.temperature;
 this.app.agent.projectCtx=this.projectContext();this.app.agent.intensityExtra=inten.extra+(inten.ultraSkills?'\nULTRA: use tools heavily, verify, and do not stop early. Stay in this single response — no separate team agents in normal chat.':'');
 try{
