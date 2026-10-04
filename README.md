@@ -39,12 +39,10 @@
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="docs/screenshots/01-chat.png" alt="Chat mode — empty state and suggestions" width="100%">
-      <br><sub><b>Chat</b> — empty state, Deep Think, intensity picker</sub>
+      <img src="Images/Chat Interface" alt="Chat mode — empty state and suggestions" width="100%">
     </td>
     <td align="center" width="50%">
-      <img src="docs/screenshots/02-agent-tools.png" alt="Thought process and tool activity" width="100%">
-      <br><sub><b>Thought process</b> — tool calls, file writes, Python</sub>
+      <img src="Images/Thinking" alt="Thought process and tool activity" width="100%">
     </td>
   </tr>
   <tr>
