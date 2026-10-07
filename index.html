@@ -2388,6 +2388,7 @@ body.mode-canvas .sidebar-footer.collapsed{
 <div class="btn-row" style="flex-wrap:wrap;gap:8px;align-items:center">
 <input type="text" id="snd-test-prompt" placeholder='I want to make a sound of a person saying: hello world' style="flex:1;min-width:180px">
 <button type="button" class="btn-primary" id="snd-test-go">Generate sound</button>
+<button type="button" class="btn-secondary" id="snd-test-replay" disabled>Replay</button>
 <button type="button" class="btn-secondary" id="snd-test-stop">Stop</button>
 </div>
 <div class="hint" id="snd-test-status" style="margin-top:6px"></div>
@@ -14305,6 +14306,8 @@ _bindDevPanelOnce(){
   if(sndGo)sndGo.onclick=()=>this.runSoundTest();
   const sndStop=$('#snd-test-stop');
   if(sndStop)sndStop.onclick=()=>{try{this._stopSoundTest&&this._stopSoundTest()}catch(e){}};
+  const sndReplay=$('#snd-test-replay');
+  if(sndReplay)sndReplay.onclick=()=>this.replaySoundTest();
 }
 async runImageTest(){
   const prompt=($('#img-test-prompt')?.value||'').trim()||'a simple landscape with a sun';
@@ -14316,28 +14319,26 @@ async runImageTest(){
   }
   if(st)st.textContent='Planning scene…';
   try{
-    const sys='You design a 1280x720 image as JSON only. No markdown. Schema:{"bg":[r,g,b],"shapes":[{"type":"rect|circle|ellipse|tri","x":0-1280,"y":0-720,"w":n,"h":n,"r":n,"color":[r,g,b],"alpha":0-1}],"special_pixels":[{"x":n,"y":n,"color":[r,g,b]}],"notes":"short"}. Use 8-25 shapes. special_pixels max 40 for highlights. RGB 0-255 integers.';
+    const sys='Return ONLY valid compact JSON (no markdown, no comments, no trailing commas). Schema: {"bg":[r,g,b],"shapes":[{"type":"rect","x":0,"y":0,"w":10,"h":10,"color":[r,g,b],"alpha":1}],"special_pixels":[{"x":0,"y":0,"color":[r,g,b]}],"notes":""}. Canvas 1280x720. 8-20 shapes. special_pixels max 30. RGB integers 0-255. type one of rect,circle,ellipse,tri.';
     const data=await this.app.provider.chat([
       {role:'system',content:sys},
       {role:'user',content:'Draw plan for: '+prompt}
-    ],{temperature:0.4,maxTokens:1200});
+    ],{temperature:0.3,maxTokens:1000});
     let raw=((data.choices||[])[0]?.message?.content)||'';
-    raw=String(raw).replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
-    let plan;
-    try{plan=JSON.parse(raw)}catch(e){
-      const m=raw.match(/\{[\s\S]*\}/);
-      if(m)plan=JSON.parse(m[0]); else throw new Error('Model did not return JSON plan');
-    }
+    const plan=this._parseLooseJSON(raw);
+    if(!plan||typeof plan!=='object')throw new Error('Model did not return a usable JSON plan');
     if(st)st.textContent='Rasterizing 1280×720…';
     await new Promise(r=>requestAnimationFrame(r));
     const ctx=canvas.getContext('2d');
     const W=1280,H=720;
-    const bg=plan.bg||[20,24,40];
-    ctx.fillStyle='rgb('+bg.map(x=>x|0).join(',')+')';
+    const bg=Array.isArray(plan.bg)?plan.bg:[20,24,40];
+    ctx.globalAlpha=1;
+    ctx.fillStyle='rgb('+(bg[0]|0)+','+(bg[1]|0)+','+(bg[2]|0)+')';
     ctx.fillRect(0,0,W,H);
     const shapes=Array.isArray(plan.shapes)?plan.shapes:[];
     for(const s of shapes){
-      const c=s.color||[200,200,200];
+      if(!s||typeof s!=='object')continue;
+      const c=Array.isArray(s.color)?s.color:[200,200,200];
       const a=typeof s.alpha==='number'?s.alpha:1;
       ctx.globalAlpha=Math.max(0,Math.min(1,a));
       ctx.fillStyle='rgb('+(c[0]|0)+','+(c[1]|0)+','+(c[2]|0)+')';
@@ -14345,7 +14346,7 @@ async runImageTest(){
       if(t==='circle'){
         ctx.beginPath();ctx.arc(+s.x||0,+s.y||0,+(s.r||s.w||20),0,Math.PI*2);ctx.fill();
       }else if(t==='ellipse'){
-        ctx.beginPath();ctx.ellipse(+s.x||0,+s.y||0,+(s.w||40)/2,+(s.h||20)/2,0,0,Math.PI*2);ctx.fill();
+        ctx.beginPath();ctx.ellipse(+s.x||0,+s.y||0,Math.max(1,+(s.w||40)/2),Math.max(1,+(s.h||20)/2),0,0,Math.PI*2);ctx.fill();
       }else if(t==='tri'){
         const x=+s.x||0,y=+s.y||0,w=+s.w||40,h=+s.h||40;
         ctx.beginPath();ctx.moveTo(x,y+h);ctx.lineTo(x+w/2,y);ctx.lineTo(x+w,y+h);ctx.closePath();ctx.fill();
@@ -14354,18 +14355,20 @@ async runImageTest(){
       }
     }
     ctx.globalAlpha=1;
-    // Special pixels (AI detail)
-    const img=ctx.getImageData(0,0,W,H);
-    const px=img.data;
-    for(const p of (plan.special_pixels||[]).slice(0,80)){
-      const x=Math.max(0,Math.min(W-1,p.x|0));
-      const y=Math.max(0,Math.min(H-1,p.y|0));
-      const i=(y*W+x)*4;
-      const c=p.color||[255,255,255];
-      px[i]=c[0]|0;px[i+1]=c[1]|0;px[i+2]=c[2]|0;px[i+3]=255;
-    }
-    ctx.putImageData(img,0,0);
-    if(st)st.textContent='Done · '+(shapes.length)+' shapes · '+((plan.special_pixels||[]).length)+' special pixels · '+(plan.notes||'');
+    try{
+      const img=ctx.getImageData(0,0,W,H);
+      const px=img.data;
+      for(const p of (Array.isArray(plan.special_pixels)?plan.special_pixels:[]).slice(0,80)){
+        if(!p)continue;
+        const x=Math.max(0,Math.min(W-1,p.x|0));
+        const y=Math.max(0,Math.min(H-1,p.y|0));
+        const i=(y*W+x)*4;
+        const c=Array.isArray(p.color)?p.color:[255,255,255];
+        px[i]=c[0]|0;px[i+1]=c[1]|0;px[i+2]=c[2]|0;px[i+3]=255;
+      }
+      ctx.putImageData(img,0,0);
+    }catch(e){console.warn('special pixels',e)}
+    if(st)st.textContent='Done · '+shapes.length+' shapes · '+((plan.special_pixels||[]).length)+' special pixels · '+(plan.notes||'');
     toast('Image rasterized','success');
   }catch(e){
     console.error(e);
@@ -14373,78 +14376,199 @@ async runImageTest(){
     toast(e.message||'Image test failed','error');
   }
 }
+_parseLooseJSON(raw){
+  let s=String(raw||'').trim();
+  s=s.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
+  // strip trailing commas before } or ]
+  const tryParse=(x)=>{try{return JSON.parse(x)}catch(e){return null}};
+  let plan=tryParse(s);
+  if(plan)return plan;
+  // extract first balanced object
+  const start=s.indexOf('{');
+  if(start>=0){
+    let depth=0,end=-1;
+    for(let i=start;i<s.length;i++){
+      const ch=s[i];
+      if(ch==='{')depth++;
+      else if(ch==='}'){depth--;if(depth===0){end=i;break}}
+    }
+    if(end>start){
+      let slice=s.slice(start,end+1);
+      plan=tryParse(slice);
+      if(plan)return plan;
+      // repair common model mistakes
+      slice=slice.replace(/,\s*([}\]])/g,'$1');
+      slice=slice.replace(/'/g,'"');
+      slice=slice.replace(/(\{|\,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g,'$1"$2":');
+      plan=tryParse(slice);
+      if(plan)return plan;
+    }
+  }
+  return null;
+}
+_playSoundPlan(plan,st){
+  if(!plan||typeof plan!=='object')throw new Error('No sound plan');
+  try{this._stopSoundTest&&this._stopSoundTest()}catch(e){}
+  const AC=window.AudioContext||window.webkitAudioContext;
+  if(!AC)throw new Error('Web Audio not supported');
+  const ctx=new AC();
+  this._sndCtx=ctx;
+  // Resume required by some browsers after user gesture
+  try{ctx.resume&&ctx.resume()}catch(e){}
+  const dur=Math.max(0.3,Math.min(10,Number(plan.duration_sec)||2));
+  const tracks=Array.isArray(plan.tracks)?plan.tracks:[];
+  const master=ctx.createGain();
+  master.gain.value=0.9;
+  master.connect(ctx.destination);
+  const stoppers=[];
+  const t0=ctx.currentTime+0.08;
+  if(!tracks.length){
+    // fallback beep so something always plays
+    tracks.push({wave:'sine',hz:440,start:0,end:Math.min(0.4,dur),gain:0.12});
+  }
+  for(const tr of tracks){
+    if(!tr)continue;
+    const osc=ctx.createOscillator();
+    const g=ctx.createGain();
+    const wave=String(tr.wave||'sine').toLowerCase();
+    osc.type=(['sine','square','triangle','sawtooth'].includes(wave)?wave:'sine');
+    const hz=Math.max(40,Math.min(4000,Number(tr.hz)||440));
+    const s=t0+Math.max(0,Number(tr.start)||0);
+    const e=t0+Math.max(Number(tr.start)||0, Number(tr.end)!=null?Number(tr.end):dur);
+    osc.frequency.setValueAtTime(hz,s);
+    if(tr.slide_to_hz!=null){
+      osc.frequency.linearRampToValueAtTime(Math.max(40,Math.min(4000,+tr.slide_to_hz)), e);
+    }
+    const gain=Math.max(0.02,Math.min(0.28,Number(tr.gain)||0.1));
+    g.gain.setValueAtTime(0,s);
+    g.gain.linearRampToValueAtTime(gain,s+0.02);
+    g.gain.setValueAtTime(gain,Math.max(s+0.03,e-0.06));
+    g.gain.linearRampToValueAtTime(0,e);
+    osc.connect(g);g.connect(master);
+    osc.start(s);osc.stop(e+0.02);
+    stoppers.push(osc);
+  }
+  // Also render offline buffer → <audio> for reliable replay
+  this._renderSoundToAudioEl(plan,dur).catch(()=>{});
+  this._stopSoundTest=()=>{
+    try{stoppers.forEach(o=>{try{o.stop()}catch(e){}})}catch(e){}
+    try{window.speechSynthesis&&window.speechSynthesis.cancel()}catch(e){}
+    try{this._sndCtx&&this._sndCtx.close()}catch(e){}
+    this._sndCtx=null;
+    try{const a=$('#snd-test-audio');if(a){a.pause();}}catch(e){}
+  };
+  const speech=plan.speech;
+  if(speech&&speech.text&&window.speechSynthesis){
+    const u=new SpeechSynthesisUtterance(String(speech.text).slice(0,300));
+    u.rate=Math.max(0.7,Math.min(1.4,Number(speech.rate)||1));
+    u.pitch=Math.max(0.6,Math.min(1.6,Number(speech.pitch)||1));
+    try{window.speechSynthesis.cancel()}catch(e){}
+    // slight delay so tones and speech don't always collide at t=0
+    setTimeout(()=>{try{window.speechSynthesis.speak(u)}catch(e){}}, 120);
+  }
+  this._lastSoundPlan=plan;
+  if(st)st.textContent='Playing ~'+dur.toFixed(1)+'s · '+tracks.length+' track(s)'+(speech&&speech.text?' · speech: "'+String(speech.text).slice(0,40)+'"':'')+' · '+(plan.notes||'');
+  const replay=$('#snd-test-replay');if(replay)replay.disabled=false;
+  setTimeout(()=>{try{if(this._sndCtx){/* leave open for residual */}}catch(e){}}, (dur+0.8)*1000);
+}
+async _renderSoundToAudioEl(plan,dur){
+  try{
+    const Offline=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+    if(!Offline)return;
+    const sr=44100;
+    const len=Math.ceil(sr*(dur+0.15));
+    const octx=new Offline(1,len,sr);
+    const tracks=Array.isArray(plan.tracks)?plan.tracks:[];
+    const list=tracks.length?tracks:[{wave:'sine',hz:440,start:0,end:Math.min(0.4,dur),gain:0.12}];
+    for(const tr of list){
+      if(!tr)continue;
+      const osc=octx.createOscillator();
+      const g=octx.createGain();
+      const wave=String(tr.wave||'sine').toLowerCase();
+      osc.type=(['sine','square','triangle','sawtooth'].includes(wave)?wave:'sine');
+      const hz=Math.max(40,Math.min(4000,Number(tr.hz)||440));
+      const s=Math.max(0,Number(tr.start)||0);
+      const e=Math.max(s, Number(tr.end)!=null?Number(tr.end):dur);
+      osc.frequency.setValueAtTime(hz,s);
+      if(tr.slide_to_hz!=null)osc.frequency.linearRampToValueAtTime(Math.max(40,Math.min(4000,+tr.slide_to_hz)),e);
+      const gain=Math.max(0.02,Math.min(0.28,Number(tr.gain)||0.1));
+      g.gain.setValueAtTime(0,s);
+      g.gain.linearRampToValueAtTime(gain,s+0.02);
+      g.gain.setValueAtTime(gain,Math.max(s+0.03,e-0.06));
+      g.gain.linearRampToValueAtTime(0,e);
+      osc.connect(g);g.connect(octx.destination);
+      osc.start(s);osc.stop(e+0.02);
+    }
+    const rendered=await octx.startRendering();
+    // Encode WAV
+    const ch=rendered.getChannelData(0);
+    const buf=new ArrayBuffer(44+ch.length*2);
+    const v=new DataView(buf);
+    const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
+    w(0,'RIFF');v.setUint32(4,36+ch.length*2,true);w(8,'WAVE');w(12,'fmt ');
+    v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+    v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);
+    w(36,'data');v.setUint32(40,ch.length*2,true);
+    let off=44;
+    for(let i=0;i<ch.length;i++,off+=2){
+      const s=Math.max(-1,Math.min(1,ch[i]));
+      v.setInt16(off,s<0?s*0x8000:s*0x7fff,true);
+    }
+    const blob=new Blob([buf],{type:'audio/wav'});
+    const url=URL.createObjectURL(blob);
+    let a=$('#snd-test-audio');
+    if(!a){
+      a=document.createElement('audio');
+      a.id='snd-test-audio';
+      a.controls=true;
+      a.style.cssText='width:100%;margin-top:8px';
+      const box=$('#sound-test-box');
+      if(box)box.appendChild(a);
+    }
+    try{if(a._objUrl)URL.revokeObjectURL(a._objUrl)}catch(e){}
+    a._objUrl=url;
+    a.src=url;
+    a.load();
+  }catch(e){console.warn('wav render',e)}
+}
 async runSoundTest(){
   const prompt=($('#snd-test-prompt')?.value||'').trim()||'a short rising beep then a soft tone';
   const st=$('#snd-test-status');
   if(!this.app.provider||!String(this.app.provider.config?.apiKey||'').trim()){
     toast('Set API key in Settings','error');return;
   }
-  try{this._stopSoundTest&&this._stopSoundTest()}catch(e){}
   if(st)st.textContent='Designing sound…';
   try{
-    const sys='You design short audio as JSON only. Schema:{"duration_sec":1-8,"tracks":[{"wave":"sine|square|triangle|sawtooth","hz":number,"start":0,"end":sec,"gain":0-0.3,"slide_to_hz":optional}],"speech":{"text":"optional words to speak","rate":0.8-1.2,"pitch":0.8-1.2},"notes":"short"}. Prefer 2-6 tracks. For human speech requests fill speech.text. No markdown.';
+    const sys='Return ONLY valid compact JSON (no markdown, no comments, no trailing commas). Schema: {"duration_sec":2,"tracks":[{"wave":"sine","hz":440,"start":0,"end":1,"gain":0.1}],"speech":{"text":"","rate":1,"pitch":1},"notes":""}. duration_sec 1-8. 2-6 tracks. wave: sine|square|triangle|sawtooth. For spoken words set speech.text.';
     const data=await this.app.provider.chat([
       {role:'system',content:sys},
       {role:'user',content:prompt}
-    ],{temperature:0.5,maxTokens:800});
+    ],{temperature:0.4,maxTokens:700});
     let raw=((data.choices||[])[0]?.message?.content)||'';
-    raw=String(raw).replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
-    let plan;
-    try{plan=JSON.parse(raw)}catch(e){
-      const m=raw.match(/\{[\s\S]*\}/);
-      if(m)plan=JSON.parse(m[0]); else throw new Error('Model did not return JSON audio plan');
-    }
-    const AC=window.AudioContext||window.webkitAudioContext;
-    if(!AC)throw new Error('Web Audio not supported');
-    const ctx=new AC();
-    this._sndCtx=ctx;
-    const dur=Math.max(0.3,Math.min(10,Number(plan.duration_sec)||2));
-    const tracks=Array.isArray(plan.tracks)?plan.tracks:[];
-    const stoppers=[];
-    const t0=ctx.currentTime+0.05;
-    for(const tr of tracks){
-      const osc=ctx.createOscillator();
-      const g=ctx.createGain();
-      osc.type=(['sine','square','triangle','sawtooth'].includes(tr.wave)?tr.wave:'sine');
-      const hz=Math.max(40,Math.min(4000,Number(tr.hz)||440));
-      osc.frequency.setValueAtTime(hz,t0+(Number(tr.start)||0));
-      if(tr.slide_to_hz!=null){
-        osc.frequency.linearRampToValueAtTime(Math.max(40,Math.min(4000,+tr.slide_to_hz)), t0+(Number(tr.end)||dur));
-      }
-      const gain=Math.max(0.01,Math.min(0.25,Number(tr.gain)||0.08));
-      const s=t0+(Number(tr.start)||0);
-      const e=t0+(Number(tr.end)||dur);
-      g.gain.setValueAtTime(0,s);
-      g.gain.linearRampToValueAtTime(gain,s+0.03);
-      g.gain.setValueAtTime(gain,Math.max(s+0.05,e-0.08));
-      g.gain.linearRampToValueAtTime(0,e);
-      osc.connect(g);g.connect(ctx.destination);
-      osc.start(s);osc.stop(e+0.05);
-      stoppers.push(osc);
-    }
-    this._stopSoundTest=()=>{
-      try{stoppers.forEach(o=>{try{o.stop()}catch(e){}})}catch(e){}
-      try{this._sndCtx&&this._sndCtx.close()}catch(e){}
-      this._sndCtx=null;
-      if(st)st.textContent='Stopped';
-    };
-    // Speech plugin (browser TTS) when model requests spoken words
-    const speech=plan.speech;
-    if(speech&&speech.text&&window.speechSynthesis){
-      const u=new SpeechSynthesisUtterance(String(speech.text).slice(0,300));
-      u.rate=Math.max(0.7,Math.min(1.4,Number(speech.rate)||1));
-      u.pitch=Math.max(0.6,Math.min(1.6,Number(speech.pitch)||1));
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
-    }
-    if(st)st.textContent='Playing ~'+dur.toFixed(1)+'s · '+tracks.length+' tracks'+(speech&&speech.text?' · speech: "'+String(speech.text).slice(0,40)+'"':'')+' · '+(plan.notes||'');
+    const plan=this._parseLooseJSON(raw);
+    if(!plan)throw new Error('Model did not return a usable JSON audio plan');
+    this._playSoundPlan(plan,st);
     toast('Sound playing','success');
-    setTimeout(()=>{try{this._stopSoundTest&&this._sndCtx&&this._sndCtx.state!=='closed'&&(this._stopSoundTest(),st&&(st.textContent+=' · finished'))}catch(e){}}, (dur+0.6)*1000);
   }catch(e){
     console.error(e);
     if(st)st.textContent='Error: '+(e.message||e);
     toast(e.message||'Sound test failed','error');
   }
+}
+replaySoundTest(){
+  const st=$('#snd-test-status');
+  if(!this._lastSoundPlan){
+    // Prefer audio element if we have a rendered wav
+    const a=$('#snd-test-audio');
+    if(a&&a.src){a.currentTime=0;a.play().catch(()=>{});if(st)st.textContent='Replaying from buffer…';return}
+    toast('Generate a sound first','info');return;
+  }
+  try{
+    this._playSoundPlan(this._lastSoundPlan,st);
+    const a=$('#snd-test-audio');
+    if(a&&a.src){a.currentTime=0;a.play().catch(()=>{})}
+    toast('Replaying','success');
+  }catch(e){toast(e.message||String(e),'error')}
 }
 startAgenticTest(count){
   try{
