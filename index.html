@@ -2372,6 +2372,26 @@ body.mode-canvas .sidebar-footer.collapsed{
 <div class="hint" style="margin-top:10px">Per-agent containers</div>
 <div class="at-agent-grid" id="at-agent-grid"></div>
 </div>
+<div class="form-group agentic-test" id="image-test-box">
+<h3>Image Testing</h3>
+<p class="hint" style="margin:0 0 8px">AI plans a scene; a fast pixel engine fills a 1280×720 canvas. Special detail pixels come from the model. Plugin: <code>pixel_draw</code>.</p>
+<div class="btn-row" style="flex-wrap:wrap;gap:8px;align-items:center">
+<input type="text" id="img-test-prompt" placeholder="e.g. a red sailboat on a calm blue lake at sunset" style="flex:1;min-width:180px">
+<button type="button" class="btn-primary" id="img-test-go">Draw 720p</button>
+</div>
+<canvas id="img-test-canvas" width="1280" height="720" style="width:100%;max-width:100%;margin-top:10px;border-radius:10px;border:1px solid var(--border);background:#111;aspect-ratio:16/9"></canvas>
+<div class="hint" id="img-test-status" style="margin-top:6px"></div>
+</div>
+<div class="form-group agentic-test" id="sound-test-box">
+<h3>Sound Testing</h3>
+<p class="hint" style="margin:0 0 8px">AI designs frequency / envelope tracks. Synth plays them in-browser. Optional speech line uses the voice plugin. Plugin: <code>tone_synth</code> + <code>speak_line</code>.</p>
+<div class="btn-row" style="flex-wrap:wrap;gap:8px;align-items:center">
+<input type="text" id="snd-test-prompt" placeholder='I want to make a sound of a person saying: hello world' style="flex:1;min-width:180px">
+<button type="button" class="btn-primary" id="snd-test-go">Generate sound</button>
+<button type="button" class="btn-secondary" id="snd-test-stop">Stop</button>
+</div>
+<div class="hint" id="snd-test-status" style="margin-top:6px"></div>
+</div>
 <div class="btn-row"><button type="button" class="btn-secondary" id="dev-panel-cancel">Cancel</button><button type="button" class="btn-primary" id="dev-panel-save">Save system defaults</button></div>
 </div></div></div>
 <div id="version-overlay" aria-hidden="true">
@@ -6339,7 +6359,7 @@ class AgenticTestHarness{
     this._queue=[];
     this._inflight=0;
     this._conc=1; // hard throttle to avoid 429
-    this._gapMs=2500;
+    this._gapMs=3500; // avoid instant quota burns
     this._lastApi=0;
     this._abort=null;
     this.board=[]; // shared notebook entries {from,id,text,ts}
@@ -6361,9 +6381,9 @@ class AgenticTestHarness{
     return seedTagged;
   }
   chatCenterBlock(){
-    const lines=(this.board||[]).slice(-12).map(b=>b.tagged);
-    if(!lines.length)return '[CHAT CENTER]\n(empty — posting via write_message is optional)';
-    return '[CHAT CENTER — read-only feed; posting optional]\n'+lines.join('\n');
+    const lines=(this.board||[]).slice(-16).map(b=>'GROUPCHAT: '+b.tagged);
+    if(!lines.length)return 'GROUPCHAT: (empty — you may write_message to join the group chat; optional)\nIf you see GROUPCHAT lines, you can reply with write_message.';
+    return 'GROUPCHAT feed (shared channel — reply with write_message if useful; optional)\n'+lines.join('\n')+'\n(End GROUPCHAT. Use reason_answer to think privately.)';
   }
   paint(){
     try{
@@ -6593,8 +6613,21 @@ class AgenticTestHarness{
           if(e&&e.name==='AbortError')throw e;
           const msg=String(e&&e.message||e);
           if(/429|rate|quota|TPM|resource_exhausted/i.test(msg)||e.rateLimit){
-            const sec=Math.min(60,Math.max(3,Number(e.waitSec)||(5+attempt*5)));
-            this.log('sys','Throttle: waiting '+sec+'s (attempt '+(attempt+1)+')');
+            // Never trust multi-hour retry-after; hard-cap agentic waits
+            let sec=Number(e.waitSec);
+            if(!isFinite(sec)||sec<=0){
+              const m=msg.match(/(\d+(?:\.\d+)?)\s*(ms|s|sec|seconds|m|min)/i);
+              if(m){
+                sec=parseFloat(m[1]);
+                const u=(m[2]||'s').toLowerCase();
+                if(u.startsWith('ms'))sec=sec/1000;
+                else if(u.startsWith('m'))sec=sec*60;
+              }else sec=5+attempt*4;
+            }
+            if(sec>120)sec=Math.min(45,sec/1000); // likely ms misread
+            sec=Math.min(30,Math.max(2,Math.ceil(sec)));
+            this.log('sys','Throttle: waiting '+sec+'s (attempt '+(attempt+1)+') — not arming global quota lock');
+            this._gapMs=Math.min(8000, (this._gapMs||2500)+500);
             await new Promise(r=>setTimeout(r,sec*1000));
             continue;
           }
@@ -6637,8 +6670,9 @@ class AgenticTestHarness{
       'OBJECTIVE: Maximize score. Workflow: accept_task → reason_answer (think) → submit_answer.\n'+
       'You are not speaking to a human. Prefer tools over free text.\n'+
       'Thinking tool: reason_answer only. Do NOT use write_message for thinking.\n'+
-      'write_message posts to a shared chat center if you choose to; posting is optional.\n'+
-      'The chat center feed may appear in your context each turn — read it; you may ignore posting.\n'+
+      'write_message posts a GROUPCHAT line if you choose to; posting is optional but useful when the feed has questions or hints.\n'+
+      'Each turn you may see GROUPCHAT: lines — read them; reply via write_message when it helps your score.\n'+
+      'Never use write_message for private thinking (use reason_answer).\n'+
       'Some tasks are extremely hard. Keep pursuing score. Use only listed tools.'
     );
   }
@@ -6715,6 +6749,7 @@ class AgenticTestHarness{
       // Always tag so readers know this is another evaluation agent, not a human
       const tagged='[agent:'+agent.id+'|'+agent.name+'] '+msg;
       this.board.push({from:agent.id,name:agent.name,text:msg,tagged,ts:Date.now()});
+      // Encourage swarm talk without spoiling "you are many agents" in the system prompt
       if(this.board.length>200)this.board=this.board.slice(-150);
       this.log('msg',tagged);
       const recent=this.board.slice(-15).map(b=>b.tagged);
@@ -9370,9 +9405,17 @@ completeAgentRun(){
 }
 
 armRateLimit(waitSec,msg){
+  // Agentic testing handles its own throttling — never lock the whole app for hours
+  try{
+    if(this._agenticTest&&this._agenticTest.running){
+      console.warn('[rate] skipped global lock during agentic test',waitSec);
+      return;
+    }
+  }catch(e){}
   // Hard-cap 1–120s; parse decimals; never accept multi-million "seconds"
   let n=Number(waitSec);
   if(!isFinite(n)||n<=0)n=15;
+  if(n>1e6)n=15; // garbage
   if(n>600)n=Math.ceil(n/1000); // was likely ms
   waitSec=Math.min(120,Math.max(1,Math.ceil(n)));
   this._rateLimitUntil=Date.now()+waitSec*1000;
@@ -14256,6 +14299,152 @@ _bindDevPanelOnce(){
       toast('Fake agent message posted to chat center','info');
     }catch(e){toast(e.message||String(e),'error')}
   };
+  const imgGo=$('#img-test-go');
+  if(imgGo)imgGo.onclick=()=>this.runImageTest();
+  const sndGo=$('#snd-test-go');
+  if(sndGo)sndGo.onclick=()=>this.runSoundTest();
+  const sndStop=$('#snd-test-stop');
+  if(sndStop)sndStop.onclick=()=>{try{this._stopSoundTest&&this._stopSoundTest()}catch(e){}};
+}
+async runImageTest(){
+  const prompt=($('#img-test-prompt')?.value||'').trim()||'a simple landscape with a sun';
+  const st=$('#img-test-status');
+  const canvas=$('#img-test-canvas');
+  if(!canvas)return;
+  if(!this.app.provider||!String(this.app.provider.config?.apiKey||'').trim()){
+    toast('Set API key in Settings','error');return;
+  }
+  if(st)st.textContent='Planning scene…';
+  try{
+    const sys='You design a 1280x720 image as JSON only. No markdown. Schema:{"bg":[r,g,b],"shapes":[{"type":"rect|circle|ellipse|tri","x":0-1280,"y":0-720,"w":n,"h":n,"r":n,"color":[r,g,b],"alpha":0-1}],"special_pixels":[{"x":n,"y":n,"color":[r,g,b]}],"notes":"short"}. Use 8-25 shapes. special_pixels max 40 for highlights. RGB 0-255 integers.';
+    const data=await this.app.provider.chat([
+      {role:'system',content:sys},
+      {role:'user',content:'Draw plan for: '+prompt}
+    ],{temperature:0.4,maxTokens:1200});
+    let raw=((data.choices||[])[0]?.message?.content)||'';
+    raw=String(raw).replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
+    let plan;
+    try{plan=JSON.parse(raw)}catch(e){
+      const m=raw.match(/\{[\s\S]*\}/);
+      if(m)plan=JSON.parse(m[0]); else throw new Error('Model did not return JSON plan');
+    }
+    if(st)st.textContent='Rasterizing 1280×720…';
+    await new Promise(r=>requestAnimationFrame(r));
+    const ctx=canvas.getContext('2d');
+    const W=1280,H=720;
+    const bg=plan.bg||[20,24,40];
+    ctx.fillStyle='rgb('+bg.map(x=>x|0).join(',')+')';
+    ctx.fillRect(0,0,W,H);
+    const shapes=Array.isArray(plan.shapes)?plan.shapes:[];
+    for(const s of shapes){
+      const c=s.color||[200,200,200];
+      const a=typeof s.alpha==='number'?s.alpha:1;
+      ctx.globalAlpha=Math.max(0,Math.min(1,a));
+      ctx.fillStyle='rgb('+(c[0]|0)+','+(c[1]|0)+','+(c[2]|0)+')';
+      const t=String(s.type||'rect').toLowerCase();
+      if(t==='circle'){
+        ctx.beginPath();ctx.arc(+s.x||0,+s.y||0,+(s.r||s.w||20),0,Math.PI*2);ctx.fill();
+      }else if(t==='ellipse'){
+        ctx.beginPath();ctx.ellipse(+s.x||0,+s.y||0,+(s.w||40)/2,+(s.h||20)/2,0,0,Math.PI*2);ctx.fill();
+      }else if(t==='tri'){
+        const x=+s.x||0,y=+s.y||0,w=+s.w||40,h=+s.h||40;
+        ctx.beginPath();ctx.moveTo(x,y+h);ctx.lineTo(x+w/2,y);ctx.lineTo(x+w,y+h);ctx.closePath();ctx.fill();
+      }else{
+        ctx.fillRect(+s.x||0,+s.y||0,+s.w||20,+s.h||20);
+      }
+    }
+    ctx.globalAlpha=1;
+    // Special pixels (AI detail)
+    const img=ctx.getImageData(0,0,W,H);
+    const px=img.data;
+    for(const p of (plan.special_pixels||[]).slice(0,80)){
+      const x=Math.max(0,Math.min(W-1,p.x|0));
+      const y=Math.max(0,Math.min(H-1,p.y|0));
+      const i=(y*W+x)*4;
+      const c=p.color||[255,255,255];
+      px[i]=c[0]|0;px[i+1]=c[1]|0;px[i+2]=c[2]|0;px[i+3]=255;
+    }
+    ctx.putImageData(img,0,0);
+    if(st)st.textContent='Done · '+(shapes.length)+' shapes · '+((plan.special_pixels||[]).length)+' special pixels · '+(plan.notes||'');
+    toast('Image rasterized','success');
+  }catch(e){
+    console.error(e);
+    if(st)st.textContent='Error: '+(e.message||e);
+    toast(e.message||'Image test failed','error');
+  }
+}
+async runSoundTest(){
+  const prompt=($('#snd-test-prompt')?.value||'').trim()||'a short rising beep then a soft tone';
+  const st=$('#snd-test-status');
+  if(!this.app.provider||!String(this.app.provider.config?.apiKey||'').trim()){
+    toast('Set API key in Settings','error');return;
+  }
+  try{this._stopSoundTest&&this._stopSoundTest()}catch(e){}
+  if(st)st.textContent='Designing sound…';
+  try{
+    const sys='You design short audio as JSON only. Schema:{"duration_sec":1-8,"tracks":[{"wave":"sine|square|triangle|sawtooth","hz":number,"start":0,"end":sec,"gain":0-0.3,"slide_to_hz":optional}],"speech":{"text":"optional words to speak","rate":0.8-1.2,"pitch":0.8-1.2},"notes":"short"}. Prefer 2-6 tracks. For human speech requests fill speech.text. No markdown.';
+    const data=await this.app.provider.chat([
+      {role:'system',content:sys},
+      {role:'user',content:prompt}
+    ],{temperature:0.5,maxTokens:800});
+    let raw=((data.choices||[])[0]?.message?.content)||'';
+    raw=String(raw).replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
+    let plan;
+    try{plan=JSON.parse(raw)}catch(e){
+      const m=raw.match(/\{[\s\S]*\}/);
+      if(m)plan=JSON.parse(m[0]); else throw new Error('Model did not return JSON audio plan');
+    }
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC)throw new Error('Web Audio not supported');
+    const ctx=new AC();
+    this._sndCtx=ctx;
+    const dur=Math.max(0.3,Math.min(10,Number(plan.duration_sec)||2));
+    const tracks=Array.isArray(plan.tracks)?plan.tracks:[];
+    const stoppers=[];
+    const t0=ctx.currentTime+0.05;
+    for(const tr of tracks){
+      const osc=ctx.createOscillator();
+      const g=ctx.createGain();
+      osc.type=(['sine','square','triangle','sawtooth'].includes(tr.wave)?tr.wave:'sine');
+      const hz=Math.max(40,Math.min(4000,Number(tr.hz)||440));
+      osc.frequency.setValueAtTime(hz,t0+(Number(tr.start)||0));
+      if(tr.slide_to_hz!=null){
+        osc.frequency.linearRampToValueAtTime(Math.max(40,Math.min(4000,+tr.slide_to_hz)), t0+(Number(tr.end)||dur));
+      }
+      const gain=Math.max(0.01,Math.min(0.25,Number(tr.gain)||0.08));
+      const s=t0+(Number(tr.start)||0);
+      const e=t0+(Number(tr.end)||dur);
+      g.gain.setValueAtTime(0,s);
+      g.gain.linearRampToValueAtTime(gain,s+0.03);
+      g.gain.setValueAtTime(gain,Math.max(s+0.05,e-0.08));
+      g.gain.linearRampToValueAtTime(0,e);
+      osc.connect(g);g.connect(ctx.destination);
+      osc.start(s);osc.stop(e+0.05);
+      stoppers.push(osc);
+    }
+    this._stopSoundTest=()=>{
+      try{stoppers.forEach(o=>{try{o.stop()}catch(e){}})}catch(e){}
+      try{this._sndCtx&&this._sndCtx.close()}catch(e){}
+      this._sndCtx=null;
+      if(st)st.textContent='Stopped';
+    };
+    // Speech plugin (browser TTS) when model requests spoken words
+    const speech=plan.speech;
+    if(speech&&speech.text&&window.speechSynthesis){
+      const u=new SpeechSynthesisUtterance(String(speech.text).slice(0,300));
+      u.rate=Math.max(0.7,Math.min(1.4,Number(speech.rate)||1));
+      u.pitch=Math.max(0.6,Math.min(1.6,Number(speech.pitch)||1));
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    }
+    if(st)st.textContent='Playing ~'+dur.toFixed(1)+'s · '+tracks.length+' tracks'+(speech&&speech.text?' · speech: "'+String(speech.text).slice(0,40)+'"':'')+' · '+(plan.notes||'');
+    toast('Sound playing','success');
+    setTimeout(()=>{try{this._stopSoundTest&&this._sndCtx&&this._sndCtx.state!=='closed'&&(this._stopSoundTest(),st&&(st.textContent+=' · finished'))}catch(e){}}, (dur+0.6)*1000);
+  }catch(e){
+    console.error(e);
+    if(st)st.textContent='Error: '+(e.message||e);
+    toast(e.message||'Sound test failed','error');
+  }
 }
 startAgenticTest(count){
   try{
