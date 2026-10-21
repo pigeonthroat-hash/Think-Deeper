@@ -4792,8 +4792,79 @@ const CrashGuard={
   wrapPreviewHtml(html){const guard='<script data-crash-guard="1">(function(){try{var SI=window.setInterval;window.setInterval=function(fn,ms){return SI(fn,Math.max(16,ms||16));};}catch(e){}})();</scr'+'ipt>';const t=String(html||'');return /<head[^>]*>/i.test(t)?t.replace(/<head[^>]*>/i,m=>m+guard):guard+t},
   note(msg){try{const vfs=window.__app&&window.__app.vfs;if(!vfs)return;let prev='';try{prev=String(vfs.read('memory/crash-log.md')||'')}catch(e){}const line='- '+new Date().toISOString()+' '+String(msg||'').replace(/\s+/g,' ').slice(0,240);vfs.write('memory/crash-log.md',(prev+'\n'+line).split('\n').filter(Boolean).slice(-40).join('\n'),{archiveOld:false})}catch(e){}}
 };
-class PythonTool{constructor(){this.pyodide=null;this.loading=null;this.ready=false}
-async init(){if(this.ready)return;if(this.loading)return this.loading;this.loading=(async()=>{if(!window.loadPyodide){await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js';s.onload=res;s.onerror=()=>rej(new Error('Failed to load Pyodide'));document.head.appendChild(s)})}this.pyodide=await loadPyodide({indexURL:'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/'});this.ready=true})();return this.loading}
+class PythonTool{constructor(){this.pyodide=null;this.loading=null;this.ready=false;this._lastError=null}
+_loadScript(src){
+  return new Promise((res,rej)=>{
+    // Already present?
+    if(window.loadPyodide){res();return}
+    const existing=[...document.querySelectorAll('script')].find(s=>(s.src||'').includes('pyodide.js'));
+    if(existing){
+      if(window.loadPyodide){res();return}
+      existing.addEventListener('load',()=>res());
+      existing.addEventListener('error',()=>rej(new Error('Pyodide script error: '+src)));
+      // If script tag exists but never fired, timeout
+      setTimeout(()=>{if(window.loadPyodide)res();else rej(new Error('Pyodide script timeout'))},25000);
+      return;
+    }
+    const s=document.createElement('script');
+    s.src=src;
+    s.async=true;
+    s.onload=()=>res();
+    s.onerror=()=>rej(new Error('Failed to load Pyodide script from '+src));
+    document.head.appendChild(s);
+  });
+}
+async init(){
+  if(this.ready&&this.pyodide)return this.pyodide;
+  if(this.loading){
+    try{return await this.loading}catch(e){this.loading=null}
+  }
+  this.loading=(async()=>{
+    const mirrors=[
+      {script:'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js', index:'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/'},
+      {script:'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js', index:'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/'},
+      {script:'https://unpkg.com/pyodide@0.26.2/pyodide.js', index:'https://unpkg.com/pyodide@0.26.2/'}
+    ];
+    let lastErr=null;
+    for(const m of mirrors){
+      try{
+        await this._loadScript(m.script);
+        if(typeof loadPyodide!=='function'&&typeof window.loadPyodide!=='function'){
+          throw new Error('loadPyodide not defined after script load');
+        }
+        const loader=window.loadPyodide||loadPyodide;
+        const py=await Promise.race([
+          loader({indexURL:m.index,stdout:()=>{},stderr:()=>{}}),
+          new Promise((_,rej)=>setTimeout(()=>rej(new Error('loadPyodide timed out (30s) from '+m.index)),30000))
+        ]);
+        this.pyodide=py;
+        this.ready=true;
+        this._lastError=null;
+        try{console.info('[PythonTool] Pyodide ready via',m.index)}catch(e){}
+        return py;
+      }catch(e){
+        lastErr=e;
+        this._lastError=String(e&&e.message||e);
+        try{console.warn('[PythonTool] mirror failed',m.script,e)}catch(e2){}
+        // Allow next mirror to inject a fresh script
+        try{
+          [...document.querySelectorAll('script')].forEach(s=>{
+            if((s.src||'').includes('pyodide')&&!window.loadPyodide)s.remove();
+          });
+        }catch(e3){}
+      }
+    }
+    this.ready=false;
+    this.pyodide=null;
+    throw new Error('Pyodide failed to load from all CDNs. Check network / adblock. Last error: '+(lastErr&&lastErr.message||lastErr||'unknown'));
+  })();
+  try{
+    return await this.loading;
+  }catch(e){
+    this.loading=null;
+    throw e;
+  }
+}
 async syncWorkspace(){
   const vfs=window.__app&&window.__app.vfs;
   if(!vfs||!this.pyodide)return;
@@ -4873,7 +4944,7 @@ async run(code){
 
   // Soften blocking sleeps — Pyodide runs on the main thread and time.sleep freezes the UI
   src=src.replace(/\btime\.sleep\s*\(\s*[^)]+\s*\)/g,'pass  # sleep skipped in browser sandbox');
-  try{await this.init()}catch(e){return{ok:false,error:'Pyodide failed to load: '+(e.message||e)}}
+  try{await this.init()}catch(e){this.ready=false;this.loading=null;return{ok:false,error:'Pyodide failed to load: '+(e.message||e)+'. Tip: allow cdn.jsdelivr.net / unpkg.com, disable blockers, then retry run_python.'}}
   try{await this.syncWorkspace()}catch(e){}
   try{
     await this.pyodide.runPythonAsync("import sys\nfrom io import StringIO\nsys.stdout=StringIO()\nsys.stderr=StringIO()");
@@ -15749,7 +15820,7 @@ scrollToBottom(){
   });
 }}
 
-class App{constructor(){this.storage=new StorageManager();this.i18n=new I18n(this.storage);this.cloud=new CloudSync();this.cloud.init();this.conversations=new ConversationManager(this.storage);this.provider=new ProviderManager(this.storage);this.vfs=new VirtualFS(this.storage);this.external=new ExternalFS();this.python=new PythonTool();this.tools=new ToolManager(this.vfs,this.external,this.python);this.swarm=null;this.plugins=new PluginManager(this.storage);
+class App{constructor(){this.storage=new StorageManager();this.i18n=new I18n(this.storage);this.cloud=new CloudSync();this.cloud.init();this.conversations=new ConversationManager(this.storage);this.provider=new ProviderManager(this.storage);this.vfs=new VirtualFS(this.storage);this.external=new ExternalFS();this.python=new PythonTool();this.tools=new ToolManager(this.vfs,this.external,this.python);try{setTimeout(()=>{try{this.python&&this.python.init().catch(e=>console.warn('[Pyodide preload]',e))}catch(e){}},1200)}catch(e){};this.swarm=null;this.plugins=new PluginManager(this.storage);
 this.plugins.onSave=(p)=>this.materializePlugin(p);
 this.plugins.list().forEach(p=>this.materializePlugin(p));
 this.ensureDefaultPlugins=function(){
