@@ -1783,7 +1783,7 @@ body.mode-canvas .sidebar-footer.collapsed{
 <div class="mode-tabs" id="mode-tabs">
 <button type="button" class="mode-tab active" data-mode="chat" id="mode-chat">Chat</button>
 <button type="button" class="mode-tab" data-mode="code" id="mode-code" style="display:none" hidden aria-hidden="true">Code</button>
-<button type="button" class="mode-tab" data-mode="swarm" id="mode-swarm">Agent</button>
+<button type="button" class="mode-tab" data-mode="swarm" id="mode-swarm" style="display:none" hidden aria-hidden="true">Agent</button>
 </div>
 <div class="sidebar-section">Projects</div>
 <button type="button" class="btn-new-project" id="new-project-btn">＋ New project</button>
@@ -2533,6 +2533,45 @@ function applyCodeModeVisibility(){
     if(!on&&window.__app&&window.__app.ui){
       const m=window.__app.ui.mode||window.__app.mode||window.__app.storage.get('appMode','chat');
       if(m==='code')window.__app.ui.setMode('chat');
+    }
+  }catch(e){}
+  return on;
+}
+
+// TEMPORARY: Agent mode (swarm) is restricted to developer accounts
+function canAccessAgentMode(){
+  try{
+    if(localStorage.getItem('td_agent_mode_force')==='1')return true; // emergency override
+  }catch(e){}
+  return isDevAccount(currentAccountEmail());
+}
+function applyAgentModeVisibility(){
+  const on=!!canAccessAgentMode();
+  try{
+    const tab=document.getElementById('mode-swarm');
+    if(tab){tab.style.display=on?'':'none';tab.hidden=!on;tab.setAttribute('aria-hidden',on?'false':'true')}
+  }catch(e){}
+  try{
+    const nb=document.getElementById('agent-new-btn');
+    if(nb){nb.style.display=on?'':'none';nb.hidden=!on}
+  }catch(e){}
+  try{
+    const sec=document.getElementById('agent-hist-section');
+    if(sec)sec.style.display=on&&(window.__app&&window.__app.ui&&window.__app.ui.mode==='swarm')?'':'none';
+  }catch(e){}
+  try{
+    const list=document.getElementById('agent-hist-list');
+    if(list&&!on)list.style.display='none';
+  }catch(e){}
+  try{
+    // Agent workspace / input chrome if present
+    const av=document.getElementById('agent-view')||document.querySelector('.agent-workspace');
+    if(av&&!on){av.classList.remove('active');av.style.display='none'}
+  }catch(e){}
+  try{
+    if(!on&&window.__app&&window.__app.ui){
+      const m=window.__app.ui.mode||window.__app.mode||window.__app.storage.get('appMode','chat');
+      if(m==='swarm'||m==='agent')window.__app.ui.setMode('chat');
     }
   }catch(e){}
   return on;
@@ -4959,6 +4998,10 @@ async run(code){
     const hits=src.matchAll(/\b(?:import|from)\s+([a-zA-Z_][\w]*)/g);
     const allow=new Set(['numpy','scipy','sympy','pandas','matplotlib','networkx','scikit-learn','sklearn','mpmath','statsmodels','seaborn','pillow','PIL','regex','lxml','beautifulsoup4','bs4','pytz','dateutil','yaml','packaging']);
     for(const m of hits){const n=m[1];if(allow.has(n)||allow.has(n.toLowerCase()))needed.push(n==='sklearn'?'scikit-learn':n==='PIL'?'pillow':n==='bs4'?'beautifulsoup4':n);}
+    // High-precision pi / mpmath tasks: always ensure mpmath is requested
+    if(/\bmpmath\b|\bpi\b.*\b(digit|decimal|dps|places)\b|\b(digit|decimal).*\bpi\b|\.dps\s*=/i.test(src)){
+      needed.push('mpmath');
+    }
     if(needed.length){
       const uniq=[...new Set(needed)];
       try{
@@ -4979,7 +5022,19 @@ async run(code){
   // Yield to UI
   await new Promise(r=>setTimeout(r,0));
   try{
-    const result=await Promise.race([this.pyodide.runPythonAsync(src),new Promise((_,rej)=>setTimeout(()=>rej(new Error('CRASH_BLOCKED: Python exceeded time limit. Use smaller inputs, bounded for-range loops, and simplified code.')),(typeof window!=='undefined'&&window.__app&&(window.__app.mode==='swarm'||window.__app.ui&&window.__app.ui.mode==='swarm'))?8000:15000))]);
+    
+    // Auto-repair common broken "compute pi digits" drafts (empty compute_pi + later mpmath)
+    if(/\bdef compute_pi\b[\s\S]{0,500}?\bpass\b[\s\S]{0,300}?\bimport mpmath\b/i.test(src)){
+      const dpsM=src.match(/mp\.dps\s*=\s*(\d+)/)||src.match(/dps\s*=\s*(\d+)/)||src.match(/prec\s*=\s*(\d+)/);
+      const dps=dpsM?Math.min(5000,Math.max(50,Number(dpsM[1])||1060)):1060;
+      let dig=1047;
+      const digM=src.match(/decimals\[(\d+)\]/)||src.match(/(\d+)(?:st|nd|rd|th)\s*digit/i);
+      if(digM) dig=Number(digM[1]);
+      if(dig>0 && dig<100 && /1048/.test(src)) dig=1047; // 1048th digit → index 1047
+      if(/1048/.test(src)) dig=1047;
+      src='import mpmath\nmpmath.mp.dps = '+dps+'\ns = str(mpmath.pi)\ndecimals = s.split(".")[1]\nprint("1048th digit:", decimals['+dig+'])\nprint("Surrounding:", decimals['+Math.max(0,dig-5)+':'+Math.max(dig+6,0)+'])\n';
+    }
+const result=await Promise.race([this.pyodide.runPythonAsync(src),new Promise((_,rej)=>setTimeout(()=>rej(new Error('CRASH_BLOCKED: Python exceeded time limit. Use smaller inputs, bounded for-range loops, and simplified code.')),(typeof window!=='undefined'&&window.__app&&(window.__app.mode==='swarm'||window.__app.ui&&window.__app.ui.mode==='swarm'))?8000:15000))]);
     let stdout='',stderr='';
     try{stdout=this.pyodide.runPython('sys.stdout.getvalue()')}catch(e){}
     try{stderr=this.pyodide.runPython('sys.stderr.getvalue()')}catch(e){}
@@ -7252,7 +7307,7 @@ try{
     }
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- For interactive demos write HTML via write_file and end with [[preview:path]] or [[visual:path]].\n\n\nHARD / IMPOSSIBLE QUESTIONS: If a request seems impossible or blocked, do NOT quit. Take an extra thinking step on how to make it possible (reframe, approximate, split steps, use tools, smaller inputs). Then try the best approach and report what worked.\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- For interactive demos write HTML via write_file and end with [[preview:path]] or [[visual:path]].\n\n\nMATH RENDERING: Write LaTeX as $\\pi$ or $$...$$ (single backslash before pi). Unicode π is also fine.\nPYTHON PI DIGITS: Prefer one clean script: import mpmath; mpmath.mp.dps=1100; s=str(mpmath.pi); decimals=s.split(\'.\')[1]; print(decimals[1047])  # 1048th digit.\nDo not leave unfinished def compute_pi with pass.\n\nHARD / IMPOSSIBLE QUESTIONS:HARD / IMPOSSIBLE QUESTIONS: If a request seems impossible or blocked, do NOT quit. Take an extra thinking step on how to make it possible (reframe, approximate, split steps, use tools, smaller inputs). Then try the best approach and report what worked.\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 try{while(iteration<maxIter&&this.running){if(!this.running)break;if(Date.now()-start>maxMs){console.warn("[Agent] time budget");break;}if(toolCalls>=maxTools){console.warn("[Agent] tool budget");break;}
 iteration++;
@@ -8203,7 +8258,7 @@ init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;
     this.app.storage.set('currentProjectId',null);
     this._pendingProjectId=null;
   }catch(e){}
-  this.bindEvents();try{this.syncProjectBundles()}catch(e){}this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();try{applyCodeModeVisibility()}catch(e){}
+  this.bindEvents();try{this.syncProjectBundles()}catch(e){}this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();try{applyCodeModeVisibility()}catch(e){}try{applyAgentModeVisibility()}catch(e){}
 try{this.rehydrateVfsFromStorage&&this.rehydrateVfsFromStorage()}catch(e){}
 const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>{try{if(this.isPhone&&this.isPhone())this.toggleSidebar(true)}catch(e){}this.setMode('canvas')};const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);this._preferEmptyBoot=true;this.newChat();try{setTimeout(()=>{try{this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);document.querySelectorAll(".conv-item.active").forEach(n=>n.classList.remove("active"));this.renderConversations&&this.renderConversations();this.showEmpty&&this.showEmpty()}catch(e){}},50)}catch(e){}
   window.addEventListener('beforeunload',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}try{this.app.conversations&&this.app.conversations.persist()}catch(e){}});
@@ -10363,6 +10418,11 @@ setMode(mode){
   // TEMP: Code mode locked to dev accounts while under repair
   if(mode==='code'&&typeof canAccessCodeMode==='function'&&!canAccessCodeMode()){
     try{toast('Code mode is temporarily limited to developer accounts','info')}catch(e){}
+    mode='chat';
+  }
+  // TEMP: Agent mode locked to dev accounts
+  if((mode==='swarm'||mode==='agent')&&typeof canAccessAgentMode==='function'&&!canAccessAgentMode()){
+    try{toast('Agent mode is temporarily limited to developer accounts','info')}catch(e){}
     mode='chat';
   }
   // Build Automations: close left panel on phone; never wipe chat lists
@@ -13102,8 +13162,20 @@ renderMarkdown(text){
   t=t.replace(/```[\s\S]*?```/g,(m)=>{fences.push(m);return '%%FENCE'+(fences.length-1)+'%%'});
   t=t.replace(/`[^`\n]+`/g,(m)=>{fences.push(m);return '%%FENCE'+(fences.length-1)+'%%'});
   const maths=[];
-  const push=(tex,display)=>{
+  const normTex=(tex)=>{
     let s=String(tex||'').trim().replace(/^\$+|\$+$/g,'').trim();
+    // Collapse accidental double-escaping: \\pi -> \pi
+    while(/\\\\[a-zA-Z]/.test(s)) s=s.replace(/\\\\([a-zA-Z]+)/g,'\\$1');
+    s=s.replace(/π/g,'\\pi').replace(/∞/g,'\\infty').replace(/θ/g,'\\theta')
+       .replace(/α/g,'\\alpha').replace(/β/g,'\\beta').replace(/γ/g,'\\gamma')
+       .replace(/Δ/g,'\\Delta').replace(/∑/g,'\\sum').replace(/∫/g,'\\int')
+       .replace(/√/g,'\\sqrt').replace(/≤/g,'\\le').replace(/≥/g,'\\ge')
+       .replace(/≠/g,'\\ne').replace(/×/g,'\\times').replace(/±/g,'\\pm');
+    if(/^(pi|Pi|PI)$/.test(s)) s='\\pi';
+    return s;
+  };
+  const push=(tex,display)=>{
+    let s=normTex(tex);
     if(!s)return '';
     maths.push({tex:s,display:!!display});
     return '%%MATH'+(maths.length-1)+'%%';
@@ -13113,9 +13185,12 @@ renderMarkdown(text){
   t=t.replace(/\\\(([\s\S]*?)\\\)/g,(_,m)=>push(m,false));
   t=t.replace(/\\begin\{(aligned|align\*?|equation\*?|gather\*?|eqnarray|matrix|bmatrix|pmatrix|vmatrix|cases)\}([\s\S]*?)\\end\{\1\}/g,(m)=>push(m,true));
   t=t.replace(/\$([^\n$]+?)\$/g,(_,m)=>{
-    if(/^\s*\d/.test(m)&&!/[a-zA-Z\\]/.test(m))return '$'+m+'$';
+    if(/^\s*\d/.test(m)&&!/[a-zA-Z\\π∞]/.test(m))return '$'+m+'$';
     return push(m,false);
   });
+  // Bare \pi or unicode π outside existing math markers
+  t=t.replace(/(^|[^%$A-Za-z\\])\\pi\b/g,(m,pre)=>pre+push('\\pi',false));
+  t=t.replace(/(^|[^%$A-Za-z])π/g,(m,pre)=>pre+push('\\pi',false));
   t=t.replace(/%%FENCE(\d+)%%/g,(_,n)=>fences[Number(n)]);
   let out;
   try{
@@ -13156,6 +13231,9 @@ _katexHTML(item){
   if(!item)return '';
   let tex=String(item.tex||'').trim();
   if(!tex)return '';
+  while(/\\\\[a-zA-Z]/.test(tex)) tex=tex.replace(/\\\\([a-zA-Z]+)/g,'\\$1');
+  tex=tex.replace(/π/g,'\\pi');
+  if(/^(pi|Pi|PI)$/.test(tex)) tex='\\pi';
   try{
     if(!window.katex && window.katex==null){
       return item.display?('<div class="math-fallback">$$'+escapeHtml(tex)+'$$</div>'):('<span class="math-fallback">$'+escapeHtml(tex)+'$</span>');
@@ -13575,7 +13653,7 @@ renderAuth(){
   const user=this.app.storage.getActiveUser();
   const email=(user&&user.email)||'';
   const isDev=isDevAccount(email);
-  try{applyCodeModeVisibility()}catch(e){}
+  try{applyCodeModeVisibility()}catch(e){}try{applyAgentModeVisibility()}catch(e){}
   const signed=!!(user&&user.id);
   const devBtn=$('#dev-panel-btn');
   if(devBtn){
