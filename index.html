@@ -5496,113 +5496,174 @@ async webSearch(query, args){
     if(!res.ok)throw new Error('HTTP '+res.status);
     return await res.json();
   };
-  const fetchText=async(url,ms=12000)=>{
+  const fetchText=async(url,ms=14000)=>{
     const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
-    let res;
-    try{
-      res=await fetch(url,{signal:ctrl,mode:'cors',headers:{Accept:'text/html,application/json'}});
-      if(res.ok)return await res.text();
-    }catch(e){}
-    // CORS proxies for Google / blocked hosts
-    const proxies=[
-      'https://corsproxy.io/?'+encodeURIComponent(url),
-      'https://api.allorigins.win/raw?url='+encodeURIComponent(url)
-    ];
-    for(const p of proxies){
+    const attempts=[];
+    // direct
+    attempts.push(url);
+    // known CORS proxies
+    attempts.push('https://corsproxy.io/?'+encodeURIComponent(url));
+    attempts.push('https://api.allorigins.win/raw?url='+encodeURIComponent(url));
+    attempts.push('https://cors.isomorphic-git.org/'+url);
+    attempts.push('https://yacdn.org/proxy/'+url);
+    let lastErr=null;
+    for(const u of attempts){
       try{
-        const r=await fetch(p,{signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined});
-        if(r.ok)return await r.text();
-      }catch(e){}
+        const r=await fetch(u,{signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined,mode:'cors',headers:{Accept:'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8','User-Agent':'Mozilla/5.0 (compatible; ThinkDeeper/1.0)'}});
+        if(r.ok){
+          const t=await r.text();
+          if(t&&t.length>80)return t;
+        }else lastErr=new Error('HTTP '+r.status+' for '+u);
+      }catch(e){lastErr=e}
     }
-    throw new Error('fetch failed for '+url);
+    throw lastErr||new Error('fetch failed for '+url);
   };
+  const stripHtml=(s)=>String(s||'').replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/\s+/g,' ').trim();
   const push=(item)=>{
     if(!item||!item.title)return;
     const url=item.url||'';
     if(url&&results.some(r=>r.url===url))return;
-    results.push({title:String(item.title).slice(0,200),snippet:String(item.snippet||'').slice(0,480),url,source:item.source||'web'});
+    const title=stripHtml(item.title).slice(0,200);
+    if(!title)return;
+    results.push({title,snippet:stripHtml(item.snippet||'').slice(0,480),url,source:item.source||'web'});
   };
-  const wantGoogle=mode==='web'||mode==='google';
-  const wantWiki=mode==='web'||mode==='wikipedia';
-  const wantGh=mode==='web'||mode==='github';
-  const wantHn=mode==='web';
 
-  // DuckDuckGo Instant Answer → AI-style overview
-  if(wantGoogle||mode==='web'){
-    try{
-      const ddg='https://api.duckduckgo.com/?q='+encodeURIComponent(q)+'&format=json&no_html=1&skip_disambig=1';
-      const data=await fetchJSON(ddg,9000);
-      const abs=String(data.AbstractText||'').trim();
-      const heading=String(data.Heading||'').trim();
-      const absUrl=String(data.AbstractURL||'').trim();
-      if(abs){
-        overview={title:heading||q,text:abs.slice(0,1200),source:data.AbstractSource||'DuckDuckGo',url:absUrl||'',type:'instant_answer'};
+  // Even in google mode, keep secondary sources as fallback so the tool never returns empty
+  const wantGoogle=mode==='web'||mode==='google';
+  const wantWiki=mode==='web'||mode==='wikipedia'||mode==='google';
+  const wantGh=mode==='web'||mode==='github'||mode==='google';
+  const wantHn=mode==='web'||mode==='google';
+
+  // 1) DuckDuckGo Instant Answer (CORS-friendly) → overview + related links
+  try{
+    const ddg='https://api.duckduckgo.com/?q='+encodeURIComponent(q)+'&format=json&no_html=1&skip_disambig=1';
+    const data=await fetchJSON(ddg,9000);
+    const abs=String(data.AbstractText||'').trim();
+    const heading=String(data.Heading||'').trim();
+    const absUrl=String(data.AbstractURL||'').trim();
+    if(abs){
+      overview={title:heading||q,text:abs.slice(0,1500),source:data.AbstractSource||'DuckDuckGo',url:absUrl||'',type:'instant_answer'};
+    }
+    if(Array.isArray(data.RelatedTopics)){
+      for(const t of data.RelatedTopics.slice(0,8)){
+        if(t&&t.Text&&t.FirstURL)push({title:(t.Text||'').split(' - ')[0].slice(0,120),snippet:t.Text,url:t.FirstURL,source:'duckduckgo'});
+        if(t&&t.Topics)for(const st of t.Topics.slice(0,3)){
+          if(st&&st.Text&&st.FirstURL)push({title:(st.Text||'').split(' - ')[0].slice(0,120),snippet:st.Text,url:st.FirstURL,source:'duckduckgo'});
+        }
       }
-      if(Array.isArray(data.RelatedTopics)){
-        for(const t of data.RelatedTopics.slice(0,6)){
-          if(t&&t.Text&&t.FirstURL)push({title:(t.Text||'').split(' - ')[0].slice(0,120),snippet:t.Text,url:t.FirstURL,source:'duckduckgo'});
-          if(t&&t.Topics)for(const st of t.Topics.slice(0,3)){
-            if(st&&st.Text&&st.FirstURL)push({title:(st.Text||'').split(' - ')[0].slice(0,120),snippet:st.Text,url:st.FirstURL,source:'duckduckgo'});
+    }
+    if(Array.isArray(data.Results)){
+      for(const r of data.Results.slice(0,6)){
+        if(r&&r.Text&&r.FirstURL)push({title:r.Text.slice(0,120),snippet:r.Text,url:r.FirstURL,source:'duckduckgo'});
+      }
+    }
+  }catch(e){errors.push('duckduckgo: '+(e.message||e))}
+
+  // 2) DuckDuckGo HTML / lite organic results (more reliable than Google from browser)
+  if(wantGoogle||results.length<4){
+    try{
+      const liteUrl='https://lite.duckduckgo.com/lite/?q='+encodeURIComponent(q);
+      const html=await fetchText(liteUrl,12000);
+      // lite results: <a rel="nofollow" href="..." class="result-link">title</a> ... snippet in td.result-snippet
+      const re=/<a[^>]+rel="nofollow"[^>]+href="(https?:\/\/[^"]+)"[^>]*class="result-link"[^>]*>([\s\S]*?)<\/a>/gi;
+      let m,count=0;
+      while((m=re.exec(html))&&count<8){
+        const url=m[1];
+        const title=stripHtml(m[2]);
+        if(title&&url&&!/duckduckgo\.com/i.test(url)){
+          push({title,snippet:'',url,source:'duckduckgo_web'});
+          count++;
+        }
+      }
+      // alternate pattern
+      if(count<3){
+        const re2=/<a[^>]+href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]{0,200}?class="result-snippet"[^>]*>([\s\S]*?)<\/(?:td|div|span)>/gi;
+        while((m=re2.exec(html))&&count<8){
+          const url=m[1], title=stripHtml(m[2]), snip=stripHtml(m[3]);
+          if(title&&url&&!/duckduckgo\.com/i.test(url)){
+            push({title,snippet:snip,url,source:'duckduckgo_web'});
+            count++;
           }
         }
       }
-      if(Array.isArray(data.Results)){
-        for(const r of data.Results.slice(0,5)){
-          if(r&&r.Text&&r.FirstURL)push({title:r.Text.slice(0,120),snippet:r.Text,url:r.FirstURL,source:'duckduckgo'});
-        }
-      }
-    }catch(e){errors.push('duckduckgo: '+(e.message||e))}
+    }catch(e){errors.push('duckduckgo_html: '+(e.message||e))}
   }
 
-  // Google HTML (via proxy) — organic results + AI overview block when present
+  // 3) Google HTML via proxies (best-effort AI Overview + organic)
   if(wantGoogle){
     try{
-      const gUrl='https://www.google.com/search?q='+encodeURIComponent(q)+'&hl=en&gl=us&num=10';
-      const html=await fetchText(gUrl,14000);
-      // AI Overview / featured snippet-ish blocks
-      const aiMatch=html.match(/AI Overview[\s\S]{0,80}?<(?:div|span)[^>]*>([\s\S]{20,1800}?)<\/(?:div|span)>/i)
-        ||html.match(/data-attrid="wa:\/description"[^>]*>[\s\S]*?<span[^>]*>([\s\S]{20,1200}?)<\/span>/i)
-        ||html.match(/class="kno-rdesc"[^>]*>[\s\S]*?<span[^>]*>([\s\S]{20,1200}?)<\/span>/i)
-        ||html.match(/class="hgKElc"[^>]*>([\s\S]{20,1200}?)<\/div>/i);
-      if(aiMatch&&aiMatch[1]){
-        const clean=aiMatch[1].replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
-        if(clean.length>40){
-          overview=overview||{title:'Google AI Overview',text:clean.slice(0,1500),source:'Google',url:gUrl,type:'ai_overview'};
-          if(overview&&!overview.type)overview.type='ai_overview';
-          if(overview.source!=='Google'&&clean.length> (overview.text||'').length){
-            overview={title:'Google AI Overview',text:clean.slice(0,1500),source:'Google',url:gUrl,type:'ai_overview'};
+      const gUrl='https://www.google.com/search?q='+encodeURIComponent(q)+'&hl=en&gl=us&num=10&pws=0';
+      const html=await fetchText(gUrl,15000);
+      // AI Overview / featured / knowledge graph description
+      const patterns=[
+        /AI Overview[\s\S]{0,120}?<(?:div|span)[^>]*>([\s\S]{40,2000}?)<\/(?:div|span)>/i,
+        /data-attrid="wa:\/description"[\s\S]{0,200}?<span[^>]*>([\s\S]{40,1500}?)<\/span>/i,
+        /class="kno-rdesc"[\s\S]{0,120}?<span[^>]*>([\s\S]{40,1500}?)<\/span>/i,
+        /class="hgKElc"[^>]*>([\s\S]{40,1500}?)<\/div>/i,
+        /data-sgrd="true"[\s\S]{0,300}?<(?:div|span)[^>]*>([\s\S]{40,1800}?)<\/(?:div|span)>/i,
+        /class="IZ6rdc"[^>]*>([\s\S]{40,1500}?)<\/div>/i
+      ];
+      for(const re of patterns){
+        const aiMatch=html.match(re);
+        if(aiMatch&&aiMatch[1]){
+          const clean=stripHtml(aiMatch[1]);
+          if(clean.length>50){
+            overview={title:'Google AI Overview',text:clean.slice(0,1600),source:'Google',url:gUrl,type:'ai_overview'};
+            break;
           }
         }
       }
-      // Organic result blocks
-      const re=/<a[^>]+href="\/url\?q=([^&"]+)[^"]*"[^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)<\/h3>/gi;
+      // Organic /url?q=
       let m,count=0;
+      const re=/<a[^>]+href="\/url\?q=([^&"]+)[^"]*"[^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)<\/h3>/gi;
       while((m=re.exec(html))&&count<8){
         try{
           const url=decodeURIComponent(m[1]);
-          const title=m[2].replace(/<[^>]+>/g,'').trim();
-          if(title&&url&&/^https?:/i.test(url)&&!/google\./i.test(url)){
+          const title=stripHtml(m[2]);
+          if(title&&url&&/^https?:/i.test(url)&&!/google\./i.test(url)&&!/webcache/i.test(url)){
             push({title,snippet:'',url,source:'google'});
             count++;
           }
         }catch(e){}
       }
-      // Alternate organic pattern
       if(count<3){
-        const re2=/<a[^>]+href="(https?:\/\/[^"]+)"[^>][^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)<\/h3>/gi;
+        const re2=/<a[^>]+href="(https?:\/\/(?!www\.google\.)[^"]+)"[^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)<\/h3>/gi;
         while((m=re2.exec(html))&&count<8){
-          const url=m[1];
-          const title=m[2].replace(/<[^>]+>/g,'').trim();
-          if(title&&url&&!/google\./i.test(url)&&!/webcache/i.test(url)){
+          const url=m[1], title=stripHtml(m[2]);
+          if(title&&url&&!/google\./i.test(url)&&!/webcache/i.test(url)&&!/accounts\.google/i.test(url)){
             push({title,snippet:'',url,source:'google'});
             count++;
           }
         }
       }
+      if(count===0)errors.push('google: page fetched but no organic results parsed (markup may have changed or CAPTCHA)');
     }catch(e){errors.push('google: '+(e.message||e))}
   }
 
-  // Wikipedia search + optional structured page for best match
+  // 4) Public SearXNG instances (JSON API, often CORS-open)
+  if(results.length<5&&(wantGoogle||mode==='web')){
+    const instances=[
+      'https://searx.be/search?q='+encodeURIComponent(q)+'&format=json&categories=general',
+      'https://search.sapti.me/search?q='+encodeURIComponent(q)+'&format=json',
+      'https://searx.tiekoetter.com/search?q='+encodeURIComponent(q)+'&format=json'
+    ];
+    for(const sx of instances){
+      try{
+        const data=await fetchJSON(sx,9000);
+        const items=data.results||data.items||[];
+        let n=0;
+        for(const r of items){
+          if(n>=6)break;
+          const title=r.title||r.name;
+          const url=r.url||r.link;
+          if(title&&url){push({title,snippet:r.content||r.snippet||'',url,source:'searx'});n++}
+        }
+        if(n)break;
+      }catch(e){errors.push('searx: '+(e.message||e))}
+    }
+  }
+
+  // 5) Wikipedia search
   if(wantWiki){
     try{
       const wiki='https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=5&srsearch='+encodeURIComponent(q)+'&format=json&origin=*';
@@ -5611,7 +5672,7 @@ async webSearch(query, args){
       for(const hit of hits){
         push({title:hit.title,snippet:(hit.snippet||'').replace(/<[^>]+>/g,''),url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(String(hit.title).replace(/ /g,'_')),source:'wikipedia'});
       }
-      if(hits.length&&(mode==='wikipedia'||hits[0].title.toLowerCase().replace(/_/g,' ')===q.toLowerCase()||(hits[0].title||'').toLowerCase().includes(q.toLowerCase().slice(0,24)))){
+      if(hits.length&&(mode==='wikipedia'||results.length<3||(hits[0].title||'').toLowerCase().replace(/_/g,' ').includes(q.toLowerCase().split(/\s+/).slice(0,3).join(' ')))){
         try{
           wikipedia_structured=await this.wikipediaPage({title:hits[0].title,lang:'en',sections:true,max_chars:18000});
         }catch(e){errors.push('wikipedia_page: '+(e.message||e))}
@@ -5625,6 +5686,7 @@ async webSearch(query, args){
     }catch(e){errors.push('opensearch: '+(e.message||e))}
   }
 
+  // 6) Hacker News
   if(wantHn){
     try{
       const hn='https://hn.algolia.com/api/v1/search?hitsPerPage=5&query='+encodeURIComponent(q);
@@ -5636,6 +5698,7 @@ async webSearch(query, args){
     }catch(e){errors.push('hn: '+(e.message||e))}
   }
 
+  // 7) GitHub repos
   if(wantGh){
     try{
       const gh='https://api.github.com/search/repositories?per_page=5&q='+encodeURIComponent(q);
@@ -5646,7 +5709,8 @@ async webSearch(query, args){
     }catch(e){errors.push('github: '+(e.message||e))}
   }
 
-  if(mode==='web'||mode==='wikipedia'){
+  // 8) Wikidata
+  if(mode==='web'||mode==='wikipedia'||mode==='google'){
     try{
       const wd='https://www.wikidata.org/w/api.php?action=wbsearchentities&language=en&format=json&origin=*&limit=4&search='+encodeURIComponent(q);
       const data=await fetchJSON(wd,8000);
@@ -5656,6 +5720,7 @@ async webSearch(query, args){
     }catch(e){errors.push('wikidata: '+(e.message||e))}
   }
 
+  // 9) Wikipedia summary last resort
   if(!results.length&&wantWiki){
     try{
       const slug=encodeURIComponent(q.replace(/ /g,'_'));
@@ -5664,15 +5729,21 @@ async webSearch(query, args){
     }catch(e){errors.push('summary: '+(e.message||e))}
   }
 
+  // Prefer tagging that google mode still succeeded if we got DDG/Searx results
+  const googleOk=results.some(r=>r.source==='google')||(overview&&overview.source==='Google');
+  const softOk=results.length>0||!!overview||!!(wikipedia_structured&&wikipedia_structured.ok);
+
   return {
-    ok:results.length>0||!!overview||!!(wikipedia_structured&&wikipedia_structured.ok),
+    ok:softOk,
     query:q,
     mode,
+    google_available:googleOk,
     overview:overview||undefined,
     wikipedia_structured:(wikipedia_structured&&wikipedia_structured.ok)?wikipedia_structured:undefined,
     results:results.slice(0,14),
-    errors:errors.slice(0,8),
-    hint:'If overview is present, treat it as a Google AI Overview / instant answer. For full encyclopedia detail use wikipedia_page. For deep repo inspection use github_repo (tree/file/readme/releases/issues/tags).'
+    errors:errors.slice(0,10),
+    note:!googleOk&&mode==='google'?'Direct Google was blocked or unparsable in this browser; returned DuckDuckGo / Searx / Wikipedia fallbacks instead.':undefined,
+    hint:'If overview is present, treat it as an AI Overview / instant answer. For full encyclopedia detail use wikipedia_page. For deep repo inspection use github_repo (tree/file/readme/releases/issues/tags).'
   };
 }
 async wikipediaPage(args){
