@@ -5087,7 +5087,9 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 {type:'function',function:{name:'delete_file',description:'Delete a file from the internal filesystem (a copy is archived). Use only when the user asks to remove something.',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}},{type:'function',function:{name:'write_pdf',description:'Create a real downloadable PDF in the workspace. path must end with .pdf; title optional; body is plain text with newlines.',parameters:{type:'object',properties:{path:{type:'string'},title:{type:'string'},body:{type:'string'}},required:['path','body']}}},{type:'function',function:{name:'fetch_url',description:'Fetch a public https URL (image, SVG, HTML, JSON, text) for coding or display. Only https.',parameters:{type:'object',properties:{url:{type:'string'},maxChars:{type:'number'}},required:['url']}}},
 {type:'function',function:{name:'run_python',description:'Run Python in a sandbox. Workspace files are under /workspace (uploads/, artifacts/, models/). Helpers: ws_read(path,start,length) and ws_search(path,keyword). Prefer bounded for-range loops, simplified code, and small data. Infinite loops, huge allocations, and heavy recursion are blocked — especially in agent mode.',parameters:{type:'object',properties:{code:{type:'string',description:'Python source code to execute'}},required:['code']}}},
 {type:'function',function:{name:'self_check',description:'Record a brief self-check of correctness before finalizing an important answer. Use after tool results when stakes are high.',parameters:{type:'object',properties:{observation:{type:'string',description:'What you verified'},passed:{type:'boolean',description:'Whether the check passed'}},required:['observation']}}},
-{type:'function',function:{name:'web_search',description:'Search the public web for up-to-date facts, docs, or news. Use when the answer depends on information you may not have reliably.',parameters:{type:'object',properties:{query:{type:'string',description:'Search query string'}},required:['query']}}},
+{type:'function',function:{name:'web_search',description:'Search the public web (Google-style results + AI overview when available), Wikipedia, Hacker News, GitHub repos, and Wikidata. Prefer mode=google for general web facts; mode=wikipedia for encyclopedia topics (also returns structured page when a clear match exists); mode=github for repository search. Always use for up-to-date facts.',parameters:{type:'object',properties:{query:{type:'string',description:'Search query string'},mode:{type:'string',description:'Optional: web|google|wikipedia|github (default web = multi-source)'}},required:['query']}}},
+{type:'function',function:{name:'wikipedia_page',description:'Fetch a full Wikipedia page in structured form: title, summary/extract, table of contents sections, section texts, categories, and links. Use when you need the complete encyclopedia article rather than search snippets.',parameters:{type:'object',properties:{title:{type:'string',description:'Article title or slug (spaces or underscores)'},lang:{type:'string',description:'Wikipedia language code, default en'},sections:{type:'boolean',description:'Include section bodies (default true)'},max_chars:{type:'number',description:'Max characters of section text to return (default 24000)'}},required:['title']}}},
+{type:'function',function:{name:'github_repo',description:'Inspect a public (or token-authorized) GitHub repository. Actions: info (metadata), tree (recursive full file list), file (read a file path), readme, releases, issues, tags, commits, contents (list one directory). Use tree first, then file for specific paths.',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},action:{type:'string',description:'info|tree|file|readme|releases|issues|tags|commits|contents'},path:{type:'string',description:'For action=file or contents: path inside the repo'},ref:{type:'string',description:'Branch, tag, or commit SHA (default: default branch)'},limit:{type:'number',description:'Max items for lists (default 30, max 100)'},query:{type:'string',description:'Optional filter for issues/search within repo'}},required:['owner','repo','action']}}},
 {type:'function',function:{name:'check_code',description:'Runtime/syntax check files under code/ (or a specific path). Parses JS, runs Python compile checks, and basic HTML balance checks. Call after writing code and keep fixing until ok=true and errors is empty.',parameters:{type:'object',properties:{path:{type:'string',description:'Optional file path or folder under code/. Empty = check all code/ files.'}},required:[]}}},
 {type:'function',function:{name:'image_search',description:'Search for images related to a topic. Returns image URLs with source credits. Use when a photo helps explain something.',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}},
 {type:'function',function:{name:'show_chart',description:'Show a bar, pie, or line chart in chat. Use when data is clearer as a visual (trends, shares, comparisons) — user need not say chart.',parameters:{type:'object',properties:{type:{type:'string',description:'bar | pie | line'},title:{type:'string'},subtitle:{type:'string'},labels:{type:'array',items:{type:'string'}},values:{type:'array',items:{type:'number'}},colors:{type:'array',items:{type:'string'}},unit:{type:'string'}},required:['type','labels','values']}}},
@@ -5231,7 +5233,9 @@ case'delete_file':return this.vfs.delete(args.path);
 case'remember':return await this.rememberAcrossChats(args);
 case'run_python':return await this.python.run(args.code);
 case'self_check':return{recorded:true,observation:args.observation,passed:!!args.passed};
-case'web_search':return await this.webSearch(args.query||'');
+case'web_search':return await this.webSearch(args.query||'', args||{});
+case'wikipedia_page':return await this.wikipediaPage(args||{});
+case'github_repo':return await this.githubRepo(args||{});
 case'check_code':return await this.checkCode(args.path||'');
 case'image_search':return await this.imageSearch(args.query||'');
 case'show_chart':return this.showChart(args||{});
@@ -5478,66 +5482,371 @@ async rememberAcrossChats(args){
     return{ok:true,found:true,query:q,briefs,brief:briefs.map(b=>b.title+':\n'+b.summary).join('\n\n').slice(0,3500)};
   }catch(e){return{ok:false,error:String(e.message||e)}}
 }
-async webSearch(query){
+async webSearch(query, args){
   if(!query||!String(query).trim())return{ok:false,error:'Empty search query',results:[]};
   const q=String(query).trim();
+  const mode=String((args&&args.mode)||'web').toLowerCase();
   const results=[];
   const errors=[];
+  let overview=null;
+  let wikipedia_structured=null;
   const fetchJSON=async(url,ms=12000)=>{
     const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
     const res=await fetch(url,{signal:ctrl,mode:'cors',headers:{Accept:'application/json'}});
     if(!res.ok)throw new Error('HTTP '+res.status);
     return await res.json();
   };
+  const fetchText=async(url,ms=12000)=>{
+    const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
+    let res;
+    try{
+      res=await fetch(url,{signal:ctrl,mode:'cors',headers:{Accept:'text/html,application/json'}});
+      if(res.ok)return await res.text();
+    }catch(e){}
+    // CORS proxies for Google / blocked hosts
+    const proxies=[
+      'https://corsproxy.io/?'+encodeURIComponent(url),
+      'https://api.allorigins.win/raw?url='+encodeURIComponent(url)
+    ];
+    for(const p of proxies){
+      try{
+        const r=await fetch(p,{signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined});
+        if(r.ok)return await r.text();
+      }catch(e){}
+    }
+    throw new Error('fetch failed for '+url);
+  };
   const push=(item)=>{
     if(!item||!item.title)return;
     const url=item.url||'';
     if(url&&results.some(r=>r.url===url))return;
-    results.push({title:String(item.title).slice(0,160),snippet:String(item.snippet||'').slice(0,320),url,source:item.source||'web'});
+    results.push({title:String(item.title).slice(0,200),snippet:String(item.snippet||'').slice(0,480),url,source:item.source||'web'});
   };
-  try{
-    const wiki='https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=5&srsearch='+encodeURIComponent(q)+'&format=json&origin=*';
-    const data=await fetchJSON(wiki,10000);
-    for(const hit of (data.query&&data.query.search)||[]){
-      push({title:hit.title,snippet:(hit.snippet||'').replace(/<[^>]+>/g,''),url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(String(hit.title).replace(/ /g,'_')),source:'wikipedia'});
-    }
-  }catch(e){errors.push('wikipedia: '+(e.message||e))}
-  try{
-    const open='https://en.wikipedia.org/w/api.php?action=opensearch&limit=5&namespace=0&format=json&origin=*&search='+encodeURIComponent(q);
-    const data=await fetchJSON(open,8000);
-    const titles=data[1]||[], descs=data[2]||[], urls=data[3]||[];
-    for(let i=0;i<titles.length;i++)push({title:titles[i],snippet:descs[i]||'',url:urls[i]||'',source:'wikipedia'});
-  }catch(e){errors.push('opensearch: '+(e.message||e))}
-  try{
-    const hn='https://hn.algolia.com/api/v1/search?hitsPerPage=5&query='+encodeURIComponent(q);
-    const data=await fetchJSON(hn,9000);
-    for(const h of data.hits||[]){
-      const url=h.url||('https://news.ycombinator.com/item?id='+h.objectID);
-      push({title:h.title||h.story_title||'HN result',snippet:(h.story_text||h.comment_text||'').replace(/<[^>]+>/g,'').slice(0,240),url,source:'hn'});
-    }
-  }catch(e){errors.push('hn: '+(e.message||e))}
-  try{
-    const gh='https://api.github.com/search/repositories?per_page=4&q='+encodeURIComponent(q);
-    const data=await fetchJSON(gh,9000);
-    for(const r of data.items||[]){
-      push({title:r.full_name,snippet:r.description||'',url:r.html_url,source:'github'});
-    }
-  }catch(e){errors.push('github: '+(e.message||e))}
-  try{
-    const wd='https://www.wikidata.org/w/api.php?action=wbsearchentities&language=en&format=json&origin=*&limit=4&search='+encodeURIComponent(q);
-    const data=await fetchJSON(wd,8000);
-    for(const s of data.search||[]){
-      push({title:s.label||q,snippet:s.description||'',url:s.concepturi||('https://www.wikidata.org/wiki/'+s.id),source:'wikidata'});
-    }
-  }catch(e){errors.push('wikidata: '+(e.message||e))}
-  if(!results.length){
+  const wantGoogle=mode==='web'||mode==='google';
+  const wantWiki=mode==='web'||mode==='wikipedia';
+  const wantGh=mode==='web'||mode==='github';
+  const wantHn=mode==='web';
+
+  // DuckDuckGo Instant Answer → AI-style overview
+  if(wantGoogle||mode==='web'){
+    try{
+      const ddg='https://api.duckduckgo.com/?q='+encodeURIComponent(q)+'&format=json&no_html=1&skip_disambig=1';
+      const data=await fetchJSON(ddg,9000);
+      const abs=String(data.AbstractText||'').trim();
+      const heading=String(data.Heading||'').trim();
+      const absUrl=String(data.AbstractURL||'').trim();
+      if(abs){
+        overview={title:heading||q,text:abs.slice(0,1200),source:data.AbstractSource||'DuckDuckGo',url:absUrl||'',type:'instant_answer'};
+      }
+      if(Array.isArray(data.RelatedTopics)){
+        for(const t of data.RelatedTopics.slice(0,6)){
+          if(t&&t.Text&&t.FirstURL)push({title:(t.Text||'').split(' - ')[0].slice(0,120),snippet:t.Text,url:t.FirstURL,source:'duckduckgo'});
+          if(t&&t.Topics)for(const st of t.Topics.slice(0,3)){
+            if(st&&st.Text&&st.FirstURL)push({title:(st.Text||'').split(' - ')[0].slice(0,120),snippet:st.Text,url:st.FirstURL,source:'duckduckgo'});
+          }
+        }
+      }
+      if(Array.isArray(data.Results)){
+        for(const r of data.Results.slice(0,5)){
+          if(r&&r.Text&&r.FirstURL)push({title:r.Text.slice(0,120),snippet:r.Text,url:r.FirstURL,source:'duckduckgo'});
+        }
+      }
+    }catch(e){errors.push('duckduckgo: '+(e.message||e))}
+  }
+
+  // Google HTML (via proxy) — organic results + AI overview block when present
+  if(wantGoogle){
+    try{
+      const gUrl='https://www.google.com/search?q='+encodeURIComponent(q)+'&hl=en&gl=us&num=10';
+      const html=await fetchText(gUrl,14000);
+      // AI Overview / featured snippet-ish blocks
+      const aiMatch=html.match(/AI Overview[\s\S]{0,80}?<(?:div|span)[^>]*>([\s\S]{20,1800}?)<\/(?:div|span)>/i)
+        ||html.match(/data-attrid="wa:\/description"[^>]*>[\s\S]*?<span[^>]*>([\s\S]{20,1200}?)<\/span>/i)
+        ||html.match(/class="kno-rdesc"[^>]*>[\s\S]*?<span[^>]*>([\s\S]{20,1200}?)<\/span>/i)
+        ||html.match(/class="hgKElc"[^>]*>([\s\S]{20,1200}?)<\/div>/i);
+      if(aiMatch&&aiMatch[1]){
+        const clean=aiMatch[1].replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+        if(clean.length>40){
+          overview=overview||{title:'Google AI Overview',text:clean.slice(0,1500),source:'Google',url:gUrl,type:'ai_overview'};
+          if(overview&&!overview.type)overview.type='ai_overview';
+          if(overview.source!=='Google'&&clean.length> (overview.text||'').length){
+            overview={title:'Google AI Overview',text:clean.slice(0,1500),source:'Google',url:gUrl,type:'ai_overview'};
+          }
+        }
+      }
+      // Organic result blocks
+      const re=/<a[^>]+href="\/url\?q=([^&"]+)[^"]*"[^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)<\/h3>/gi;
+      let m,count=0;
+      while((m=re.exec(html))&&count<8){
+        try{
+          const url=decodeURIComponent(m[1]);
+          const title=m[2].replace(/<[^>]+>/g,'').trim();
+          if(title&&url&&/^https?:/i.test(url)&&!/google\./i.test(url)){
+            push({title,snippet:'',url,source:'google'});
+            count++;
+          }
+        }catch(e){}
+      }
+      // Alternate organic pattern
+      if(count<3){
+        const re2=/<a[^>]+href="(https?:\/\/[^"]+)"[^>][^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)<\/h3>/gi;
+        while((m=re2.exec(html))&&count<8){
+          const url=m[1];
+          const title=m[2].replace(/<[^>]+>/g,'').trim();
+          if(title&&url&&!/google\./i.test(url)&&!/webcache/i.test(url)){
+            push({title,snippet:'',url,source:'google'});
+            count++;
+          }
+        }
+      }
+    }catch(e){errors.push('google: '+(e.message||e))}
+  }
+
+  // Wikipedia search + optional structured page for best match
+  if(wantWiki){
+    try{
+      const wiki='https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=5&srsearch='+encodeURIComponent(q)+'&format=json&origin=*';
+      const data=await fetchJSON(wiki,10000);
+      const hits=(data.query&&data.query.search)||[];
+      for(const hit of hits){
+        push({title:hit.title,snippet:(hit.snippet||'').replace(/<[^>]+>/g,''),url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(String(hit.title).replace(/ /g,'_')),source:'wikipedia'});
+      }
+      if(hits.length&&(mode==='wikipedia'||hits[0].title.toLowerCase().replace(/_/g,' ')===q.toLowerCase()||(hits[0].title||'').toLowerCase().includes(q.toLowerCase().slice(0,24)))){
+        try{
+          wikipedia_structured=await this.wikipediaPage({title:hits[0].title,lang:'en',sections:true,max_chars:18000});
+        }catch(e){errors.push('wikipedia_page: '+(e.message||e))}
+      }
+    }catch(e){errors.push('wikipedia: '+(e.message||e))}
+    try{
+      const open='https://en.wikipedia.org/w/api.php?action=opensearch&limit=5&namespace=0&format=json&origin=*&search='+encodeURIComponent(q);
+      const data=await fetchJSON(open,8000);
+      const titles=data[1]||[], descs=data[2]||[], urls=data[3]||[];
+      for(let i=0;i<titles.length;i++)push({title:titles[i],snippet:descs[i]||'',url:urls[i]||'',source:'wikipedia'});
+    }catch(e){errors.push('opensearch: '+(e.message||e))}
+  }
+
+  if(wantHn){
+    try{
+      const hn='https://hn.algolia.com/api/v1/search?hitsPerPage=5&query='+encodeURIComponent(q);
+      const data=await fetchJSON(hn,9000);
+      for(const h of data.hits||[]){
+        const url=h.url||('https://news.ycombinator.com/item?id='+h.objectID);
+        push({title:h.title||h.story_title||'HN result',snippet:(h.story_text||h.comment_text||'').replace(/<[^>]+>/g,'').slice(0,240),url,source:'hn'});
+      }
+    }catch(e){errors.push('hn: '+(e.message||e))}
+  }
+
+  if(wantGh){
+    try{
+      const gh='https://api.github.com/search/repositories?per_page=5&q='+encodeURIComponent(q);
+      const data=await fetchJSON(gh,9000);
+      for(const r of data.items||[]){
+        push({title:r.full_name,snippet:(r.description||'')+' ★'+(r.stargazers_count||0),url:r.html_url,source:'github'});
+      }
+    }catch(e){errors.push('github: '+(e.message||e))}
+  }
+
+  if(mode==='web'||mode==='wikipedia'){
+    try{
+      const wd='https://www.wikidata.org/w/api.php?action=wbsearchentities&language=en&format=json&origin=*&limit=4&search='+encodeURIComponent(q);
+      const data=await fetchJSON(wd,8000);
+      for(const s of data.search||[]){
+        push({title:s.label||q,snippet:s.description||'',url:s.concepturi||('https://www.wikidata.org/wiki/'+s.id),source:'wikidata'});
+      }
+    }catch(e){errors.push('wikidata: '+(e.message||e))}
+  }
+
+  if(!results.length&&wantWiki){
     try{
       const slug=encodeURIComponent(q.replace(/ /g,'_'));
       const data=await fetchJSON('https://en.wikipedia.org/api/rest_v1/page/summary/'+slug,8000);
       if(data.extract)push({title:data.title||q,snippet:data.extract,url:(data.content_urls&&data.content_urls.desktop&&data.content_urls.desktop.page)||'',source:'wikipedia'});
     }catch(e){errors.push('summary: '+(e.message||e))}
   }
-  return {ok:results.length>0,query:q,results:results.slice(0,12),errors:errors.slice(0,6)};
+
+  return {
+    ok:results.length>0||!!overview||!!(wikipedia_structured&&wikipedia_structured.ok),
+    query:q,
+    mode,
+    overview:overview||undefined,
+    wikipedia_structured:(wikipedia_structured&&wikipedia_structured.ok)?wikipedia_structured:undefined,
+    results:results.slice(0,14),
+    errors:errors.slice(0,8),
+    hint:'If overview is present, treat it as a Google AI Overview / instant answer. For full encyclopedia detail use wikipedia_page. For deep repo inspection use github_repo (tree/file/readme/releases/issues/tags).'
+  };
+}
+async wikipediaPage(args){
+  const title=String((args&&args.title)||'').trim();
+  if(!title)return{ok:false,error:'title required'};
+  const lang=String((args&&args.lang)||'en').replace(/[^a-z\-]/gi,'')||'en';
+  const wantSections=args&&args.sections===false?false:true;
+  const maxChars=Math.min(60000,Math.max(2000,Number(args&&args.max_chars)||24000));
+  const slug=title.replace(/ /g,'_');
+  const enc=encodeURIComponent(slug);
+  const out={ok:false,title,lang,url:'https://'+lang+'.wikipedia.org/wiki/'+enc};
+  try{
+    const sumRes=await fetch('https://'+lang+'.wikipedia.org/api/rest_v1/page/summary/'+enc,{mode:'cors',headers:{Accept:'application/json'}});
+    if(sumRes.ok){
+      const sum=await sumRes.json();
+      out.title=sum.title||title;
+      out.description=sum.description||'';
+      out.extract=sum.extract||'';
+      out.thumbnail=(sum.thumbnail&&sum.thumbnail.source)||'';
+      out.url=(sum.content_urls&&sum.content_urls.desktop&&sum.content_urls.desktop.page)||out.url;
+      out.pageid=sum.pageid;
+      out.type=sum.type;
+    }
+  }catch(e){out.summary_error=String(e.message||e)}
+  if(wantSections){
+    try{
+      const mob=await fetch('https://'+lang+'.wikipedia.org/api/rest_v1/page/mobile-sections/'+enc,{mode:'cors',headers:{Accept:'application/json'}});
+      if(mob.ok){
+        const data=await mob.json();
+        const lead=(data.lead||{});
+        out.title=lead.displaytitle?String(lead.displaytitle).replace(/<[^>]+>/g,''):out.title;
+        out.sections=[];
+        let budget=maxChars;
+        const pushSec=(s,isLead)=>{
+          if(!s||budget<=0)return;
+          const secTitle=isLead?'Lead':(s.line||s.title||'Section');
+          const html=String(s.text||'');
+          const text=html.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+          if(!text)return;
+          const take=text.slice(0,Math.min(text.length,budget));
+          budget-=take.length;
+          out.sections.push({id:s.id,title:secTitle,anchor:s.anchor||'',chars:take.length,text:take,truncated:text.length>take.length});
+        };
+        if(lead.sections)for(const s of lead.sections)pushSec(s,true);
+        else if(out.extract){out.sections.push({title:'Lead',text:out.extract,chars:(out.extract||'').length})}
+        for(const s of (data.remaining&&data.remaining.sections)||[])pushSec(s,false);
+        out.toc=(out.sections||[]).filter(s=>s.title&&s.title!=='Lead').map(s=>({title:s.title,anchor:s.anchor||''}));
+        out.ok=true;
+      }
+    }catch(e){out.sections_error=String(e.message||e)}
+  }
+  if(!out.ok&&out.extract)out.ok=true;
+  // Categories
+  try{
+    const catUrl='https://'+lang+'.wikipedia.org/w/api.php?action=query&prop=categories&cllimit=20&format=json&origin=*&titles='+enc;
+    const cres=await fetch(catUrl,{mode:'cors'});
+    if(cres.ok){
+      const cdata=await cres.json();
+      const pages=(cdata.query&&cdata.query.pages)||{};
+      const page=Object.values(pages)[0];
+      if(page&&page.categories)out.categories=page.categories.map(c=>String(c.title||'').replace(/^Category:/,'')).filter(Boolean);
+    }
+  }catch(e){}
+  if(!out.ok)return{ok:false,error:'Wikipedia page not found or blocked',title,lang};
+  return out;
+}
+_ghHeaders(){
+  const h={'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};
+  const token=(this.githubToken||(typeof window!=='undefined'&&window.__app&&window.__app.storage&&window.__app.storage.get('githubToken',''))||'').trim();
+  if(token)h.Authorization='Bearer '+token;
+  return h;
+}
+async githubRepo(args){
+  const owner=String((args&&args.owner)||'').trim();
+  const repo=String((args&&args.repo)||'').trim();
+  const action=String((args&&args.action)||'info').toLowerCase();
+  const path=String((args&&args.path)||'').replace(/^\/+/,'');
+  const ref=String((args&&args.ref)||'').trim();
+  const limit=Math.min(100,Math.max(1,Number(args&&args.limit)||30));
+  if(!owner||!repo)return{ok:false,error:'owner and repo required'};
+  const headers=this._ghHeaders();
+  const base='https://api.github.com/repos/'+encodeURIComponent(owner)+'/'+encodeURIComponent(repo);
+  const getJSON=async(url)=>{
+    const res=await fetch(url,{headers,mode:'cors'});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(data.message||('GitHub HTTP '+res.status));
+    return data;
+  };
+  try{
+    if(action==='info'){
+      const r=await getJSON(base+(ref?('?ref='+encodeURIComponent(ref)):''));
+      return{ok:true,action:'info',full_name:r.full_name,description:r.description,html_url:r.html_url,default_branch:r.default_branch,stars:r.stargazers_count,forks:r.forks_count,open_issues:r.open_issues_count,language:r.language,license:(r.license&&r.license.spdx_id)||null,topics:r.topics||[],created_at:r.created_at,updated_at:r.updated_at,pushed_at:r.pushed_at,homepage:r.homepage,size:r.size,visibility:r.visibility||(r.private?'private':'public')};
+    }
+    if(action==='readme'){
+      const url=base+'/readme'+(ref?('?ref='+encodeURIComponent(ref)):'');
+      const r=await getJSON(url);
+      let content='';
+      if(r.content&&r.encoding==='base64'){
+        try{content=decodeURIComponent(escape(atob(r.content.replace(/\n/g,''))))}catch(e){
+          try{content=atob(r.content.replace(/\n/g,''))}catch(e2){content='[binary decode failed]'}
+        }
+      }
+      return{ok:true,action:'readme',path:r.path,name:r.name,html_url:r.html_url,size:r.size,content:String(content).slice(0,80000)};
+    }
+    if(action==='tree'){
+      let branch=ref;
+      if(!branch){
+        const info=await getJSON(base);
+        branch=info.default_branch||'main';
+      }
+      // resolve ref to commit sha then recursive tree
+      let sha=branch;
+      try{
+        const refData=await getJSON(base+'/git/ref/heads/'+encodeURIComponent(branch));
+        sha=(refData.object&&refData.object.sha)||branch;
+      }catch(e){
+        try{
+          const refData=await getJSON(base+'/git/ref/tags/'+encodeURIComponent(branch));
+          sha=(refData.object&&refData.object.sha)||branch;
+        }catch(e2){}
+      }
+      const commit=await getJSON(base+'/git/commits/'+encodeURIComponent(sha)).catch(()=>null);
+      const treeSha=(commit&&commit.tree&&commit.tree.sha)||sha;
+      const tree=await getJSON(base+'/git/trees/'+encodeURIComponent(treeSha)+'?recursive=1');
+      const files=(tree.tree||[]).filter(t=>t.type==='blob').map(t=>({path:t.path,size:t.size,sha:t.sha}));
+      const dirs=[...new Set((tree.tree||[]).filter(t=>t.type==='tree').map(t=>t.path))].sort();
+      return{ok:true,action:'tree',ref:branch,truncated:!!tree.truncated,file_count:files.length,dir_count:dirs.length,directories:dirs.slice(0,500),files:files.slice(0,2000),hint:'Use action=file with path to open a specific file.'};
+    }
+    if(action==='file'){
+      if(!path)return{ok:false,error:'path required for action=file'};
+      const url=base+'/contents/'+path.split('/').map(encodeURIComponent).join('/')+(ref?('?ref='+encodeURIComponent(ref)):'');
+      const r=await getJSON(url);
+      if(Array.isArray(r))return{ok:false,error:'path is a directory — use action=contents or tree',entries:r.map(x=>({name:x.name,type:x.type,path:x.path,size:x.size}))};
+      let content='';
+      if(r.content&&r.encoding==='base64'){
+        try{content=decodeURIComponent(escape(atob(r.content.replace(/\n/g,''))))}catch(e){
+          try{content=atob(r.content.replace(/\n/g,''))}catch(e2){content='[binary]'}
+        }
+      }
+      const max=120000;
+      const truncated=content.length>max;
+      return{ok:true,action:'file',path:r.path,name:r.name,size:r.size,sha:r.sha,html_url:r.html_url,download_url:r.download_url,truncated,content:content.slice(0,max)};
+    }
+    if(action==='contents'){
+      const url=base+'/contents/'+(path?path.split('/').map(encodeURIComponent).join('/'):'')+(ref?((path?'&':'?')+'ref='+encodeURIComponent(ref)):'');
+      const r=await getJSON(url);
+      const list=Array.isArray(r)?r:[r];
+      return{ok:true,action:'contents',path:path||'/',entries:list.map(x=>({name:x.name,type:x.type,path:x.path,size:x.size,html_url:x.html_url,sha:x.sha})).slice(0,limit)};
+    }
+    if(action==='releases'){
+      const r=await getJSON(base+'/releases?per_page='+limit);
+      return{ok:true,action:'releases',releases:(r||[]).map(x=>({tag:x.tag_name,name:x.name,draft:x.draft,prerelease:x.prerelease,published_at:x.published_at,html_url:x.html_url,body:String(x.body||'').slice(0,2000),assets:(x.assets||[]).map(a=>({name:a.name,size:a.size,download_count:a.download_count,browser_download_url:a.browser_download_url}))}))};
+    }
+    if(action==='issues'){
+      const q=String((args&&args.query)||'').trim();
+      let url=base+'/issues?state=all&per_page='+limit;
+      if(q)url='https://api.github.com/search/issues?q='+encodeURIComponent('repo:'+owner+'/'+repo+' '+q)+'&per_page='+limit;
+      const r=await getJSON(url);
+      const items=Array.isArray(r)?r:(r.items||[]);
+      return{ok:true,action:'issues',issues:items.map(x=>({number:x.number,title:x.title,state:x.state,user:(x.user&&x.user.login)||'',labels:(x.labels||[]).map(l=>l.name),created_at:x.created_at,updated_at:x.updated_at,html_url:x.html_url,body:String(x.body||'').slice(0,1500)}))};
+    }
+    if(action==='tags'){
+      const r=await getJSON(base+'/tags?per_page='+limit);
+      return{ok:true,action:'tags',tags:(r||[]).map(x=>({name:x.name,commit_sha:(x.commit&&x.commit.sha)||'',zipball_url:x.zipball_url,tarball_url:x.tarball_url}))};
+    }
+    if(action==='commits'){
+      const url=base+'/commits?per_page='+limit+(ref?('&sha='+encodeURIComponent(ref)):'');
+      const r=await getJSON(url);
+      return{ok:true,action:'commits',commits:(r||[]).map(x=>({sha:x.sha,message:String((x.commit&&x.commit.message)||'').slice(0,300),author:((x.commit&&x.commit.author&&x.commit.author.name)||(x.author&&x.author.login)||''),date:(x.commit&&x.commit.author&&x.commit.author.date)||'',html_url:x.html_url}))};
+    }
+    return{ok:false,error:'Unknown action. Use info|tree|file|readme|releases|issues|tags|commits|contents'};
+  }catch(e){
+    return{ok:false,error:e.message||String(e),action,owner,repo};
+  }
 }
 async imageSearch(query){
   if(!query||!String(query).trim())return{ok:false,error:'Empty image query',results:[]};
@@ -6256,7 +6565,9 @@ class AgentManager{
       defs.push({type:'function',function:{name:'list_files',description:'List workspace files',parameters:{type:'object',properties:{path:{type:'string'}}}}});
     }
     if(a.perms.network!==false){
-      defs.push({type:'function',function:{name:'web_search',description:'Full web search for facts, prior art, papers, news. Required before claiming a mathematical discovery is new.',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}});
+      defs.push({type:'function',function:{name:'web_search',description:'Full web search (Google-style + AI overview), Wikipedia, GitHub. Required before claiming a mathematical discovery is new.',parameters:{type:'object',properties:{query:{type:'string'},mode:{type:'string'}},required:['query']}}});
+      defs.push({type:'function',function:{name:'wikipedia_page',description:'Full structured Wikipedia article.',parameters:{type:'object',properties:{title:{type:'string'},lang:{type:'string'}},required:['title']}}});
+      defs.push({type:'function',function:{name:'github_repo',description:'Inspect GitHub repo: info, tree, file, readme, releases, issues, tags, commits.',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},action:{type:'string'},path:{type:'string'},ref:{type:'string'}},required:['owner','repo','action']}}});
       defs.push({type:'function',function:{name:'remember',description:'Silently search related user chats in this section/project and return a brief summary. Never writes into those chats.',parameters:{type:'object',properties:{query:{type:'string'},section:{type:'string'}},required:['query']}}});
       defs.push({type:'function',function:{name:'image_search',description:'Search images related to a topic. Prefer when a photo/illustration helps the user.',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}});
       defs.push({type:'function',function:{name:'show_chart',description:'Render a bar, pie, or line chart in the chat for the user. Use when numbers, shares, or trends are clearer as a visual. Not only when the user says chart.',parameters:{type:'object',properties:{type:{type:'string',enum:['bar','pie','line']},title:{type:'string'},subtitle:{type:'string'},labels:{type:'array',items:{type:'string'}},values:{type:'array',items:{type:'number'}},colors:{type:'array',items:{type:'string'}},unit:{type:'string'}},required:['type','labels','values']}}});
@@ -7454,6 +7765,8 @@ if(hasTools){
     if(t.function.name==='run_python')hint='Python';
     else if(t.function.name==='read_file'||t.function.name==='write_file')hint=String(a.path||'').slice(0,80);
     else if(t.function.name==='web_search'||t.function.name==='image_search')hint=String(a.query||'').slice(0,80);
+    else if(t.function.name==='wikipedia_page')hint=String(a.title||'').slice(0,80);
+    else if(t.function.name==='github_repo')hint=String((a.owner||'')+'/'+(a.repo||'')+' '+(a.action||'')).slice(0,80);
     else hint='';
     return (i+1)+'. '+t.function.name+(hint?' · '+hint:'');
   }).join('\n');
@@ -8196,7 +8509,7 @@ async _streamWriteFile(args,actId,onEvent){
 _agentFor(name){
   if(name==='check_code'||name==='self_check')return 'Agent 2';
   if(name==='read_file'||name==='list_files')return 'Agent 3';
-  if(name==='web_search'||name==='image_search')return 'Agent 3';
+  if(name==='web_search'||name==='image_search'||name==='wikipedia_page'||name==='github_repo')return 'Agent 3';
   if(name==='generate_image'||name==='write_file'||name==='run_python')return 'Agent 1';
   return 'Agent 1';
 }
@@ -8209,6 +8522,8 @@ _activityTitle(name,args,done=false){
   else if(name==='run_python')label=done?'Ran Python':'Running Python';
   else if(name==='remember')label=done?'Remembered':'Remembering…';
   else if(name==='web_search')label=done?'Searched web':'Searching web';
+  else if(name==='wikipedia_page')label=done?'Opened Wikipedia':'Loading Wikipedia';
+  else if(name==='github_repo')label=done?'Inspected GitHub repo':'Inspecting GitHub repo';
   else if(name==='image_search')label=done?'Searched images':'Searching images';
   else if(name==='check_code')label=done?'Checked code':'Checking code';
   else if(name==='self_check')label=done?'Self-checked':'Self-check';
@@ -8227,7 +8542,7 @@ _activityIcon(name){
   if(name==='read_file'||name==='list_files')return SVG.read||'';
   if(name==='run_python')return SVG.code||'';
   if(name==='remember')return SVG.bulb||SVG.search||'';
-  if(name==='web_search'||name==='image_search')return SVG.search||'';
+  if(name==='web_search'||name==='image_search'||name==='wikipedia_page'||name==='github_repo')return SVG.search||'';
   if(name==='check_code'||name==='self_check')return SVG.check||'';
   return SVG.code||'';
 }
@@ -8244,7 +8559,9 @@ if(name==='delete_file')return{detail:'Deleted (archived)',delta:{added:0,remove
 if(name==='list_files'){const n=Array.isArray(result)?result.length:0;return{detail:`${n} entries`,full:JSON.stringify(result,null,2)}}
 if(name==='read_file'){const len=typeof result==='string'?result.length:0;return{detail:`${len} chars`,full:typeof result==='string'?result:JSON.stringify(result)}}
 if(name==='self_check')return{detail:result.passed?'Passed':'Needs work — '+(result.observation||''),full:result.observation};
-if(name==='web_search'){const n=(result.results||[]).length;return{detail:result.ok?`${n} results for "${result.query}"`:(result.error||'Failed'),full:JSON.stringify(result,null,2)}};
+if(name==='web_search'){const n=(result.results||[]).length;const ov=result.overview?' · overview':'';const wk=result.wikipedia_structured?' · wiki page':'';return{detail:result.ok?`${n} results for "${result.query}"${ov}${wk}`:(result.error||'Failed'),full:JSON.stringify(result,null,2)}};
+if(name==='wikipedia_page'){const n=((result.sections||[]).length);return{detail:result.ok?`Wikipedia: ${result.title||''} (${n} sections)`:(result.error||'Failed'),full:JSON.stringify(result,null,2)}};
+if(name==='github_repo'){return{detail:result.ok?`GitHub ${result.action||''}: ${args&&args.owner}/${args&&args.repo}`:(result.error||'Failed'),full:JSON.stringify(result,null,2)}};
 return{detail:'Done',full:JSON.stringify(result)}}}
 
 class UIManager{constructor(app){this.app=app;this.pendingAttachments=[];this.activityMap=new Map()}
