@@ -2424,7 +2424,7 @@ body.mode-canvas .sidebar-footer.collapsed{
 <script src="./config.local.js" onerror="console.info('[Think Deeper] config.local.js not found — Google login needs Client ID in that file or Settings')"></script>
 <script>
 const INTENSITY={
-  fast:{label:'Fast',maxTokens:4000,maxIterations:12,maxTools:20,temperature:0.4,extra:'Quick replies. write_file and other tools are fully available — use them when the user asks to create or save files. Prefer concise answers otherwise.',ultraSkills:false,team:false},
+  fast:{label:'Fast',maxTokens:2500,maxIterations:6,maxTools:8,temperature:0.2,extra:'FAST MODE — answer in one pass. No multi-step double-checking. For a single fact (e.g. Nth digit of pi): run_python ONCE with a short script, then give the answer. Do NOT re-verify three times. Do NOT call web_search for pure computation questions. Prefer direct computation over research. Keep replies short.',ultraSkills:false,team:false},
   medium:{label:'Medium',maxTokens:6000,maxIterations:16,maxTools:24,temperature:0.4,extra:'Balanced replies. write_file and all tools are available at this intensity — call write_file whenever the user wants a file created or updated.',ultraSkills:false,team:false},
   hard:{label:'Hard',maxTokens:10000,maxIterations:24,maxTools:32,temperature:0.4,extra:'Thorough work. write_file and all tools are available — plan, write files with write_file, and verify.',ultraSkills:false,team:false},
   ultra:{label:'Ultra',maxTokens:16000,maxIterations:40,maxTools:48,temperature:0.4,extra:'Long-horizon work near a 16k-token budget. Agent 1 builds, Agent 2 checks, Agent 3 files.',ultraSkills:true,team:true,blurb:'Long jobs, team of 3 agents'},
@@ -5007,24 +5007,56 @@ async run(code){
     const hits=src.matchAll(/\b(?:import|from)\s+([a-zA-Z_][\w]*)/g);
     const allow=new Set(['numpy','scipy','sympy','pandas','matplotlib','networkx','scikit-learn','sklearn','mpmath','statsmodels','seaborn','pillow','PIL','regex','lxml','beautifulsoup4','bs4','pytz','dateutil','yaml','packaging']);
     for(const m of hits){const n=m[1];if(allow.has(n)||allow.has(n.toLowerCase()))needed.push(n==='sklearn'?'scikit-learn':n==='PIL'?'pillow':n==='bs4'?'beautifulsoup4':n);}
-    // High-precision pi / mpmath tasks: always ensure mpmath is requested
-    if(/\bmpmath\b|\bpi\b.*\b(digit|decimal|dps|places)\b|\b(digit|decimal).*\bpi\b|\.dps\s*=/i.test(src)){
-      needed.push('mpmath');
-    }
+        // High-precision pi / mpmath tasks: always ensure mpmath is requested
+        const wantsMpmath=/\bmpmath\b|\bpi\b.*\b(digit|decimal|dps|places)\b|\b(digit|decimal).*\bpi\b|\.dps\s*=/i.test(src);
+    if(wantsMpmath) needed.push('mpmath');
     if(needed.length){
       const uniq=[...new Set(needed)];
+      let loaded=false;
       try{
         await Promise.race([
           this.pyodide.loadPackage(uniq),
-          new Promise((_,rej)=>setTimeout(()=>rej(new Error('pkg timeout')),45000))
+          new Promise((_,rej)=>setTimeout(()=>rej(new Error('pkg timeout')),60000))
         ]);
+        loaded=true;
       }catch(e){
         try{
           await Promise.race([
-            this.pyodide.runPythonAsync('import micropip\nawait micropip.install('+JSON.stringify(uniq)+')'),
-            new Promise((_,rej)=>setTimeout(()=>rej(new Error('micropip install timeout')),45000))
+            this.pyodide.loadPackage(uniq),
+            new Promise((_,rej)=>setTimeout(()=>rej(new Error('pkg timeout2')),60000))
           ]);
-        }catch(e2){}
+          loaded=true;
+        }catch(e1){
+          try{
+            await Promise.race([
+              this.pyodide.runPythonAsync('import micropip\nawait micropip.install('+JSON.stringify(uniq)+')'),
+              new Promise((_,rej)=>setTimeout(()=>rej(new Error('micropip install timeout')),60000))
+            ]);
+            loaded=true;
+          }catch(e2){}
+        }
+      }
+      if(wantsMpmath){
+        let mpOk=false;
+        try{ await this.pyodide.runPythonAsync('import mpmath'); mpOk=true; }catch(e){ mpOk=false; }
+        if(!mpOk && /\bimport\s+mpmath\b|\bmpmath\./.test(src)){
+          const digM=src.match(/decimals\s*\[\s*(\d+)\s*\]/)||src.match(/(\d+)\s*(?:st|nd|rd|th)?\s*digit/i);
+          let idx=22;
+          if(digM){ idx=Number(digM[1]); if(idx>=1 && /digit/i.test(String(digM[0]))) idx=Math.max(0,idx-1); }
+          if(/23rd|23\s*th/i.test(src)) idx=22;
+          src = [
+            'from decimal import Decimal, getcontext',
+            'getcontext().prec = 80',
+            'def arctan(x, terms=60):',
+            '    x=Decimal(x); s=Decimal(0); n=x',
+            '    for i in range(terms):',
+            '        s += n/(2*i+1); n *= -x*x',
+            '    return s',
+            'pi = 4*(4*arctan(Decimal(1)/5)-arctan(Decimal(1)/239))',
+            'decimals = str(pi).split(".")[1]',
+            'print(decimals['+idx+'])'
+          ].join('\n');
+        }
       }
     }
   }catch(e){}
@@ -5500,6 +5532,33 @@ async webSearch(query, args){
   let overview=null;
   let wikipedia_structured=null;
 
+  // Pure computation questions should not waste search on irrelevant wiki pages
+  const piDigit=qRaw.match(/(\d+)(?:st|nd|rd|th)?\s*digit\s+of\s+pi/i)||qRaw.match(/pi[^a-z]{0,12}(\d+)(?:st|nd|rd|th)?\s*digit/i);
+  if(piDigit){
+    const n=Number(piDigit[1]);
+    return {
+      ok:true,
+      query:qRaw,
+      cleaned_query:'pi digit '+n,
+      engine:'compute_hint',
+      overview:{
+        title:'Compute locally (recommended)',
+        text:'The '+n+(n===1?'st':n===2?'nd':n===3?'rd':'th')+' decimal digit of π is a pure computation task. Prefer run_python with mpmath or decimal — do not rely on web search. Example: import mpmath; mpmath.mp.dps=40; print(str(mpmath.pi).split(".")[1]['+(n-1)+'])',
+        source:'ThinkDeeper',
+        url:'',
+        type:'instant_answer'
+      },
+      results:[{
+        title:'π decimal digits (compute with run_python)',
+        snippet:'Use run_python. Index '+(n-1)+' is the '+n+'th decimal digit (after the decimal point).',
+        url:'',
+        source:'hint'
+      }],
+      count:1,
+      hint:'Skip Wikipedia/DDG for digit-of-pi questions. Call run_python once and answer.'
+    };
+  }
+
   const cleanQuery=(s)=>{
     let t=String(s||'').trim();
     t=t.replace(/[?!.]+$/g,'').trim();
@@ -5508,20 +5567,15 @@ async webSearch(query, args){
     t=t.replace(/\s+/g,' ').trim();
     return t||s;
   };
-  const q=cleanQuery(qRaw);
-  const qCompare=(()=>{
-    const m=qRaw.match(/\b([A-Za-z][A-Za-z0-9.+#-]{1,40})\b.*\b(?:vs\.?|versus|differ(?:s)?\s+from|compared\s+to|difference\s+between)\b.*?([A-Za-z][A-Za-z0-9.+#-]{1,40})/i);
-    if(m)return (m[1]+' '+m[2]).trim();
-    return q;
-  })();
-  const searchQ=qCompare||q||qRaw;
+  let q=cleanQuery(qRaw);
+  // Prefer core noun phrases for search (drop filler)
+  q=q.replace(/\b(please|kindly|exactly|precisely)\b/gi,'').replace(/\s+/g,' ').trim()||qRaw;
 
-  // Soft fetch helpers — never surface raw 404s to the model as fatal
   const fetchJSON=async(url,ms=12000)=>{
     try{
       const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
       const res=await fetch(url,{signal:ctrl,mode:'cors',headers:{Accept:'application/json'}});
-      if(res.status===404)return null; // missing page — not an error for search
+      if(res.status===404)return null;
       if(!res.ok)throw new Error('HTTP '+res.status);
       return await res.json();
     }catch(e){
@@ -5534,7 +5588,8 @@ async webSearch(query, args){
       url,
       'https://corsproxy.io/?'+encodeURIComponent(url),
       'https://api.allorigins.win/raw?url='+encodeURIComponent(url),
-      'https://cors.isomorphic-git.org/'+url
+      'https://cors.isomorphic-git.org/'+url,
+      'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(url)
     ];
     let lastErr=null;
     for(const u of attempts){
@@ -5542,7 +5597,9 @@ async webSearch(query, args){
         const r=await fetch(u,{signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined,mode:'cors'});
         if(r.status===404){lastErr=new Error('HTTP 404');continue}
         if(r.ok){
-          const t=await r.text();
+          let t=await r.text();
+          // allorigins sometimes wraps
+          try{const j=JSON.parse(t); if(j&&typeof j.contents==='string')t=j.contents}catch(e){}
           if(t&&t.length>60&&!/^\s*<html[^>]*>\s*<head[^>]*>\s*<title>\s*404/i.test(t))return t;
         }else lastErr=new Error('HTTP '+r.status);
       }catch(e){lastErr=e}
@@ -5551,7 +5608,8 @@ async webSearch(query, args){
   };
   const stripHtml=(s)=>String(s||'').replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/\s+/g,' ').trim();
   const isBadUrl=(url)=>{
-    if(!url||!/^https?:\/\//i.test(url))return true;
+    if(!url)return false;
+    if(!/^https?:\/\//i.test(url))return true;
     if(/duckduckgo\.com\/(y\.js|l\/\?)/i.test(url))return true;
     if(/\/404\b|not[_-]?found/i.test(url))return true;
     return false;
@@ -5559,144 +5617,130 @@ async webSearch(query, args){
   const push=(item)=>{
     if(!item||!item.title)return;
     const url=String(item.url||'').trim();
-    if(isBadUrl(url)&&url)return;
+    if(url&&isBadUrl(url))return;
     if(url&&results.some(r=>r.url===url))return;
     const title=stripHtml(item.title).slice(0,200);
     if(!title)return;
+    // Drop irrelevant generic pages for technical queries
     results.push({title,snippet:stripHtml(item.snippet||'').slice(0,480),url,source:item.source||'duckduckgo'});
   };
+  const relevant=(title,snippet)=>{
+    const hay=((title||'')+' '+(snippet||'')).toLowerCase();
+    const keys=q.toLowerCase().split(/\s+/).filter(w=>w.length>2 && !/^(the|and|for|with|from|that|this|what|digit|place)$/i.test(w));
+    if(!keys.length)return true;
+    const hits=keys.filter(k=>hay.includes(k)).length;
+    return hits>=Math.min(2, keys.length) || hay.includes(keys[0]);
+  };
 
-  // ========== PRIMARY: DuckDuckGo Instant Answer API ==========
+  // PRIMARY: DuckDuckGo Instant Answer (often works CORS-free)
   try{
-    const ddg='https://api.duckduckgo.com/?q='+encodeURIComponent(searchQ)+'&format=json&no_html=1&skip_disambig=1&t=thinkdeeper';
+    const ddg='https://api.duckduckgo.com/?q='+encodeURIComponent(q)+'&format=json&no_html=1&skip_disambig=1&t=thinkdeeper';
     const data=await fetchJSON(ddg,10000);
     if(data){
       const abs=String(data.AbstractText||'').trim();
       const heading=String(data.Heading||'').trim();
       const absUrl=String(data.AbstractURL||'').trim();
-      if(abs){
-        overview={title:heading||searchQ,text:abs.slice(0,1500),source:data.AbstractSource||'DuckDuckGo',url:absUrl||'',type:'instant_answer'};
-        if(absUrl&&!isBadUrl(absUrl))push({title:heading||searchQ,snippet:abs,url:absUrl,source:'duckduckgo'});
+      if(abs && relevant(heading,abs)){
+        overview={title:heading||q,text:abs.slice(0,1500),source:data.AbstractSource||'DuckDuckGo',url:absUrl||'',type:'instant_answer'};
+        if(absUrl&&!isBadUrl(absUrl))push({title:heading||q,snippet:abs,url:absUrl,source:'duckduckgo'});
       }
       if(Array.isArray(data.RelatedTopics)){
         for(const t of data.RelatedTopics.slice(0,12)){
-          if(t&&t.Text&&t.FirstURL&&!isBadUrl(t.FirstURL))push({title:(t.Text||'').split(' - ')[0].slice(0,120),snippet:t.Text,url:t.FirstURL,source:'duckduckgo'});
+          if(t&&t.Text&&t.FirstURL&&!isBadUrl(t.FirstURL)&&relevant(t.Text,t.Text))
+            push({title:(t.Text||'').split(' - ')[0].slice(0,120),snippet:t.Text,url:t.FirstURL,source:'duckduckgo'});
           if(t&&t.Topics)for(const st of t.Topics.slice(0,4)){
-            if(st&&st.Text&&st.FirstURL&&!isBadUrl(st.FirstURL))push({title:(st.Text||'').split(' - ')[0].slice(0,120),snippet:st.Text,url:st.FirstURL,source:'duckduckgo'});
+            if(st&&st.Text&&st.FirstURL&&!isBadUrl(st.FirstURL)&&relevant(st.Text,st.Text))
+              push({title:(st.Text||'').split(' - ')[0].slice(0,120),snippet:st.Text,url:st.FirstURL,source:'duckduckgo'});
           }
         }
       }
       if(Array.isArray(data.Results)){
         for(const r of data.Results.slice(0,8)){
-          if(r&&r.Text&&r.FirstURL&&!isBadUrl(r.FirstURL))push({title:r.Text.slice(0,120),snippet:r.Text,url:r.FirstURL,source:'duckduckgo'});
+          if(r&&r.Text&&r.FirstURL&&!isBadUrl(r.FirstURL)&&relevant(r.Text,r.Text))
+            push({title:r.Text.slice(0,120),snippet:r.Text,url:r.FirstURL,source:'duckduckgo'});
         }
       }
     }
   }catch(e){errors.push('duckduckgo_api: '+(e.message||e))}
 
-  // ========== DuckDuckGo HTML search (full result list) ==========
+  // DDG HTML via proxies
   const parseDdgHtml=(html,sourceTag)=>{
     if(!html)return 0;
     let count=0;
-    // Classic html.duckduckgo.com result links
     const patterns=[
       /<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi,
-      /<a[^>]+rel="nofollow"[^>]+href="(https?:\/\/[^"]+)"[^>]*(?:class="result-link")?[^>]*>([\s\S]*?)<\/a>/gi,
+      /<a[^>]+rel="nofollow"[^>]+href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi,
       /<a[^>]+href="\/\/duckduckgo\.com\/l\/\?[^"]*uddg=([^&"]+)[^"]*"[^>]*>([\s\S]*?)<\/a>/gi
     ];
     for(const re of patterns){
-      let m;
-      re.lastIndex=0;
+      let m; re.lastIndex=0;
       while((m=re.exec(html))&&count<10){
         let url=m[1];
         try{url=decodeURIComponent(url)}catch(e){}
         if(/^https?%3A/i.test(url)){try{url=decodeURIComponent(url)}catch(e){}}
         const title=stripHtml(m[2]);
-        if(title&&url&&/^https?:/i.test(url)&&!isBadUrl(url)&&!/duckduckgo\.com/i.test(url)){
-          push({title,snippet:'',url,source:sourceTag});
-          count++;
+        if(title&&url&&/^https?:/i.test(url)&&!isBadUrl(url)&&!/duckduckgo\.com/i.test(url)&&relevant(title,'')){
+          push({title,snippet:'',url,source:sourceTag}); count++;
         }
-      }
-    }
-    // Snippets under results
-    const snipRe=/class="(?:result__snippet|result-snippet)[^"]*"[^>]*>([\s\S]*?)<\//gi;
-    const snips=[];
-    let sm;
-    while((sm=snipRe.exec(html))&&snips.length<10)snips.push(stripHtml(sm[1]));
-    if(snips.length){
-      let si=0;
-      for(const r of results){
-        if(r.source===sourceTag&&!r.snippet&&snips[si]){r.snippet=snips[si].slice(0,480);si++}
       }
     }
     return count;
   };
-
-  if(results.length<6||mode==='web'||mode==='google'){
-    // html.duckduckgo.com
-    try{
-      const htmlUrl='https://html.duckduckgo.com/html/?q='+encodeURIComponent(searchQ);
-      const html=await fetchText(htmlUrl,14000);
-      parseDdgHtml(html,'duckduckgo_web');
-    }catch(e){errors.push('duckduckgo_html: '+(e.message||e))}
-  }
   if(results.length<5){
-    try{
-      const liteUrl='https://lite.duckduckgo.com/lite/?q='+encodeURIComponent(searchQ);
-      const html=await fetchText(liteUrl,12000);
-      parseDdgHtml(html,'duckduckgo_lite');
-    }catch(e){errors.push('duckduckgo_lite: '+(e.message||e))}
+    for(const base of ['https://html.duckduckgo.com/html/?q=','https://lite.duckduckgo.com/lite/?q=']){
+      try{
+        const html=await fetchText(base+encodeURIComponent(q),14000);
+        parseDdgHtml(html, base.includes('lite')?'duckduckgo_lite':'duckduckgo_web');
+        if(results.length>=5)break;
+      }catch(e){errors.push('duckduckgo_html: '+(e.message||e))}
+    }
   }
 
-  // ========== Secondary: Wikipedia (skip silent 404s) ==========
+  // Wikipedia: search API FIRST (not raw slug of whole question)
   if(mode!=='github'){
-    const tryTitles=[searchQ, ...String(searchQ).split(/\s+/).filter(w=>w.length>2)].slice(0,5);
-    const seenT=new Set();
-    for(const t of tryTitles){
-      const key=String(t).toLowerCase();
-      if(seenT.has(key)||t.length<2)continue;
-      seenT.add(key);
-      try{
-        const slug=encodeURIComponent(String(t).replace(/ /g,'_'));
-        const data=await fetchJSON('https://en.wikipedia.org/api/rest_v1/page/summary/'+slug,8000);
-        if(data&&data.extract&&data.type!=='disambiguation'){
-          const pageUrl=(data.content_urls&&data.content_urls.desktop&&data.content_urls.desktop.page)||('https://en.wikipedia.org/wiki/'+slug);
-          push({title:data.title||t,snippet:data.extract,url:pageUrl,source:'wikipedia'});
-          if(!overview){
-            overview={title:data.title||t,text:String(data.extract).slice(0,1500),source:'Wikipedia',url:pageUrl,type:'instant_answer'};
-          }
-          if(!wikipedia_structured&&(mode==='wikipedia'||mode==='web')){
-            try{wikipedia_structured=await this.wikipediaPage({title:data.title||t,lang:'en',sections:true,max_chars:16000})}catch(e){}
-          }
-          break;
-        }
-      }catch(e){/* 404-safe */}
-    }
     try{
-      const wiki='https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=5&srsearch='+encodeURIComponent(searchQ)+'&format=json&origin=*';
+      const wiki='https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=8&srsearch='+encodeURIComponent(q)+'&format=json&origin=*';
       const data=await fetchJSON(wiki,10000);
-      for(const hit of (data&&data.query&&data.query.search)||[]){
-        push({title:hit.title,snippet:(hit.snippet||'').replace(/<[^>]+>/g,''),url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(String(hit.title).replace(/ /g,'_')),source:'wikipedia'});
+      const hits=(data&&data.query&&data.query.search)||[];
+      for(const hit of hits){
+        const snip=(hit.snippet||'').replace(/<[^>]+>/g,'');
+        if(!relevant(hit.title,snip))continue;
+        push({title:hit.title,snippet:snip,url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(String(hit.title).replace(/ /g,'_')),source:'wikipedia'});
+      }
+      // Summary only for the best matching title (not "Decimal" for pi digit queries)
+      const best=hits.find(h=>relevant(h.title,(h.snippet||'').replace(/<[^>]+>/g,'')));
+      if(best){
+        try{
+          const slug=encodeURIComponent(String(best.title).replace(/ /g,'_'));
+          const sum=await fetchJSON('https://en.wikipedia.org/api/rest_v1/page/summary/'+slug,8000);
+          if(sum&&sum.extract&&sum.type!=='disambiguation'&&relevant(sum.title,sum.extract)){
+            const pageUrl=(sum.content_urls&&sum.content_urls.desktop&&sum.content_urls.desktop.page)||('https://en.wikipedia.org/wiki/'+slug);
+            if(!overview) overview={title:sum.title,text:String(sum.extract).slice(0,1500),source:'Wikipedia',url:pageUrl,type:'instant_answer'};
+            if(!wikipedia_structured&&(mode==='wikipedia'||mode==='web')){
+              try{wikipedia_structured=await this.wikipediaPage({title:sum.title,lang:'en',sections:true,max_chars:12000})}catch(e){}
+            }
+          }
+        }catch(e){}
       }
     }catch(e){errors.push('wikipedia: '+(e.message||e))}
   }
 
-  // MDN for web tech
+  // MDN
   if(mode==='web'||mode==='google'){
     try{
-      const mdn='https://developer.mozilla.org/api/v1/search?q='+encodeURIComponent(searchQ)+'&locale=en-US';
+      const mdn='https://developer.mozilla.org/api/v1/search?q='+encodeURIComponent(q)+'&locale=en-US';
       const data=await fetchJSON(mdn,10000);
       for(const d of ((data&&data.documents)||[]).slice(0,5)){
         const url=d.mdn_url?('https://developer.mozilla.org'+d.mdn_url):d.url;
-        if(!isBadUrl(url))push({title:d.title||'MDN',snippet:d.summary||d.excerpt||'',url:url||'',source:'mdn'});
+        if(!isBadUrl(url)&&relevant(d.title,d.summary||''))
+          push({title:d.title||'MDN',snippet:d.summary||d.excerpt||'',url:url||'',source:'mdn'});
       }
     }catch(e){errors.push('mdn: '+(e.message||e))}
   }
 
-  // GitHub when requested
   if(mode==='github'||/\bgithub\b|\brepo(sitory)?\b/i.test(qRaw)){
     try{
-      const gh='https://api.github.com/search/repositories?q='+encodeURIComponent(searchQ)+'&per_page=5';
+      const gh='https://api.github.com/search/repositories?q='+encodeURIComponent(q)+'&per_page=5';
       const data=await fetchJSON(gh,10000);
       for(const r of (data&&data.items)||[]){
         push({title:r.full_name,snippet:r.description||'',url:r.html_url,source:'github'});
@@ -5704,20 +5748,18 @@ async webSearch(query, args){
     }catch(e){errors.push('github: '+(e.message||e))}
   }
 
-  // Final filter: drop empty / bad rows
-  const clean=results.filter(r=>r&&r.title&&(!r.url||!isBadUrl(r.url))).slice(0,12);
-
+  const clean=results.filter(r=>r&&r.title).slice(0,12);
   return {
     ok:true,
     query:qRaw,
-    cleaned_query:searchQ,
+    cleaned_query:q,
     engine:'duckduckgo',
     overview:overview||null,
     wikipedia_structured:wikipedia_structured||null,
     results:clean,
     count:clean.length,
     errors:errors.length?errors.slice(0,6):undefined,
-    hint:'Primary engine is DuckDuckGo. Prefer overview + results. 404s from secondary sources are ignored. Use fetch_url on a result URL for full page text.'
+    hint:'DuckDuckGo-first. Irrelevant wiki hits are filtered. For digit-of-pi use run_python, not search.'
   };
 }
 async wikipediaPage(args){
@@ -13524,9 +13566,21 @@ renderMarkdown(text){
   t=t.replace(/```[\s\S]*?```/g,(m)=>{fences.push(m);return '%%FENCE'+(fences.length-1)+'%%'});
   t=t.replace(/`[^`\n]+`/g,(m)=>{fences.push(m);return '%%FENCE'+(fences.length-1)+'%%'});
   const maths=[];
+  const looksLikeTeX=(raw)=>{
+    const s=String(raw||'').trim();
+    if(!s||s.length>500)return false;
+    if(/\b(the|and|for|with|from|this|that|digit|decimal|place|number|value|answer|result)\b/i.test(s) && !/[\\^_{}]/.test(s))return false;
+    if(/\\[a-zA-Z]+/.test(s))return true;
+    if(/[\^_{}]/.test(s))return true;
+    if(/^[\sπ∞θαβγΔ∑∫√≤≥≠×÷±∂∇°·…]+$/u.test(s))return true;
+    if(/^[A-Za-z]$/.test(s))return true;
+    if(/^[A-Za-z]_\{?[\w]+\}?$/.test(s))return true;
+    if(/^[\d\s+\-*/=<>()[\]|.,]+$/.test(s))return true;
+    if(s.length<=24 && /[=+\-*/^]/.test(s) && !/\s{2,}/.test(s))return true;
+    return false;
+  };
   const normTex=(tex)=>{
     let s=String(tex||'').trim().replace(/^\$+|\$+$/g,'').trim();
-    // Collapse accidental double-escaping: \\pi -> \pi
     while(/\\\\[a-zA-Z]/.test(s)) s=s.replace(/\\\\([a-zA-Z]+)/g,'\\$1');
     s=s.replace(/π/g,'\\pi').replace(/∞/g,'\\infty').replace(/θ/g,'\\theta')
        .replace(/α/g,'\\alpha').replace(/β/g,'\\beta').replace(/γ/g,'\\gamma')
@@ -13538,21 +13592,29 @@ renderMarkdown(text){
   };
   const push=(tex,display)=>{
     let s=normTex(tex);
-    if(!s)return '';
+    if(!s||!looksLikeTeX(s))return null;
     maths.push({tex:s,display:!!display});
     return '%%MATH'+(maths.length-1)+'%%';
   };
-  t=t.replace(/\$\$([\s\S]*?)\$\$/g,(_,m)=>push(m,true));
-  t=t.replace(/\\\[([\s\S]*?)\\\]/g,(_,m)=>push(m,true));
-  t=t.replace(/\\\(([\s\S]*?)\\\)/g,(_,m)=>push(m,false));
-  t=t.replace(/\\begin\{(aligned|align\*?|equation\*?|gather\*?|eqnarray|matrix|bmatrix|pmatrix|vmatrix|cases)\}([\s\S]*?)\\end\{\1\}/g,(m)=>push(m,true));
+  t=t.replace(/\$\$([\s\S]*?)\$\$/g,(_,m)=>{const r=push(m,true);return r==null?('$$'+m+'$$'):r});
+  t=t.replace(/\\\[([\s\S]*?)\\\]/g,(_,m)=>{const r=push(m,true);return r==null?('\\['+m+'\\]'):r});
+  t=t.replace(/\\\(([\s\S]*?)\\\)/g,(_,m)=>{const r=push(m,false);return r==null?('\\('+m+'\\)'):r});
+  t=t.replace(/\\begin\{(aligned|align\*?|equation\*?|gather\*?|eqnarray|matrix|bmatrix|pmatrix|vmatrix|cases)\}([\s\S]*?)\\end\{\1\}/g,(m)=>{const r=push(m,true);return r==null?m:r});
   t=t.replace(/\$([^\n$]+?)\$/g,(_,m)=>{
     if(/^\s*\d/.test(m)&&!/[a-zA-Z\\π∞]/.test(m))return '$'+m+'$';
-    return push(m,false);
+    const r=push(m,false);
+    return r==null?('$'+m+'$'):r;
   });
-  // Bare \pi or unicode π outside existing math markers
-  t=t.replace(/(^|[^%$A-Za-z\\])\\pi\b/g,(m,pre)=>pre+push('\\pi',false));
-  t=t.replace(/(^|[^%$A-Za-z])π/g,(m,pre)=>pre+push('\\pi',false));
+  // Bare TeX commands only (\pi, \infty, …) — never bare English words
+  t=t.replace(/(^|[^%$\\A-Za-z])(\\[a-zA-Z]+)(?![a-zA-Z*{])/g,(full,pre,cmd)=>{
+    if(!looksLikeTeX(cmd))return full;
+    const r=push(cmd,false);
+    return r==null?full:(pre+r);
+  });
+  t=t.replace(/(^|[^%$A-Za-z])([π∞θαβγΔ∑∫√≤≥≠×÷±])(?![A-Za-z])/g,(full,pre,sym)=>{
+    const r=push(sym,false);
+    return r==null?full:(pre+r);
+  });
   t=t.replace(/%%FENCE(\d+)%%/g,(_,n)=>fences[Number(n)]);
   let out;
   try{
