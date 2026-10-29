@@ -4972,11 +4972,20 @@ def ws_list(prefix=''):
 async run(code){
   let src=String(code==null?'':code).replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
   if(!src)return{ok:false,error:'No Python code'};
-  const agentish=(typeof window!=='undefined'&&window.__app&&(window.__app.mode==='swarm'||window.__app.ui&&(window.__app.ui.mode==='swarm'||window.__app.ui._agentRunning)));
-  const guard=CrashGuard.inspectPython(src,{strict:!!agentish});
-  if(!guard.ok){try{CrashGuard.note(guard.error)}catch(e){}return{ok:false,error:guard.error,blocked:true}}
-  // Agent mode: force smaller recursion + prefer simple iteration
-  src='import sys\nsys.setrecursionlimit('+(agentish?'80':'240')+')\n'+src;
+  // Python CRASH blocks ONLY in Agent Mode → Advanced code (intent=code).
+  // Normal chat / code mode / other agent intents: no CrashGuard on Python.
+  const app=typeof window!=='undefined'?window.__app:null;
+  const ui=app&&app.ui;
+  const swarmOn=!!(app&&(app.mode==='swarm'||(ui&&(ui.mode==='swarm'||ui._agentRunning))));
+  const agentIntent=(ui&&ui._agentIntent)||(app&&app.swarm&&app.swarm.intent)||'';
+  const advancedCode=swarmOn&&String(agentIntent).toLowerCase()==='code';
+  if(advancedCode){
+    const guard=CrashGuard.inspectPython(src,{strict:true});
+    if(!guard.ok){try{CrashGuard.note(guard.error)}catch(e){}return{ok:false,error:guard.error,blocked:true}}
+    src='import sys\nsys.setrecursionlimit(80)\n'+src;
+  }else{
+    src='import sys\nsys.setrecursionlimit(500)\n'+src;
+  }
   if(/\bmatplotlib\b|\bpyplot\b|\bplt\./.test(src)){
     src='import matplotlib\nmatplotlib.use("Agg")\n'+src;
   }
@@ -5034,7 +5043,7 @@ async run(code){
       if(/1048/.test(src)) dig=1047;
       src='import mpmath\nmpmath.mp.dps = '+dps+'\ns = str(mpmath.pi)\ndecimals = s.split(".")[1]\nprint("1048th digit:", decimals['+dig+'])\nprint("Surrounding:", decimals['+Math.max(0,dig-5)+':'+Math.max(dig+6,0)+'])\n';
     }
-const result=await Promise.race([this.pyodide.runPythonAsync(src),new Promise((_,rej)=>setTimeout(()=>rej(new Error('CRASH_BLOCKED: Python exceeded time limit. Use smaller inputs, bounded for-range loops, and simplified code.')),(typeof window!=='undefined'&&window.__app&&(window.__app.mode==='swarm'||window.__app.ui&&window.__app.ui.mode==='swarm'))?8000:15000))]);
+const _pyLimit=advancedCode?8000:60000;const result=await Promise.race([this.pyodide.runPythonAsync(src),new Promise((_,rej)=>setTimeout(()=>rej(new Error(advancedCode?'CRASH_BLOCKED: Python exceeded time limit. Use smaller inputs, bounded for-range loops, and simplified code.':'Python timed out after 60s. Try a smaller input or simpler loop.')),_pyLimit))]);
     let stdout='',stderr='';
     try{stdout=this.pyodide.runPython('sys.stdout.getvalue()')}catch(e){}
     try{stderr=this.pyodide.runPython('sys.stderr.getvalue()')}catch(e){}
@@ -5087,7 +5096,7 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 {type:'function',function:{name:'delete_file',description:'Delete a file from the internal filesystem (a copy is archived). Use only when the user asks to remove something.',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}},{type:'function',function:{name:'write_pdf',description:'Create a real downloadable PDF in the workspace. path must end with .pdf; title optional; body is plain text with newlines.',parameters:{type:'object',properties:{path:{type:'string'},title:{type:'string'},body:{type:'string'}},required:['path','body']}}},{type:'function',function:{name:'fetch_url',description:'Fetch a public https URL (image, SVG, HTML, JSON, text) for coding or display. Only https.',parameters:{type:'object',properties:{url:{type:'string'},maxChars:{type:'number'}},required:['url']}}},
 {type:'function',function:{name:'run_python',description:'Run Python in a sandbox. Workspace files are under /workspace (uploads/, artifacts/, models/). Helpers: ws_read(path,start,length) and ws_search(path,keyword). Prefer bounded for-range loops, simplified code, and small data. Infinite loops, huge allocations, and heavy recursion are blocked — especially in agent mode.',parameters:{type:'object',properties:{code:{type:'string',description:'Python source code to execute'}},required:['code']}}},
 {type:'function',function:{name:'self_check',description:'Record a brief self-check of correctness before finalizing an important answer. Use after tool results when stakes are high.',parameters:{type:'object',properties:{observation:{type:'string',description:'What you verified'},passed:{type:'boolean',description:'Whether the check passed'}},required:['observation']}}},
-{type:'function',function:{name:'web_search',description:'Search the public web (Google-style results + AI overview when available), Wikipedia, Hacker News, GitHub repos, and Wikidata. Prefer mode=google for general web facts; mode=wikipedia for encyclopedia topics (also returns structured page when a clear match exists); mode=github for repository search. Always use for up-to-date facts.',parameters:{type:'object',properties:{query:{type:'string',description:'Search query string'},mode:{type:'string',description:'Optional: web|google|wikipedia|github (default web = multi-source)'}},required:['query']}}},
+{type:'function',function:{name:'web_search',description:'Search the public web via DuckDuckGo (primary), with Wikipedia/MDN/GitHub as helpers. Modes: web (default), wikipedia, github. 404s from secondary sources are ignored. Always use for up-to-date facts.',parameters:{type:'object',properties:{query:{type:'string',description:'Search query string'},mode:{type:'string',description:'Optional: web|google|wikipedia|github (default web = multi-source)'}},required:['query']}}},
 {type:'function',function:{name:'wikipedia_page',description:'Fetch a full Wikipedia page in structured form: title, summary/extract, table of contents sections, section texts, categories, and links. Use when you need the complete encyclopedia article rather than search snippets.',parameters:{type:'object',properties:{title:{type:'string',description:'Article title or slug (spaces or underscores)'},lang:{type:'string',description:'Wikipedia language code, default en'},sections:{type:'boolean',description:'Include section bodies (default true)'},max_chars:{type:'number',description:'Max characters of section text to return (default 24000)'}},required:['title']}}},
 {type:'function',function:{name:'github_repo',description:'Inspect a public (or token-authorized) GitHub repository. Actions: info (metadata), tree (recursive full file list), file (read a file path), readme, releases, issues, tags, commits, contents (list one directory). Use tree first, then file for specific paths.',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},action:{type:'string',description:'info|tree|file|readme|releases|issues|tags|commits|contents'},path:{type:'string',description:'For action=file or contents: path inside the repo'},ref:{type:'string',description:'Branch, tag, or commit SHA (default: default branch)'},limit:{type:'number',description:'Max items for lists (default 30, max 100)'},query:{type:'string',description:'Optional filter for issues/search within repo'}},required:['owner','repo','action']}}},
 {type:'function',function:{name:'check_code',description:'Runtime/syntax check files under code/ (or a specific path). Parses JS, runs Python compile checks, and basic HTML balance checks. Call after writing code and keep fixing until ok=true and errors is empty.',parameters:{type:'object',properties:{path:{type:'string',description:'Optional file path or folder under code/. Empty = check all code/ files.'}},required:[]}}},
@@ -5491,29 +5500,34 @@ async webSearch(query, args){
   let overview=null;
   let wikipedia_structured=null;
 
-  // Turn natural-language questions into search keys ("what is WebGPU and how..." → "WebGPU")
   const cleanQuery=(s)=>{
     let t=String(s||'').trim();
     t=t.replace(/[?!.]+$/g,'').trim();
     t=t.replace(/^(what\s+is|what\s+are|who\s+is|who\s+are|what\'s|whats|how\s+does|how\s+do|how\s+to|where\s+is|when\s+was|why\s+is|why\s+does|tell\s+me\s+about|explain|define|definition\s+of)\s+/i,'');
     t=t.replace(/\s+and\s+how\s+(does|do|is|are|can|to)\b.*$/i,'');
-    t=t.replace(/\s+vs\.?\s+.*$/i,(m)=>m); // keep "vs" comparisons
     t=t.replace(/\s+/g,' ').trim();
     return t||s;
   };
   const q=cleanQuery(qRaw);
   const qCompare=(()=>{
-    // "WebGPU vs WebGL" / "differ from WebGL" → keep both terms
     const m=qRaw.match(/\b([A-Za-z][A-Za-z0-9.+#-]{1,40})\b.*\b(?:vs\.?|versus|differ(?:s)?\s+from|compared\s+to|difference\s+between)\b.*?([A-Za-z][A-Za-z0-9.+#-]{1,40})/i);
     if(m)return (m[1]+' '+m[2]).trim();
     return q;
   })();
+  const searchQ=qCompare||q||qRaw;
 
+  // Soft fetch helpers — never surface raw 404s to the model as fatal
   const fetchJSON=async(url,ms=12000)=>{
-    const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
-    const res=await fetch(url,{signal:ctrl,mode:'cors',headers:{Accept:'application/json'}});
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    return await res.json();
+    try{
+      const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
+      const res=await fetch(url,{signal:ctrl,mode:'cors',headers:{Accept:'application/json'}});
+      if(res.status===404)return null; // missing page — not an error for search
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      return await res.json();
+    }catch(e){
+      if(/404/.test(String(e&&e.message)))return null;
+      throw e;
+    }
   };
   const fetchText=async(url,ms=14000)=>{
     const attempts=[
@@ -5526,249 +5540,184 @@ async webSearch(query, args){
     for(const u of attempts){
       try{
         const r=await fetch(u,{signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined,mode:'cors'});
+        if(r.status===404){lastErr=new Error('HTTP 404');continue}
         if(r.ok){
           const t=await r.text();
-          if(t&&t.length>60)return t;
+          if(t&&t.length>60&&!/^\s*<html[^>]*>\s*<head[^>]*>\s*<title>\s*404/i.test(t))return t;
         }else lastErr=new Error('HTTP '+r.status);
       }catch(e){lastErr=e}
     }
     throw lastErr||new Error('fetch failed for '+url);
   };
   const stripHtml=(s)=>String(s||'').replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/\s+/g,' ').trim();
+  const isBadUrl=(url)=>{
+    if(!url||!/^https?:\/\//i.test(url))return true;
+    if(/duckduckgo\.com\/(y\.js|l\/\?)/i.test(url))return true;
+    if(/\/404\b|not[_-]?found/i.test(url))return true;
+    return false;
+  };
   const push=(item)=>{
     if(!item||!item.title)return;
-    const url=item.url||'';
+    const url=String(item.url||'').trim();
+    if(isBadUrl(url)&&url)return;
     if(url&&results.some(r=>r.url===url))return;
     const title=stripHtml(item.title).slice(0,200);
     if(!title)return;
-    // drop obvious junk low-relevance wiki noise when we have a focused topic
-    results.push({title,snippet:stripHtml(item.snippet||'').slice(0,480),url,source:item.source||'web'});
+    results.push({title,snippet:stripHtml(item.snippet||'').slice(0,480),url,source:item.source||'duckduckgo'});
   };
 
-  const wantGoogle=mode==='web'||mode==='google';
-  const wantWiki=true; // always useful fallback
-  const wantGh=mode==='web'||mode==='github'||mode==='google';
-  const wantHn=mode==='web'||mode==='google';
+  // ========== PRIMARY: DuckDuckGo Instant Answer API ==========
+  try{
+    const ddg='https://api.duckduckgo.com/?q='+encodeURIComponent(searchQ)+'&format=json&no_html=1&skip_disambig=1&t=thinkdeeper';
+    const data=await fetchJSON(ddg,10000);
+    if(data){
+      const abs=String(data.AbstractText||'').trim();
+      const heading=String(data.Heading||'').trim();
+      const absUrl=String(data.AbstractURL||'').trim();
+      if(abs){
+        overview={title:heading||searchQ,text:abs.slice(0,1500),source:data.AbstractSource||'DuckDuckGo',url:absUrl||'',type:'instant_answer'};
+        if(absUrl&&!isBadUrl(absUrl))push({title:heading||searchQ,snippet:abs,url:absUrl,source:'duckduckgo'});
+      }
+      if(Array.isArray(data.RelatedTopics)){
+        for(const t of data.RelatedTopics.slice(0,12)){
+          if(t&&t.Text&&t.FirstURL&&!isBadUrl(t.FirstURL))push({title:(t.Text||'').split(' - ')[0].slice(0,120),snippet:t.Text,url:t.FirstURL,source:'duckduckgo'});
+          if(t&&t.Topics)for(const st of t.Topics.slice(0,4)){
+            if(st&&st.Text&&st.FirstURL&&!isBadUrl(st.FirstURL))push({title:(st.Text||'').split(' - ')[0].slice(0,120),snippet:st.Text,url:st.FirstURL,source:'duckduckgo'});
+          }
+        }
+      }
+      if(Array.isArray(data.Results)){
+        for(const r of data.Results.slice(0,8)){
+          if(r&&r.Text&&r.FirstURL&&!isBadUrl(r.FirstURL))push({title:r.Text.slice(0,120),snippet:r.Text,url:r.FirstURL,source:'duckduckgo'});
+        }
+      }
+    }
+  }catch(e){errors.push('duckduckgo_api: '+(e.message||e))}
 
-  // --- Wikipedia direct summary for cleaned topic (most reliable CORS source) ---
-  if(wantWiki){
-    const tryTitles=[q, qCompare.split(/\s+/)[0], ...qCompare.split(/\s+/)].filter(Boolean);
+  // ========== DuckDuckGo HTML search (full result list) ==========
+  const parseDdgHtml=(html,sourceTag)=>{
+    if(!html)return 0;
+    let count=0;
+    // Classic html.duckduckgo.com result links
+    const patterns=[
+      /<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi,
+      /<a[^>]+rel="nofollow"[^>]+href="(https?:\/\/[^"]+)"[^>]*(?:class="result-link")?[^>]*>([\s\S]*?)<\/a>/gi,
+      /<a[^>]+href="\/\/duckduckgo\.com\/l\/\?[^"]*uddg=([^&"]+)[^"]*"[^>]*>([\s\S]*?)<\/a>/gi
+    ];
+    for(const re of patterns){
+      let m;
+      re.lastIndex=0;
+      while((m=re.exec(html))&&count<10){
+        let url=m[1];
+        try{url=decodeURIComponent(url)}catch(e){}
+        if(/^https?%3A/i.test(url)){try{url=decodeURIComponent(url)}catch(e){}}
+        const title=stripHtml(m[2]);
+        if(title&&url&&/^https?:/i.test(url)&&!isBadUrl(url)&&!/duckduckgo\.com/i.test(url)){
+          push({title,snippet:'',url,source:sourceTag});
+          count++;
+        }
+      }
+    }
+    // Snippets under results
+    const snipRe=/class="(?:result__snippet|result-snippet)[^"]*"[^>]*>([\s\S]*?)<\//gi;
+    const snips=[];
+    let sm;
+    while((sm=snipRe.exec(html))&&snips.length<10)snips.push(stripHtml(sm[1]));
+    if(snips.length){
+      let si=0;
+      for(const r of results){
+        if(r.source===sourceTag&&!r.snippet&&snips[si]){r.snippet=snips[si].slice(0,480);si++}
+      }
+    }
+    return count;
+  };
+
+  if(results.length<6||mode==='web'||mode==='google'){
+    // html.duckduckgo.com
+    try{
+      const htmlUrl='https://html.duckduckgo.com/html/?q='+encodeURIComponent(searchQ);
+      const html=await fetchText(htmlUrl,14000);
+      parseDdgHtml(html,'duckduckgo_web');
+    }catch(e){errors.push('duckduckgo_html: '+(e.message||e))}
+  }
+  if(results.length<5){
+    try{
+      const liteUrl='https://lite.duckduckgo.com/lite/?q='+encodeURIComponent(searchQ);
+      const html=await fetchText(liteUrl,12000);
+      parseDdgHtml(html,'duckduckgo_lite');
+    }catch(e){errors.push('duckduckgo_lite: '+(e.message||e))}
+  }
+
+  // ========== Secondary: Wikipedia (skip silent 404s) ==========
+  if(mode!=='github'){
+    const tryTitles=[searchQ, ...String(searchQ).split(/\s+/).filter(w=>w.length>2)].slice(0,5);
     const seenT=new Set();
     for(const t of tryTitles){
-      const key=t.toLowerCase();
+      const key=String(t).toLowerCase();
       if(seenT.has(key)||t.length<2)continue;
       seenT.add(key);
       try{
-        const slug=encodeURIComponent(t.replace(/ /g,'_'));
+        const slug=encodeURIComponent(String(t).replace(/ /g,'_'));
         const data=await fetchJSON('https://en.wikipedia.org/api/rest_v1/page/summary/'+slug,8000);
         if(data&&data.extract&&data.type!=='disambiguation'){
-          push({title:data.title||t,snippet:data.extract,url:(data.content_urls&&data.content_urls.desktop&&data.content_urls.desktop.page)||('https://en.wikipedia.org/wiki/'+slug),source:'wikipedia'});
+          const pageUrl=(data.content_urls&&data.content_urls.desktop&&data.content_urls.desktop.page)||('https://en.wikipedia.org/wiki/'+slug);
+          push({title:data.title||t,snippet:data.extract,url:pageUrl,source:'wikipedia'});
           if(!overview){
-            overview={title:data.title||t,text:String(data.extract).slice(0,1500),source:'Wikipedia',url:(data.content_urls&&data.content_urls.desktop&&data.content_urls.desktop.page)||'',type:'instant_answer'};
+            overview={title:data.title||t,text:String(data.extract).slice(0,1500),source:'Wikipedia',url:pageUrl,type:'instant_answer'};
           }
-          if(!wikipedia_structured&&(mode==='wikipedia'||mode==='google'||mode==='web')){
+          if(!wikipedia_structured&&(mode==='wikipedia'||mode==='web')){
             try{wikipedia_structured=await this.wikipediaPage({title:data.title||t,lang:'en',sections:true,max_chars:16000})}catch(e){}
           }
           break;
         }
-      }catch(e){}
+      }catch(e){/* 404-safe */}
     }
-    // second term for comparisons (e.g. WebGL)
-    const parts=qCompare.split(/\s+/).filter(w=>w.length>2);
-    if(parts.length>=2){
-      try{
-        const t=parts[parts.length-1];
-        const slug=encodeURIComponent(t.replace(/ /g,'_'));
-        const data=await fetchJSON('https://en.wikipedia.org/api/rest_v1/page/summary/'+slug,8000);
-        if(data&&data.extract&&data.type!=='disambiguation'){
-          push({title:data.title||t,snippet:data.extract,url:(data.content_urls&&data.content_urls.desktop&&data.content_urls.desktop.page)||'',source:'wikipedia'});
-        }
-      }catch(e){}
-    }
-  }
-
-  // Wikipedia search API with cleaned query (not the full question sentence)
-  if(wantWiki){
     try{
-      const wiki='https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=6&srsearch='+encodeURIComponent(qCompare||q)+'&format=json&origin=*';
+      const wiki='https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=5&srsearch='+encodeURIComponent(searchQ)+'&format=json&origin=*';
       const data=await fetchJSON(wiki,10000);
-      for(const hit of (data.query&&data.query.search)||[]){
+      for(const hit of (data&&data.query&&data.query.search)||[]){
         push({title:hit.title,snippet:(hit.snippet||'').replace(/<[^>]+>/g,''),url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(String(hit.title).replace(/ /g,'_')),source:'wikipedia'});
       }
     }catch(e){errors.push('wikipedia: '+(e.message||e))}
-    try{
-      const open='https://en.wikipedia.org/w/api.php?action=opensearch&limit=6&namespace=0&format=json&origin=*&search='+encodeURIComponent(qCompare||q);
-      const data=await fetchJSON(open,8000);
-      const titles=data[1]||[], descs=data[2]||[], urls=data[3]||[];
-      for(let i=0;i<titles.length;i++)push({title:titles[i],snippet:descs[i]||'',url:urls[i]||'',source:'wikipedia'});
-    }catch(e){errors.push('opensearch: '+(e.message||e))}
   }
 
-  // MDN (great for WebGPU / WebGL style queries) — public JSON API
-  if(wantGoogle||mode==='web'){
+  // MDN for web tech
+  if(mode==='web'||mode==='google'){
     try{
-      const mdn='https://developer.mozilla.org/api/v1/search?q='+encodeURIComponent(qCompare||q)+'&locale=en-US';
+      const mdn='https://developer.mozilla.org/api/v1/search?q='+encodeURIComponent(searchQ)+'&locale=en-US';
       const data=await fetchJSON(mdn,10000);
-      const docs=(data&&data.documents)||[];
-      for(const d of docs.slice(0,6)){
+      for(const d of ((data&&data.documents)||[]).slice(0,5)){
         const url=d.mdn_url?('https://developer.mozilla.org'+d.mdn_url):d.url;
-        push({title:d.title||'MDN',snippet:d.summary||d.excerpt||'',url:url||'',source:'mdn'});
-        if(!overview&&d.summary){
-          overview={title:d.title||'MDN',text:String(d.summary).slice(0,1500),source:'MDN',url:url||'',type:'instant_answer'};
-        }
+        if(!isBadUrl(url))push({title:d.title||'MDN',snippet:d.summary||d.excerpt||'',url:url||'',source:'mdn'});
       }
     }catch(e){errors.push('mdn: '+(e.message||e))}
   }
 
-  // DuckDuckGo Instant Answer
-  try{
-    const ddg='https://api.duckduckgo.com/?q='+encodeURIComponent(qCompare||q)+'&format=json&no_html=1&skip_disambig=1';
-    const data=await fetchJSON(ddg,9000);
-    const abs=String(data.AbstractText||'').trim();
-    const heading=String(data.Heading||'').trim();
-    const absUrl=String(data.AbstractURL||'').trim();
-    if(abs){
-      overview={title:heading||q,text:abs.slice(0,1500),source:data.AbstractSource||'DuckDuckGo',url:absUrl||'',type:'instant_answer'};
-    }
-    if(Array.isArray(data.RelatedTopics)){
-      for(const t of data.RelatedTopics.slice(0,8)){
-        if(t&&t.Text&&t.FirstURL)push({title:(t.Text||'').split(' - ')[0].slice(0,120),snippet:t.Text,url:t.FirstURL,source:'duckduckgo'});
-        if(t&&t.Topics)for(const st of t.Topics.slice(0,3)){
-          if(st&&st.Text&&st.FirstURL)push({title:(st.Text||'').split(' - ')[0].slice(0,120),snippet:st.Text,url:st.FirstURL,source:'duckduckgo'});
-        }
-      }
-    }
-    if(Array.isArray(data.Results)){
-      for(const r of data.Results.slice(0,6)){
-        if(r&&r.Text&&r.FirstURL)push({title:r.Text.slice(0,120),snippet:r.Text,url:r.FirstURL,source:'duckduckgo'});
-      }
-    }
-  }catch(e){errors.push('duckduckgo: '+(e.message||e))}
-
-  // DuckDuckGo lite HTML
-  if(wantGoogle||results.length<4){
+  // GitHub when requested
+  if(mode==='github'||/\bgithub\b|\brepo(sitory)?\b/i.test(qRaw)){
     try{
-      const liteUrl='https://lite.duckduckgo.com/lite/?q='+encodeURIComponent(qCompare||q);
-      const html=await fetchText(liteUrl,12000);
-      const re=/<a[^>]+rel="nofollow"[^>]+href="(https?:\/\/[^"]+)"[^>]*class="result-link"[^>]*>([\s\S]*?)<\/a>/gi;
-      let m,count=0;
-      while((m=re.exec(html))&&count<8){
-        const url=m[1];
-        const title=stripHtml(m[2]);
-        if(title&&url&&!/duckduckgo\.com/i.test(url)){push({title,snippet:'',url,source:'duckduckgo_web'});count++}
-      }
-    }catch(e){errors.push('duckduckgo_html: '+(e.message||e))}
-  }
-
-  // Google best-effort
-  let googleOk=false;
-  if(wantGoogle){
-    try{
-      const gUrl='https://www.google.com/search?q='+encodeURIComponent(qRaw)+'&hl=en&gl=us&num=10&pws=0';
-      const html=await fetchText(gUrl,15000);
-      const patterns=[
-        /AI Overview[\s\S]{0,120}?<(?:div|span)[^>]*>([\s\S]{40,2000}?)<\/(?:div|span)>/i,
-        /data-attrid="wa:\/description"[\s\S]{0,200}?<span[^>]*>([\s\S]{40,1500}?)<\/span>/i,
-        /class="kno-rdesc"[\s\S]{0,120}?<span[^>]*>([\s\S]{40,1500}?)<\/span>/i,
-        /class="hgKElc"[^>]*>([\s\S]{40,1500}?)<\/div>/i,
-        /class="IZ6rdc"[^>]*>([\s\S]{40,1500}?)<\/div>/i
-      ];
-      for(const re of patterns){
-        const aiMatch=html.match(re);
-        if(aiMatch&&aiMatch[1]){
-          const clean=stripHtml(aiMatch[1]);
-          if(clean.length>50){
-            overview={title:'Google AI Overview',text:clean.slice(0,1600),source:'Google',url:gUrl,type:'ai_overview'};
-            googleOk=true;
-            break;
-          }
-        }
-      }
-      let m,count=0;
-      const re=/<a[^>]+href="\/url\?q=([^&"]+)[^"]*"[^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)<\/h3>/gi;
-      while((m=re.exec(html))&&count<8){
-        try{
-          const url=decodeURIComponent(m[1]);
-          const title=stripHtml(m[2]);
-          if(title&&url&&/^https?:/i.test(url)&&!/google\./i.test(url)&&!/webcache/i.test(url)){
-            push({title,snippet:'',url,source:'google'});count++;googleOk=true;
-          }
-        }catch(e){}
-      }
-      if(count===0)errors.push('google: page fetched but no organic results parsed (markup may have changed or CAPTCHA)');
-    }catch(e){errors.push('google: '+(e.message||e))}
-  }
-
-  // SearXNG fallbacks
-  if(results.length<5&&(wantGoogle||mode==='web')){
-    const instances=[
-      'https://searx.be/search?q='+encodeURIComponent(qCompare||q)+'&format=json&categories=general',
-      'https://search.sapti.me/search?q='+encodeURIComponent(qCompare||q)+'&format=json',
-      'https://searx.tiekoetter.com/search?q='+encodeURIComponent(qCompare||q)+'&format=json'
-    ];
-    for(const sx of instances){
-      try{
-        const data=await fetchJSON(sx,9000);
-        const items=data.results||data.items||[];
-        let n=0;
-        for(const r of items){
-          if(n>=6)break;
-          const title=r.title||r.name;
-          const url=r.url||r.link;
-          if(title&&url){push({title,snippet:r.content||r.snippet||'',url,source:'searx'});n++}
-        }
-        if(n)break;
-      }catch(e){errors.push('searx: '+(e.message||e))}
-    }
-  }
-
-  // Hacker News
-  if(wantHn){
-    try{
-      const hn='https://hn.algolia.com/api/v1/search?hitsPerPage=5&query='+encodeURIComponent(qCompare||q);
-      const data=await fetchJSON(hn,9000);
-      for(const h of data.hits||[]){
-        const url=h.url||('https://news.ycombinator.com/item?id='+h.objectID);
-        push({title:h.title||h.story_title||'HN result',snippet:(h.story_text||h.comment_text||'').replace(/<[^>]+>/g,'').slice(0,240),url,source:'hn'});
-      }
-    }catch(e){errors.push('hn: '+(e.message||e))}
-  }
-
-  // GitHub
-  if(wantGh){
-    try{
-      const gh='https://api.github.com/search/repositories?per_page=5&q='+encodeURIComponent(qCompare||q);
-      const data=await fetchJSON(gh,9000);
-      for(const r of data.items||[]){
-        push({title:r.full_name,snippet:(r.description||'')+' ★'+(r.stargazers_count||0),url:r.html_url,source:'github'});
+      const gh='https://api.github.com/search/repositories?q='+encodeURIComponent(searchQ)+'&per_page=5';
+      const data=await fetchJSON(gh,10000);
+      for(const r of (data&&data.items)||[]){
+        push({title:r.full_name,snippet:r.description||'',url:r.html_url,source:'github'});
       }
     }catch(e){errors.push('github: '+(e.message||e))}
   }
 
-  // Wikidata
-  try{
-    const wd='https://www.wikidata.org/w/api.php?action=wbsearchentities&language=en&format=json&origin=*&limit=4&search='+encodeURIComponent(q);
-    const data=await fetchJSON(wd,8000);
-    for(const s of data.search||[]){
-      push({title:s.label||q,snippet:s.description||'',url:s.concepturi||('https://www.wikidata.org/wiki/'+s.id),source:'wikidata'});
-    }
-  }catch(e){errors.push('wikidata: '+(e.message||e))}
-
-  const softOk=results.length>0||!!overview||!!(wikipedia_structured&&wikipedia_structured.ok);
-  googleOk=googleOk||results.some(r=>r.source==='google')||(overview&&overview.source==='Google');
+  // Final filter: drop empty / bad rows
+  const clean=results.filter(r=>r&&r.title&&(!r.url||!isBadUrl(r.url))).slice(0,12);
 
   return {
-    ok:softOk,
+    ok:true,
     query:qRaw,
-    cleaned_query:qCompare||q,
-    mode,
-    google_available:!!googleOk,
-    overview:overview||undefined,
-    wikipedia_structured:(wikipedia_structured&&wikipedia_structured.ok)?wikipedia_structured:undefined,
-    results:results.slice(0,14),
-    errors:errors.slice(0,10),
-    note:!googleOk&&mode==='google'?'Direct Google was blocked or unparsable in this browser; returned Wikipedia / MDN / DuckDuckGo / other fallbacks instead.':undefined,
-    hint:'cleaned_query is what backends actually searched. Prefer overview + wikipedia_structured + mdn sources for technical topics. Use wikipedia_page / github_repo for deep dives.'
+    cleaned_query:searchQ,
+    engine:'duckduckgo',
+    overview:overview||null,
+    wikipedia_structured:wikipedia_structured||null,
+    results:clean,
+    count:clean.length,
+    errors:errors.length?errors.slice(0,6):undefined,
+    hint:'Primary engine is DuckDuckGo. Prefer overview + results. 404s from secondary sources are ignored. Use fetch_url on a result URL for full page text.'
   };
 }
 async wikipediaPage(args){
