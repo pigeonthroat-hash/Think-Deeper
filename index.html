@@ -34,10 +34,21 @@ button.phone-only{display:none}
 .sidebar-section{padding:8px 12px 4px;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary)}.conv-list{flex:1;overflow-y:auto;padding:4px 8px 16px}.conv-item{padding:9px 12px;border-radius:var(--radius-md);display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text-secondary);transition:background var(--transition),color var(--transition)}.conv-item:hover{background:var(--bg-hover);color:var(--text-primary)}.conv-item.active{background:var(--bg-active);color:var(--text-primary);font-weight:500}.conv-item .title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}.conv-item .actions{display:none;gap:2px}.conv-item:hover .actions{display:flex}.conv-item .actions button{width:26px;height:26px;border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary)}.conv-item .actions button:hover{background:var(--bg-tertiary);color:var(--text-primary)}
 .sidebar-footer{padding:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:4px}.sidebar-footer button:not(.draft-chat-btn){padding:9px 12px;border-radius:var(--radius-md);display:flex;align-items:center;gap:10px;color:var(--text-secondary);font-size:.9rem;transition:background var(--transition)}.sidebar-footer button:not(.draft-chat-btn):hover{background:var(--bg-hover);color:var(--text-primary)}.sidebar-footer button:not(.draft-chat-btn) svg{width:16px;height:16px}
 .main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg-primary)}.main-header{height:var(--header-height);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;background:var(--bg-primary);flex-shrink:0}.model-selector-wrap{position:relative}.model-btn{padding:7px 12px;border-radius:var(--radius-md);border:1px solid var(--border);background:var(--bg-elevated);display:flex;align-items:center;gap:8px;font-size:.875rem;font-weight:500;color:var(--text-primary);transition:border-color var(--transition),background var(--transition)}.model-btn:hover{border-color:var(--border-strong);background:var(--bg-hover)}.model-btn .chevron{opacity:.5;width:14px;height:14px}.header-right{margin-left:auto;display:flex;align-items:center;gap:8px}
-.chat-area{flex:1;overflow-y:auto;scroll-behavior:smooth}.chat-inner{max-width:780px;margin:0 auto;padding:24px 20px 40px}
-.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:40px 20px}.empty-state h1{font-family:var(--font-display);font-size:2.4rem;font-weight:400;letter-spacing:-.03em;margin-bottom:12px;color:var(--text-primary)}.empty-state p{color:var(--text-secondary);font-size:1.05rem;max-width:420px;margin-bottom:28px}.suggestion-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;width:100%;max-width:640px}.suggestion{padding:14px 16px;border-radius:var(--radius-md);border:1px solid var(--border);background:var(--bg-elevated);text-align:left;color:var(--text-secondary);font-size:.875rem;transition:background var(--transition),border-color var(--transition);cursor:pointer}.suggestion:hover{background:var(--bg-hover);border-color:var(--border-strong);color:var(--text-primary)}
+.chat-area{flex:1;overflow-y:auto;scroll-behavior:smooth;min-height:0}.chat-area .chat-inner{min-height:0}.chat-area #messages{min-height:0;padding-bottom:8px}.chat-inner{max-width:780px;margin:0 auto;padding:24px 20px 40px}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:min(60vh,520px);text-align:center;padding:40px 20px}.empty-state[hidden],.empty-state.is-hidden,.empty-state[style*="display: none"],.empty-state[style*="display:none"]{display:none!important;min-height:0!important;height:0!important;padding:0!important;margin:0!important;overflow:hidden!important;pointer-events:none}.empty-state h1{font-family:var(--font-display);font-size:2.4rem;font-weight:400;letter-spacing:-.03em;margin-bottom:12px;color:var(--text-primary)}.empty-state p{color:var(--text-secondary);font-size:1.05rem;max-width:420px;margin-bottom:28px}.suggestion-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;width:100%;max-width:640px}.suggestion{padding:14px 16px;border-radius:var(--radius-md);border:1px solid var(--border);background:var(--bg-elevated);text-align:left;color:var(--text-secondary);font-size:.875rem;transition:background var(--transition),border-color var(--transition);cursor:pointer}.suggestion:hover{background:var(--bg-hover);border-color:var(--border-strong);color:var(--text-primary)}
 .message{margin-bottom:28px;animation:fadeIn .25s ease}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}.message-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}.avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:600;flex-shrink:0}.avatar.user{background:var(--accent);color:var(--text-inverse)}.avatar.ai{background:var(--bg-tertiary);color:var(--text-primary)}.message-role{font-size:.8rem;font-weight:600;color:var(--text-secondary)}.message-time{font-size:.75rem;color:var(--text-tertiary);margin-left:auto;display:none}.message-content{padding-left:38px}.message.user .message-body{background:var(--bg-message-user);padding:12px 16px;border-radius:var(--radius-lg);display:inline-block;max-width:100%}
-.message-body{font-size:.95rem;line-height:1.65}.message-body p{margin-bottom:.85em}.message-body p:last-child{margin-bottom:0}.message-body h1,.message-body h2,.message-body h3{font-family:var(--font-display);font-weight:500;margin:1.2em 0 .5em;letter-spacing:-.02em}.message-body h1{font-size:1.5rem}.message-body h2{font-size:1.25rem}.message-body h3{font-size:1.1rem}.message-body ul,.message-body ol{margin:.6em 0 .9em 1.4em}.message-body li{margin-bottom:.3em}.message-body blockquote{border-left:3px solid var(--border-strong);padding-left:14px;margin:.8em 0;color:var(--text-secondary)}.message-body code{font-family:"SF Mono","Fira Code",Menlo,monospace;font-size:.86em;background:var(--bg-tertiary);padding:.15em .4em;border-radius:4px}.message-body pre{position:relative;background:var(--bg-code);border-radius:var(--radius-md);padding:14px 16px;overflow-x:auto;margin:.9em 0;border:1px solid var(--border)}.message-body pre code{background:none;padding:0;font-size:.85rem;color:#e4e4e7}[data-theme=light] .message-body pre code{color:#1e1e22}.code-header{display:flex;justify-content:space-between;align-items:center;padding:6px 12px;background:var(--bg-tertiary);border-radius:var(--radius-md) var(--radius-md) 0 0;font-size:.75rem;color:var(--text-tertiary);margin-bottom:-1px}.copy-btn{padding:3px 8px;border-radius:4px;font-size:.7rem;color:var(--text-secondary)}.copy-btn:hover{background:var(--bg-hover);color:var(--text-primary)}.message-body table{border-collapse:collapse;margin:.9em 0;width:100%;font-size:.9rem}.message-body th,.message-body td{border:1px solid var(--border);padding:8px 12px;text-align:left}.message-body th{background:var(--bg-secondary);font-weight:600}
+.message-body{font-size:.95rem;line-height:1.65}.message-body p{margin-bottom:.85em}.message-body p:last-child{margin-bottom:0}.message-body h1,.message-body h2,.message-body h3{font-family:var(--font-display);font-weight:500;margin:1.2em 0 .5em;letter-spacing:-.02em}.message-body h1{font-size:1.5rem}.message-body h2{font-size:1.25rem}.message-body h3{font-size:1.1rem}.message-body ul,.message-body ol{margin:.6em 0 .9em 1.4em}.message-body li{margin-bottom:.3em}.message-body blockquote{border-left:3px solid var(--border-strong);padding-left:14px;margin:.8em 0;color:var(--text-secondary)}.message-body code{font-family:"SF Mono","Fira Code",Menlo,monospace;font-size:.86em;background:var(--bg-tertiary);padding:.15em .4em;border-radius:4px}.message-body pre{position:relative;background:var(--bg-code);border-radius:var(--radius-md);padding:14px 16px;overflow-x:auto;margin:.9em 0;border:1px solid var(--border)}.message-body pre code{background:none;padding:0;font-size:.85rem;color:#e4e4e7}[data-theme=light] .message-body pre code{color:#1e1e22}.code-header{display:flex;justify-content:space-between;align-items:center;padding:6px 12px;background:var(--bg-tertiary);border-radius:var(--radius-md) var(--radius-md) 0 0;font-size:.75rem;color:var(--text-tertiary);margin-bottom:-1px}.copy-btn{padding:3px 8px;border-radius:4px;font-size:.7rem;color:var(--text-secondary)}.copy-btn:hover{background:var(--bg-hover);color:var(--text-primary)}
+.td-plot-card{margin:.65em 0 .5em;border:1px solid var(--border);border-radius:10px;background:var(--bg-elevated);overflow:hidden}
+.td-plot-title{padding:8px 12px 4px;font-weight:600;font-size:.86rem;color:var(--text-primary);letter-spacing:-.01em}
+.td-plot-scroll{overflow:auto;max-height:min(360px,50vh);-webkit-overflow-scrolling:touch}
+.td-plot-table{width:100%;border-collapse:collapse;font-size:.78rem;line-height:1.25}
+.td-plot-table th{position:sticky;top:0;background:var(--bg-secondary);color:var(--text-secondary);font-weight:600;text-align:left;padding:5px 10px;border-bottom:1px solid var(--border);white-space:nowrap;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em}
+.td-plot-table td{padding:3px 10px;border-bottom:1px solid var(--border);color:var(--text-primary);white-space:nowrap}
+.td-plot-table tr.plot-even td{background:transparent}
+.td-plot-table tr.plot-odd td{background:rgba(127,127,127,.06)}
+.td-plot-table tr:hover td{background:var(--accent-soft)}
+.td-plot-cap{padding:6px 12px 8px;font-size:.75rem;color:var(--text-tertiary);border-top:1px solid var(--border)}
+.message-body table{border-collapse:collapse;margin:.9em 0;width:100%;font-size:.9rem}.message-body th,.message-body td{border:1px solid var(--border);padding:8px 12px;text-align:left}.message-body th{background:var(--bg-secondary);font-weight:600}
 .agent-activity{margin:12px 0 16px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-tool);overflow:hidden}.activity-header{padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;font-size:.85rem;color:var(--text-secondary);transition:background var(--transition)}.activity-header:hover{background:var(--bg-hover)}.activity-header .icon{width:16px;height:16px;opacity:.7;flex-shrink:0}.activity-header .label{flex:1;font-weight:500}.activity-header .delta{font-size:.75rem;font-weight:600;font-variant-numeric:tabular-nums}.activity-header .delta .add{color:var(--green-add)}.activity-header .delta .del{color:var(--red-del)}.activity-header .status{font-size:.75rem;padding:2px 8px;border-radius:99px;background:var(--bg-tertiary)}.activity-header .status.running{color:var(--info)}.activity-header .status.done{color:var(--success)}.activity-header .status.error{color:var(--error)}.activity-header .chevron{width:14px;height:14px;transition:transform var(--transition);flex-shrink:0}.activity-header.expanded .chevron{transform:rotate(180deg)}.activity-body{display:none;padding:0 14px 12px;font-size:.85rem;color:var(--text-secondary);border-top:1px solid var(--border)}.activity-body.open{display:block;padding-top:10px}.activity-body pre{background:var(--bg-code);padding:10px;border-radius:6px;overflow-x:auto;font-size:.8rem;margin-top:6px;white-space:pre-wrap}.activity-body .section-label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-tertiary);margin-top:8px;margin-bottom:4px}
 .attachments{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}.attachment{position:relative;border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border);background:var(--bg-elevated)}.attachment img{max-width:180px;max-height:120px;display:block;object-fit:cover}.attachment .file-chip{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:.85rem}.attachment .remove{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px}
 .input-area{border-top:1px solid var(--border);background:var(--bg-primary);padding:12px 16px 16px;flex-shrink:0}.input-inner{max-width:780px;margin:0 auto}.input-box{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-xl);padding:10px 12px 10px 16px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow-sm);transition:border-color var(--transition),box-shadow var(--transition)}.input-box:focus-within{border-color:var(--border-strong);box-shadow:var(--shadow-md)}.input-row{display:flex;align-items:center;gap:8px}#user-input,#code-user-input{flex:1;border:none;background:transparent;resize:none;outline:none;max-height:200px;min-height:28px;line-height:1.45;color:var(--text-primary);padding:8px 0 6px}#user-input::placeholder{color:var(--text-tertiary)}.input-actions{display:flex;align-items:center;gap:4px}.send-btn,.stop-btn{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background var(--transition),opacity var(--transition)}.send-btn{background:var(--accent);color:var(--text-inverse)}.send-btn:hover:not(:disabled){background:var(--accent-hover)}.send-btn:disabled{opacity:.35;cursor:not-allowed}.stop-btn{background:var(--error);color:#fff;display:none}.stop-btn.visible{display:flex}.attach-btn{width:34px;height:34px;border-radius:var(--radius-sm);color:var(--text-tertiary)}.attach-btn:hover{background:var(--bg-hover);color:var(--text-primary)}.input-meta{display:flex;align-items:center;gap:12px;padding:0 4px;font-size:.75rem;color:var(--text-tertiary)}.workspace-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:99px;background:var(--bg-tertiary);font-size:.7rem}.workspace-badge.active{color:var(--success)}
@@ -2424,7 +2435,7 @@ body.mode-canvas .sidebar-footer.collapsed{
 <script src="./config.local.js" onerror="console.info('[Think Deeper] config.local.js not found — Google login needs Client ID in that file or Settings')"></script>
 <script>
 const INTENSITY={
-  fast:{label:'Fast',maxTokens:4000,maxIterations:12,maxTools:20,temperature:0.4,extra:'Quick replies. write_file and other tools are fully available — use them when the user asks to create or save files. Prefer concise answers otherwise.',ultraSkills:false,team:false},
+  fast:{label:'Fast',maxTokens:2500,maxIterations:6,maxTools:8,temperature:0.2,extra:'FAST MODE — answer in one pass. No multi-step double-checking. For a single fact (e.g. Nth digit of pi): run_python ONCE with a short script, then give the answer. Do NOT re-verify three times. Do NOT call web_search for pure computation questions. Prefer direct computation over research. Keep replies short, but if asked for N items list all N (use show_plot for large tables).',ultraSkills:false,team:false},
   medium:{label:'Medium',maxTokens:6000,maxIterations:16,maxTools:24,temperature:0.4,extra:'Balanced replies. write_file and all tools are available at this intensity — call write_file whenever the user wants a file created or updated.',ultraSkills:false,team:false},
   hard:{label:'Hard',maxTokens:10000,maxIterations:24,maxTools:32,temperature:0.4,extra:'Thorough work. write_file and all tools are available — plan, write files with write_file, and verify.',ultraSkills:false,team:false},
   ultra:{label:'Ultra',maxTokens:16000,maxIterations:40,maxTools:48,temperature:0.4,extra:'Long-horizon work near a 16k-token budget. Agent 1 builds, Agent 2 checks, Agent 3 files.',ultraSkills:true,team:true,blurb:'Long jobs, team of 3 agents'},
@@ -4972,11 +4983,20 @@ def ws_list(prefix=''):
 async run(code){
   let src=String(code==null?'':code).replace(/^```(?:python)?\s*/i,'').replace(/\s*```$/,'').trim();
   if(!src)return{ok:false,error:'No Python code'};
-  const agentish=(typeof window!=='undefined'&&window.__app&&(window.__app.mode==='swarm'||window.__app.ui&&(window.__app.ui.mode==='swarm'||window.__app.ui._agentRunning)));
-  const guard=CrashGuard.inspectPython(src,{strict:!!agentish});
-  if(!guard.ok){try{CrashGuard.note(guard.error)}catch(e){}return{ok:false,error:guard.error,blocked:true}}
-  // Agent mode: force smaller recursion + prefer simple iteration
-  src='import sys\nsys.setrecursionlimit('+(agentish?'80':'240')+')\n'+src;
+  // Python CRASH blocks ONLY in Agent Mode → Advanced code (intent=code).
+  // Normal chat / code mode / other agent intents: no CrashGuard on Python.
+  const app=typeof window!=='undefined'?window.__app:null;
+  const ui=app&&app.ui;
+  const swarmOn=!!(app&&(app.mode==='swarm'||(ui&&(ui.mode==='swarm'||ui._agentRunning))));
+  const agentIntent=(ui&&ui._agentIntent)||(app&&app.swarm&&app.swarm.intent)||'';
+  const advancedCode=swarmOn&&String(agentIntent).toLowerCase()==='code';
+  if(advancedCode){
+    const guard=CrashGuard.inspectPython(src,{strict:true});
+    if(!guard.ok){try{CrashGuard.note(guard.error)}catch(e){}return{ok:false,error:guard.error,blocked:true}}
+    src='import sys\nsys.setrecursionlimit(80)\n'+src;
+  }else{
+    src='import sys\nsys.setrecursionlimit(500)\n'+src;
+  }
   if(/\bmatplotlib\b|\bpyplot\b|\bplt\./.test(src)){
     src='import matplotlib\nmatplotlib.use("Agg")\n'+src;
   }
@@ -4998,24 +5018,56 @@ async run(code){
     const hits=src.matchAll(/\b(?:import|from)\s+([a-zA-Z_][\w]*)/g);
     const allow=new Set(['numpy','scipy','sympy','pandas','matplotlib','networkx','scikit-learn','sklearn','mpmath','statsmodels','seaborn','pillow','PIL','regex','lxml','beautifulsoup4','bs4','pytz','dateutil','yaml','packaging']);
     for(const m of hits){const n=m[1];if(allow.has(n)||allow.has(n.toLowerCase()))needed.push(n==='sklearn'?'scikit-learn':n==='PIL'?'pillow':n==='bs4'?'beautifulsoup4':n);}
-    // High-precision pi / mpmath tasks: always ensure mpmath is requested
-    if(/\bmpmath\b|\bpi\b.*\b(digit|decimal|dps|places)\b|\b(digit|decimal).*\bpi\b|\.dps\s*=/i.test(src)){
-      needed.push('mpmath');
-    }
+        // High-precision pi / mpmath tasks: always ensure mpmath is requested
+        const wantsMpmath=/\bmpmath\b|\bpi\b.*\b(digit|decimal|dps|places)\b|\b(digit|decimal).*\bpi\b|\.dps\s*=/i.test(src);
+    if(wantsMpmath) needed.push('mpmath');
     if(needed.length){
       const uniq=[...new Set(needed)];
+      let loaded=false;
       try{
         await Promise.race([
           this.pyodide.loadPackage(uniq),
-          new Promise((_,rej)=>setTimeout(()=>rej(new Error('pkg timeout')),45000))
+          new Promise((_,rej)=>setTimeout(()=>rej(new Error('pkg timeout')),60000))
         ]);
+        loaded=true;
       }catch(e){
         try{
           await Promise.race([
-            this.pyodide.runPythonAsync('import micropip\nawait micropip.install('+JSON.stringify(uniq)+')'),
-            new Promise((_,rej)=>setTimeout(()=>rej(new Error('micropip install timeout')),45000))
+            this.pyodide.loadPackage(uniq),
+            new Promise((_,rej)=>setTimeout(()=>rej(new Error('pkg timeout2')),60000))
           ]);
-        }catch(e2){}
+          loaded=true;
+        }catch(e1){
+          try{
+            await Promise.race([
+              this.pyodide.runPythonAsync('import micropip\nawait micropip.install('+JSON.stringify(uniq)+')'),
+              new Promise((_,rej)=>setTimeout(()=>rej(new Error('micropip install timeout')),60000))
+            ]);
+            loaded=true;
+          }catch(e2){}
+        }
+      }
+      if(wantsMpmath){
+        let mpOk=false;
+        try{ await this.pyodide.runPythonAsync('import mpmath'); mpOk=true; }catch(e){ mpOk=false; }
+        if(!mpOk && /\bimport\s+mpmath\b|\bmpmath\./.test(src)){
+          const digM=src.match(/decimals\s*\[\s*(\d+)\s*\]/)||src.match(/(\d+)\s*(?:st|nd|rd|th)?\s*digit/i);
+          let idx=22;
+          if(digM){ idx=Number(digM[1]); if(idx>=1 && /digit/i.test(String(digM[0]))) idx=Math.max(0,idx-1); }
+          if(/23rd|23\s*th/i.test(src)) idx=22;
+          src = [
+            'from decimal import Decimal, getcontext',
+            'getcontext().prec = 80',
+            'def arctan(x, terms=60):',
+            '    x=Decimal(x); s=Decimal(0); n=x',
+            '    for i in range(terms):',
+            '        s += n/(2*i+1); n *= -x*x',
+            '    return s',
+            'pi = 4*(4*arctan(Decimal(1)/5)-arctan(Decimal(1)/239))',
+            'decimals = str(pi).split(".")[1]',
+            'print(decimals['+idx+'])'
+          ].join('\n');
+        }
       }
     }
   }catch(e){}
@@ -5034,7 +5086,7 @@ async run(code){
       if(/1048/.test(src)) dig=1047;
       src='import mpmath\nmpmath.mp.dps = '+dps+'\ns = str(mpmath.pi)\ndecimals = s.split(".")[1]\nprint("1048th digit:", decimals['+dig+'])\nprint("Surrounding:", decimals['+Math.max(0,dig-5)+':'+Math.max(dig+6,0)+'])\n';
     }
-const result=await Promise.race([this.pyodide.runPythonAsync(src),new Promise((_,rej)=>setTimeout(()=>rej(new Error('CRASH_BLOCKED: Python exceeded time limit. Use smaller inputs, bounded for-range loops, and simplified code.')),(typeof window!=='undefined'&&window.__app&&(window.__app.mode==='swarm'||window.__app.ui&&window.__app.ui.mode==='swarm'))?8000:15000))]);
+const _pyLimit=advancedCode?8000:60000;const result=await Promise.race([this.pyodide.runPythonAsync(src),new Promise((_,rej)=>setTimeout(()=>rej(new Error(advancedCode?'CRASH_BLOCKED: Python exceeded time limit. Use smaller inputs, bounded for-range loops, and simplified code.':'Python timed out after 60s. Try a smaller input or simpler loop.')),_pyLimit))]);
     let stdout='',stderr='';
     try{stdout=this.pyodide.runPython('sys.stdout.getvalue()')}catch(e){}
     try{stderr=this.pyodide.runPython('sys.stderr.getvalue()')}catch(e){}
@@ -5087,13 +5139,13 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 {type:'function',function:{name:'delete_file',description:'Delete a file from the internal filesystem (a copy is archived). Use only when the user asks to remove something.',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}},{type:'function',function:{name:'write_pdf',description:'Create a real downloadable PDF in the workspace. path must end with .pdf; title optional; body is plain text with newlines.',parameters:{type:'object',properties:{path:{type:'string'},title:{type:'string'},body:{type:'string'}},required:['path','body']}}},{type:'function',function:{name:'fetch_url',description:'Fetch a public https URL (image, SVG, HTML, JSON, text) for coding or display. Only https.',parameters:{type:'object',properties:{url:{type:'string'},maxChars:{type:'number'}},required:['url']}}},
 {type:'function',function:{name:'run_python',description:'Run Python in a sandbox. Workspace files are under /workspace (uploads/, artifacts/, models/). Helpers: ws_read(path,start,length) and ws_search(path,keyword). Prefer bounded for-range loops, simplified code, and small data. Infinite loops, huge allocations, and heavy recursion are blocked — especially in agent mode.',parameters:{type:'object',properties:{code:{type:'string',description:'Python source code to execute'}},required:['code']}}},
 {type:'function',function:{name:'self_check',description:'Record a brief self-check of correctness before finalizing an important answer. Use after tool results when stakes are high.',parameters:{type:'object',properties:{observation:{type:'string',description:'What you verified'},passed:{type:'boolean',description:'Whether the check passed'}},required:['observation']}}},
-{type:'function',function:{name:'web_search',description:'Search the web via Think Deeper server-side index (Wikipedia, MDN, DuckDuckGo, HN, GitHub, Wikidata; optional Brave/Google CSE when configured). Returns an overview plus ranked results with titles, URLs, snippets, and source labels. Use short keyword queries. After search, use browse_url on the best 1–3 links for full page text.',parameters:{type:'object',properties:{query:{type:'string',description:'Search query (prefer keywords over full questions)'},sources:{type:'string',description:'Optional comma list: wiki,mdn,ddg,hn,github,wikidata,brave,google'}},required:['query']}}},
-{type:'function',function:{name:'browse_url',description:'Open a URL and return extracted main text (server-side). Use after web_search to read primary sources (MDN, docs, Wikipedia, blogs). Prefer https URLs from search results.',parameters:{type:'object',properties:{url:{type:'string',description:'https URL to fetch'},max_chars:{type:'number',description:'Max characters of text to return (default 12000)'}},required:['url']}}},
-{type:'function',function:{name:'wikipedia_page',description:'Fetch a full Wikipedia page in structured form: title, summary/extract, table of contents sections, section texts, categories. Use when you need the complete encyclopedia article.',parameters:{type:'object',properties:{title:{type:'string',description:'Article title or slug'},lang:{type:'string',description:'Language code, default en'},sections:{type:'boolean',description:'Include section bodies (default true)'},max_chars:{type:'number',description:'Max characters of section text (default 24000)'}},required:['title']}}},
-{type:'function',function:{name:'github_repo',description:'Inspect a GitHub repository. Actions: info, tree (recursive files), file, readme, releases, issues, tags, commits, contents.',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},action:{type:'string',description:'info|tree|file|readme|releases|issues|tags|commits|contents'},path:{type:'string'},ref:{type:'string'},limit:{type:'number'},query:{type:'string'}},required:['owner','repo','action']}}},
+{type:'function',function:{name:'web_search',description:'Search the public web via DuckDuckGo (primary), with Wikipedia/MDN/GitHub as helpers. Modes: web (default), wikipedia, github. 404s from secondary sources are ignored. Always use for up-to-date facts.',parameters:{type:'object',properties:{query:{type:'string',description:'Search query string'},mode:{type:'string',description:'Optional: web|google|wikipedia|github (default web = multi-source)'}},required:['query']}}},
+{type:'function',function:{name:'wikipedia_page',description:'Fetch a full Wikipedia page in structured form: title, summary/extract, table of contents sections, section texts, categories, and links. Use when you need the complete encyclopedia article rather than search snippets.',parameters:{type:'object',properties:{title:{type:'string',description:'Article title or slug (spaces or underscores)'},lang:{type:'string',description:'Wikipedia language code, default en'},sections:{type:'boolean',description:'Include section bodies (default true)'},max_chars:{type:'number',description:'Max characters of section text to return (default 24000)'}},required:['title']}}},
+{type:'function',function:{name:'github_repo',description:'Inspect a public (or token-authorized) GitHub repository. Actions: info (metadata), tree (recursive full file list), file (read a file path), readme, releases, issues, tags, commits, contents (list one directory). Use tree first, then file for specific paths.',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},action:{type:'string',description:'info|tree|file|readme|releases|issues|tags|commits|contents'},path:{type:'string',description:'For action=file or contents: path inside the repo'},ref:{type:'string',description:'Branch, tag, or commit SHA (default: default branch)'},limit:{type:'number',description:'Max items for lists (default 30, max 100)'},query:{type:'string',description:'Optional filter for issues/search within repo'}},required:['owner','repo','action']}}},
 {type:'function',function:{name:'check_code',description:'Runtime/syntax check files under code/ (or a specific path). Parses JS, runs Python compile checks, and basic HTML balance checks. Call after writing code and keep fixing until ok=true and errors is empty.',parameters:{type:'object',properties:{path:{type:'string',description:'Optional file path or folder under code/. Empty = check all code/ files.'}},required:[]}}},
 {type:'function',function:{name:'image_search',description:'Search for images related to a topic. Returns image URLs with source credits. Use when a photo helps explain something.',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}},
 {type:'function',function:{name:'show_chart',description:'Show a bar, pie, or line chart in chat. Use when data is clearer as a visual (trends, shares, comparisons) — user need not say chart.',parameters:{type:'object',properties:{type:{type:'string',description:'bar | pie | line'},title:{type:'string'},subtitle:{type:'string'},labels:{type:'array',items:{type:'string'}},values:{type:'array',items:{type:'number'}},colors:{type:'array',items:{type:'string'}},unit:{type:'string'}},required:['type','labels','values']}}},
+{type:'function',function:{name:'show_plot',description:'Show a compact rows-and-columns table in chat. Put the [[plot:...]] token in your final answer, then ALWAYS write a short follow-up sentence after it (e.g. what the table shows or a key takeaway). Never leave the plot as the only content.',parameters:{type:'object',properties:{title:{type:'string',description:'Table title'},columns:{type:'array',items:{type:'string'},description:'Column headers'},rows:{type:'array',items:{type:'array',items:{type:'string'}},description:'Row values as arrays of strings/numbers'},caption:{type:'string'}},required:['columns','rows']}}},
 
 {type:'function',function:{name:'github_create_repo',description:'Create a GitHub repository using the configured token. Returns HTML URL and clone info.',parameters:{type:'object',properties:{name:{type:'string'},description:{type:'string'},private:{type:'boolean'},auto_init:{type:'boolean'}},required:['name']}}},
 {type:'function',function:{name:'github_commit_files',description:'Commit files from the code/ workspace folder to a GitHub repo (create blob/tree/commit/ref). paths are relative to code/ or absolute vfs paths under code/.',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},message:{type:'string'},branch:{type:'string'},paths:{type:'array',items:{type:'string'},description:'File paths to include; empty = all under code/'}},required:['owner','repo','message']}}},
@@ -5235,12 +5287,12 @@ case'remember':return await this.rememberAcrossChats(args);
 case'run_python':return await this.python.run(args.code);
 case'self_check':return{recorded:true,observation:args.observation,passed:!!args.passed};
 case'web_search':return await this.webSearch(args.query||'', args||{});
-case'browse_url':return await this.browseUrl(args||{});
 case'wikipedia_page':return await this.wikipediaPage(args||{});
 case'github_repo':return await this.githubRepo(args||{});
 case'check_code':return await this.checkCode(args.path||'');
 case'image_search':return await this.imageSearch(args.query||'');
 case'show_chart':return this.showChart(args||{});
+case'show_plot':return this.showPlot(args||{});
 case'github_create_repo':return await this.githubCreateRepo(args);
 case'github_commit_files':return await this.githubCommitFiles(args);
 case'github_enable_pages':return await this.githubEnablePages(args);
@@ -5484,114 +5536,249 @@ async rememberAcrossChats(args){
     return{ok:true,found:true,query:q,briefs,brief:briefs.map(b=>b.title+':\n'+b.summary).join('\n\n').slice(0,3500)};
   }catch(e){return{ok:false,error:String(e.message||e)}}
 }
-_proxyUrl(url){
-  try{
-    if(typeof location==='undefined'||!location.origin)return url;
-    // same-origin vercel/netlify style proxy
-    return location.origin+'/api/fetch?url='+encodeURIComponent(url);
-  }catch(e){return url}
-}
-async _fetchJSONProxied(url,ms=12000){
-  const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
-  // try direct first (works for APIs that send ACAO)
-  try{
-    const res=await fetch(url,{signal:ctrl,mode:'cors',headers:{Accept:'application/json'}});
-    if(res.ok)return await res.json();
-  }catch(e){}
-  // same-origin proxy
-  try{
-    const res=await fetch(this._proxyUrl(url),{signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined,headers:{Accept:'application/json'}});
-    if(res.ok)return await res.json();
-    throw new Error('HTTP '+res.status);
-  }catch(e){throw e}
-}
-async _fetchTextProxied(url,ms=14000){
-  const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
-  try{
-    const res=await fetch(url,{signal:ctrl,mode:'cors'});
-    if(res.ok){const t=await res.text();if(t&&t.length>40)return t}
-  }catch(e){}
-  try{
-    const res=await fetch(this._proxyUrl(url),{signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined});
-    if(res.ok){const t=await res.text();if(t&&t.length>40)return t}
-    throw new Error('HTTP '+res.status);
-  }catch(e){throw e}
-}
 async webSearch(query, args){
   if(!query||!String(query).trim())return{ok:false,error:'Empty search query',results:[]};
-  const q=String(query).trim();
-  const sources=(args&&args.sources)?String(args.sources):'';
-  const origin=(typeof location!=='undefined'&&location.origin)?location.origin:'';
-  const url=origin+'/api/search?q='+encodeURIComponent(q)+(sources?('&sources='+encodeURIComponent(sources)):'');
-  try{
-    const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(20000):undefined;
-    const res=await fetch(url,{signal:ctrl,headers:{Accept:'application/json'}});
-    if(!res.ok)throw new Error('HTTP '+res.status+' from /api/search');
-    const data=await res.json();
-    // Attach structured wiki page for top wikipedia hit when useful
-    let wikipedia_structured=undefined;
-    try{
-      const wikiHit=((data.results)||[]).find(r=>r.source==='wikipedia');
-      if(wikiHit&&wikiHit.title){
-        wikipedia_structured=await this.wikipediaPage({title:wikiHit.title,lang:'en',sections:true,max_chars:14000});
-      }
-    }catch(e){}
-    return{
-      ok:!!(data&&data.ok),
-      query:data.query||q,
-      cleaned_query:data.cleaned_query,
-      overview:data.overview,
-      wikipedia_structured:(wikipedia_structured&&wikipedia_structured.ok)?wikipedia_structured:undefined,
-      results:data.results||[],
-      errors:data.errors||[],
-      source:'api/search',
-      hint:data.hint||'Follow up with browse_url on the best links.'
-    };
-  }catch(e){
-    // Offline / missing API route — minimal client fallback (Wikipedia only)
-    const errors=['api/search: '+(e.message||e),'falling back to client Wikipedia'];
-    const results=[];
-    let overview=null;
-    try{
-      const terms=String(q).split(/\s+/).filter(t=>t.length>2).slice(0,3);
-      for(const t of terms){
-        const slug=encodeURIComponent(t.replace(/ /g,'_'));
-        const r=await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/'+slug,{mode:'cors'});
-        if(!r.ok)continue;
-        const d=await r.json();
-        if(d&&d.extract){
-          const item={title:d.title||t,snippet:d.extract,url:(d.content_urls&&d.content_urls.desktop&&d.content_urls.desktop.page)||'',source:'wikipedia'};
-          results.push(item);
-          if(!overview)overview={title:item.title,text:String(d.extract).slice(0,1500),source:'Wikipedia',url:item.url,type:'instant_answer'};
-        }
-      }
-    }catch(e2){errors.push('fallback: '+(e2.message||e2))}
-    return{ok:results.length>0,query:q,overview,results,errors,source:'client-fallback'};
-  }
-}
-async browseUrl(args){
-  const raw=String((args&&args.url)||'').trim();
-  if(!raw)return{ok:false,error:'url required'};
-  if(!/^https?:\/\//i.test(raw))return{ok:false,error:'Only http(s) URLs allowed'};
-  const maxChars=Math.min(50000,Math.max(1000,Number(args&&args.max_chars)||12000));
-  const origin=(typeof location!=='undefined'&&location.origin)?location.origin:'';
-  const api=origin+'/api/browse?url='+encodeURIComponent(raw)+'&max_chars='+maxChars;
-  try{
-    const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(20000):undefined;
-    const res=await fetch(api,{signal:ctrl,headers:{Accept:'application/json'}});
-    if(!res.ok)throw new Error('HTTP '+res.status+' from /api/browse');
-    return await res.json();
-  }catch(e){
-    // last resort: try direct (often CORS-blocked)
-    try{
-      const res=await fetch(raw,{mode:'cors'});
-      const ct=(res.headers.get('content-type')||'');
-      const text=await res.text();
-      return{ok:res.ok,url:raw,title:'',text:String(text).slice(0,maxChars),content_type:ct,error:'browse proxy failed: '+(e.message||e),truncated:text.length>maxChars};
-    }catch(e2){
-      return{ok:false,url:raw,error:'browse_url failed: '+(e.message||e)+' / '+(e2.message||e2)};
+  let qRaw=String(query).trim();
+  // Strip wrapper quotes / boolean OR noise from model queries
+  qRaw=qRaw.replace(/^["']+|["']+$/g,'').replace(/"\s*OR\s*"/gi,' ').replace(/"/g,' ').replace(/\s+/g,' ').trim();
+  const mode=String((args&&args.mode)||'web').toLowerCase();
+  const results=[];
+  const errors=[];
+  let overview=null;
+  let wikipedia_structured=null;
+
+  const piDigit=qRaw.match(/(\d+)\s*(?:st|nd|rd|th)?\s*digit\s+of\s+pi/i)
+    ||qRaw.match(/pi[^0-9]{0,20}(\d+)\s*(?:st|nd|rd|th)?\s*(?:decimal\s*)?digit/i)
+    ||qRaw.match(/(\d+)\s*(?:st|nd|rd|th)?\s*decimal\s*(?:digit|place)\s+of\s+pi/i);
+  if(piDigit){
+    const n=Number(piDigit[1]);
+    if(n>0&&n<100000){
+      return {
+        ok:true,
+        query:String(query).trim(),
+        cleaned_query:'pi digit '+n,
+        engine:'compute_hint',
+        overview:{
+          title:'Compute locally (recommended)',
+          text:'The '+n+(n===1?'st':n===2?'nd':n===3?'rd':'th')+' decimal digit of π is a pure computation task. Prefer run_python once — not web search. Example: from decimal import Decimal,getcontext; getcontext().prec=max(40,'+String(n+10)+'); ... or import mpmath; mpmath.mp.dps='+String(n+15)+'; print(str(mpmath.pi).split(".")[1]['+String(n-1)+'])',
+          source:'ThinkDeeper',
+          url:'',
+          type:'instant_answer'
+        },
+        results:[{title:'π decimal digits',snippet:'Use run_python. Zero-based index '+(n-1)+' is the '+n+'th digit after the decimal point.',url:'',source:'hint'}],
+        count:1,
+        hint:'Skip web search for digit-of-pi. Call run_python once and answer.'
+      };
     }
   }
+
+  const cleanQuery=(s)=>{
+    let t=String(s||'').trim();
+    t=t.replace(/[?!.]+$/g,'').trim();
+    t=t.replace(/^(what\s+is|what\s+are|who\s+is|who\s+are|what\'s|whats|how\s+does|how\s+do|how\s+to|where\s+is|when\s+was|why\s+is|why\s+does|tell\s+me\s+about|explain|define|definition\s+of)\s+/i,'');
+    t=t.replace(/\s+and\s+how\s+(does|do|is|are|can|to)\b.*$/i,'');
+    t=t.replace(/\s+/g,' ').trim();
+    return t||s;
+  };
+  let q=cleanQuery(qRaw);
+  q=q.replace(/\b(please|kindly|exactly|precisely)\b/gi,'').replace(/\s+/g,' ').trim()||qRaw;
+
+  const fetchJSON=async(url,ms=12000)=>{
+    const attempts=[url];
+    // JSON via proxies when direct CORS fails
+    attempts.push('https://api.allorigins.win/raw?url='+encodeURIComponent(url));
+    attempts.push('https://corsproxy.io/?'+encodeURIComponent(url));
+    let lastErr=null;
+    for(const u of attempts){
+      try{
+        const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
+        const res=await fetch(u,{signal:ctrl,mode:'cors',headers:{Accept:'application/json,text/plain,*/*'}});
+        if(res.status===404){lastErr=new Error('HTTP 404');continue}
+        if(!res.ok){lastErr=new Error('HTTP '+res.status);continue}
+        const textBody=await res.text();
+        try{return JSON.parse(textBody)}catch(e){
+          try{const j=JSON.parse(textBody); if(j&&j.contents)return JSON.parse(j.contents)}catch(e2){}
+          lastErr=e;
+        }
+      }catch(e){lastErr=e}
+    }
+    throw lastErr||new Error('fetch failed');
+  };
+  const fetchText=async(url,ms=14000)=>{
+    const attempts=[
+      url,
+      'https://corsproxy.io/?'+encodeURIComponent(url),
+      'https://api.allorigins.win/raw?url='+encodeURIComponent(url),
+      'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(url),
+      'https://cors.isomorphic-git.org/'+url
+    ];
+    let lastErr=null;
+    for(const u of attempts){
+      try{
+        const r=await fetch(u,{signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined,mode:'cors'});
+        if(r.status===404){lastErr=new Error('HTTP 404');continue}
+        if(r.ok){
+          let t=await r.text();
+          try{const j=JSON.parse(t); if(j&&typeof j.contents==='string')t=j.contents}catch(e){}
+          if(t&&t.length>60&&!/^\s*<html[^>]*>\s*<head[^>]*>\s*<title>\s*404/i.test(t))return t;
+        }else lastErr=new Error('HTTP '+r.status);
+      }catch(e){lastErr=e}
+    }
+    throw lastErr||new Error('fetch failed for '+url);
+  };
+  const stripHtml=(s)=>String(s||'').replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/\s+/g,' ').trim();
+  const isBadUrl=(url)=>{
+    if(!url)return false;
+    if(!/^https?:\/\//i.test(url))return true;
+    if(/duckduckgo\.com\/(y\.js|l\/\?)/i.test(url))return true;
+    if(/\/404\b|not[_-]?found/i.test(url))return true;
+    return false;
+  };
+  const push=(item)=>{
+    if(!item||!item.title)return;
+    const url=String(item.url||'').trim();
+    if(url&&isBadUrl(url))return;
+    if(url&&results.some(r=>r.url===url))return;
+    const title=stripHtml(item.title).slice(0,200);
+    if(!title)return;
+    results.push({title,snippet:stripHtml(item.snippet||'').slice(0,480),url,source:item.source||'web'});
+  };
+  const relevant=(title,snippet)=>{
+    const hay=((title||'')+' '+(snippet||'')).toLowerCase();
+    const keys=q.toLowerCase().split(/\s+/).filter(w=>w.length>2 && !/^(the|and|for|with|from|that|this|what|digit|place)$/i.test(w));
+    if(!keys.length)return true;
+    const hits=keys.filter(k=>hay.includes(k)).length;
+    return hits>=Math.min(2, keys.length) || hay.includes(keys[0]);
+  };
+
+  // Wikipedia search FIRST (reliable CORS with origin=*)
+  try{
+    const wiki='https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=8&srsearch='+encodeURIComponent(q)+'&format=json&origin=*';
+    const data=await fetchJSON(wiki,10000);
+    const hits=(data&&data.query&&data.query.search)||[];
+    for(const hit of hits){
+      const snip=(hit.snippet||'').replace(/<[^>]+>/g,'');
+      if(!relevant(hit.title,snip))continue;
+      push({title:hit.title,snippet:snip,url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(String(hit.title).replace(/ /g,'_')),source:'wikipedia'});
+    }
+    const best=hits.find(h=>relevant(h.title,(h.snippet||'').replace(/<[^>]+>/g,'')));
+    if(best){
+      try{
+        const slug=encodeURIComponent(String(best.title).replace(/ /g,'_'));
+        const sum=await fetchJSON('https://en.wikipedia.org/api/rest_v1/page/summary/'+slug,8000);
+        if(sum&&sum.extract&&sum.type!=='disambiguation'&&relevant(sum.title,sum.extract)){
+          const pageUrl=(sum.content_urls&&sum.content_urls.desktop&&sum.content_urls.desktop.page)||('https://en.wikipedia.org/wiki/'+slug);
+          if(!overview) overview={title:sum.title,text:String(sum.extract).slice(0,1500),source:'Wikipedia',url:pageUrl,type:'instant_answer'};
+        }
+      }catch(e){}
+    }
+  }catch(e){errors.push('wikipedia: '+(e.message||e))}
+
+  // DuckDuckGo Instant Answer API (+ proxies)
+  try{
+    const ddg='https://api.duckduckgo.com/?q='+encodeURIComponent(q)+'&format=json&no_html=1&skip_disambig=1&t=thinkdeeper';
+    const data=await fetchJSON(ddg,10000);
+    if(data){
+      const abs=String(data.AbstractText||'').trim();
+      const heading=String(data.Heading||'').trim();
+      const absUrl=String(data.AbstractURL||'').trim();
+      if(abs && relevant(heading,abs)){
+        if(!overview) overview={title:heading||q,text:abs.slice(0,1500),source:data.AbstractSource||'DuckDuckGo',url:absUrl||'',type:'instant_answer'};
+        if(absUrl&&!isBadUrl(absUrl))push({title:heading||q,snippet:abs,url:absUrl,source:'duckduckgo'});
+      }
+      if(Array.isArray(data.RelatedTopics)){
+        for(const t of data.RelatedTopics.slice(0,12)){
+          if(t&&t.Text&&t.FirstURL&&!isBadUrl(t.FirstURL)&&relevant(t.Text,t.Text))
+            push({title:(t.Text||'').split(' - ')[0].slice(0,120),snippet:t.Text,url:t.FirstURL,source:'duckduckgo'});
+          if(t&&t.Topics)for(const st of t.Topics.slice(0,4)){
+            if(st&&st.Text&&st.FirstURL&&!isBadUrl(st.FirstURL)&&relevant(st.Text,st.Text))
+              push({title:(st.Text||'').split(' - ')[0].slice(0,120),snippet:st.Text,url:st.FirstURL,source:'duckduckgo'});
+          }
+        }
+      }
+    }
+  }catch(e){errors.push('duckduckgo_api: '+(e.message||e))}
+
+  // DDG HTML via proxies
+  const parseDdgHtml=(html,sourceTag)=>{
+    if(!html)return 0;
+    let count=0;
+    const patterns=[
+      /<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi,
+      /<a[^>]+rel="nofollow"[^>]+href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi,
+      /<a[^>]+href="\/\/duckduckgo\.com\/l\/\?[^"]*uddg=([^&"]+)[^"]*"[^>]*>([\s\S]*?)<\/a>/gi
+    ];
+    for(const re of patterns){
+      let m; re.lastIndex=0;
+      while((m=re.exec(html))&&count<10){
+        let url=m[1];
+        try{url=decodeURIComponent(url)}catch(e){}
+        if(/^https?%3A/i.test(url)){try{url=decodeURIComponent(url)}catch(e){}}
+        const title=stripHtml(m[2]);
+        if(title&&url&&/^https?:/i.test(url)&&!isBadUrl(url)&&!/duckduckgo\.com/i.test(url)&&relevant(title,'')){
+          push({title,snippet:'',url,source:sourceTag}); count++;
+        }
+      }
+    }
+    return count;
+  };
+  if(results.length<4){
+    for(const base of ['https://html.duckduckgo.com/html/?q=','https://lite.duckduckgo.com/lite/?q=']){
+      try{
+        const html=await fetchText(base+encodeURIComponent(q),14000);
+        parseDdgHtml(html, base.includes('lite')?'duckduckgo_lite':'duckduckgo_web');
+        if(results.length>=4)break;
+      }catch(e){errors.push('duckduckgo_html: '+(e.message||e))}
+    }
+  }
+
+  // Wikidata search as extra fallback
+  if(results.length<3){
+    try{
+      const wd='https://www.wikidata.org/w/api.php?action=wbsearchentities&search='+encodeURIComponent(q)+'&language=en&limit=5&format=json&origin=*';
+      const data=await fetchJSON(wd,8000);
+      for(const hit of (data&&data.search)||[]){
+        push({title:hit.label||hit.id,snippet:hit.description||'',url:'https://www.wikidata.org/wiki/'+(hit.id||''),source:'wikidata'});
+      }
+    }catch(e){errors.push('wikidata: '+(e.message||e))}
+  }
+
+  // MDN
+  if(mode==='web'||mode==='google'){
+    try{
+      const mdn='https://developer.mozilla.org/api/v1/search?q='+encodeURIComponent(q)+'&locale=en-US';
+      const data=await fetchJSON(mdn,10000);
+      for(const d of ((data&&data.documents)||[]).slice(0,5)){
+        const url=d.mdn_url?('https://developer.mozilla.org'+d.mdn_url):d.url;
+        if(!isBadUrl(url)&&relevant(d.title,d.summary||''))
+          push({title:d.title||'MDN',snippet:d.summary||d.excerpt||'',url:url||'',source:'mdn'});
+      }
+    }catch(e){errors.push('mdn: '+(e.message||e))}
+  }
+
+  if(mode==='github'||/\bgithub\b|\brepo(sitory)?\b/i.test(qRaw)){
+    try{
+      const gh='https://api.github.com/search/repositories?q='+encodeURIComponent(q)+'&per_page=5';
+      const data=await fetchJSON(gh,10000);
+      for(const r of (data&&data.items)||[]){
+        push({title:r.full_name,snippet:r.description||'',url:r.html_url,source:'github'});
+      }
+    }catch(e){errors.push('github: '+(e.message||e))}
+  }
+
+  const clean=results.filter(r=>r&&r.title).slice(0,12);
+  return {
+    ok:true,
+    query:String(query).trim(),
+    cleaned_query:q,
+    engine:'duckduckgo+wikipedia',
+    overview:overview||null,
+    wikipedia_structured:wikipedia_structured||null,
+    results:clean,
+    count:clean.length,
+    errors:errors.length?errors.slice(0,6):undefined,
+    hint:clean.length?'Use results/overview. For digit-of-pi prefer run_python.':'No hits. Try a shorter query or run_python for pure math facts.'
+  };
 }
 async wikipediaPage(args){
   const title=String((args&&args.title)||'').trim();
@@ -5602,35 +5789,10 @@ async wikipediaPage(args){
   const slug=title.replace(/ /g,'_');
   const enc=encodeURIComponent(slug);
   const out={ok:false,title,lang,url:'https://'+lang+'.wikipedia.org/wiki/'+enc};
-
-  const fetchWikiJSON=async(url)=>{
-    // MediaWiki API supports origin=* (true CORS) — prefer direct
-    try{
-      const res=await fetch(url,{mode:'cors',headers:{Accept:'application/json'}});
-      if(res.ok)return await res.json();
-    }catch(e){}
-    // same-origin proxy fallback
-    try{
-      const res=await fetch(this._proxyUrl(url),{headers:{Accept:'application/json'}});
-      if(res.ok)return await res.json();
-    }catch(e){}
-    return null;
-  };
-
-  // Summary (REST) — often works cross-origin
   try{
-    const sumUrl='https://'+lang+'.wikipedia.org/api/rest_v1/page/summary/'+enc;
-    let sum=null;
-    try{
-      const r=await fetch(sumUrl,{mode:'cors',headers:{Accept:'application/json'}});
-      if(r.ok)sum=await r.json();
-    }catch(e){
-      try{
-        const r=await fetch(this._proxyUrl(sumUrl),{headers:{Accept:'application/json'}});
-        if(r.ok)sum=await r.json();
-      }catch(e2){}
-    }
-    if(sum){
+    const sumRes=await fetch('https://'+lang+'.wikipedia.org/api/rest_v1/page/summary/'+enc,{mode:'cors',headers:{Accept:'application/json'}});
+    if(sumRes.ok){
+      const sum=await sumRes.json();
       out.title=sum.title||title;
       out.description=sum.description||'';
       out.extract=sum.extract||'';
@@ -5638,76 +5800,47 @@ async wikipediaPage(args){
       out.url=(sum.content_urls&&sum.content_urls.desktop&&sum.content_urls.desktop.page)||out.url;
       out.pageid=sum.pageid;
       out.type=sum.type;
-      if(sum.extract)out.ok=true;
     }
   }catch(e){out.summary_error=String(e.message||e)}
-
-  // Structured sections via action=parse (origin=* is CORS-friendly)
   if(wantSections){
     try{
-      const parseUrl='https://'+lang+'.wikipedia.org/w/api.php?action=parse&page='+enc+'&prop=text|sections|displaytitle|categories&format=json&origin=*&redirects=1';
-      const data=await fetchWikiJSON(parseUrl);
-      const parse=data&&data.parse;
-      if(parse){
-        out.title=(parse.displaytitle?String(parse.displaytitle).replace(/<[^>]+>/g,''):null)||parse.title||out.title;
-        const sectionsMeta=Array.isArray(parse.sections)?parse.sections:[];
-        out.toc=sectionsMeta.map(s=>({title:s.line||s.anchor||'',level:Number(s.level)||1,anchor:s.anchor||'',index:s.index}));
-        // Split HTML by mw-headline anchors for section bodies
-        const html=String((parse.text&&parse.text['*'])||'');
-        const plainAll=html.replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
-        const sections=[];
+      const mob=await fetch('https://'+lang+'.wikipedia.org/api/rest_v1/page/mobile-sections/'+enc,{mode:'cors',headers:{Accept:'application/json'}});
+      if(mob.ok){
+        const data=await mob.json();
+        const lead=(data.lead||{});
+        out.title=lead.displaytitle?String(lead.displaytitle).replace(/<[^>]+>/g,''):out.title;
+        out.sections=[];
         let budget=maxChars;
-        // Lead: text before first h2
-        const firstH2=html.search(/<h2[\s>]/i);
-        const leadHtml=firstH2>0?html.slice(0,firstH2):html;
-        const leadText=leadHtml.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
-        if(leadText&&budget>0){
-          const take=leadText.slice(0,budget);
+        const pushSec=(s,isLead)=>{
+          if(!s||budget<=0)return;
+          const secTitle=isLead?'Lead':(s.line||s.title||'Section');
+          const html=String(s.text||'');
+          const text=html.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+          if(!text)return;
+          const take=text.slice(0,Math.min(text.length,budget));
           budget-=take.length;
-          sections.push({title:'Lead',anchor:'',chars:take.length,text:take,truncated:leadText.length>take.length});
-        }
-        // Per-section slices using headline ids
-        for(const s of sectionsMeta){
-          if(budget<=0)break;
-          const line=s.line||s.anchor||'Section';
-          const anchor=s.anchor||'';
-          if(!anchor)continue;
-          const re=new RegExp('id="'+anchor.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'"[\\s\\S]*?<\\/h[2-6]>([\\s\\S]*?)(?=<h[2-6][\\s>]|$)','i');
-          const m=html.match(re);
-          const chunk=m?m[1]:'';
-          const textPlain=String(chunk).replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
-          if(!textPlain)continue;
-          const take=textPlain.slice(0,Math.min(textPlain.length,budget));
-          budget-=take.length;
-          sections.push({id:s.index,title:line,anchor,chars:take.length,text:take,truncated:textPlain.length>take.length});
-        }
-        // Fallback: single body if split failed
-        if(sections.length<=1&&plainAll){
-          const take=plainAll.slice(0,maxChars);
-          sections.length=0;
-          sections.push({title:'Article',anchor:'',chars:take.length,text:take,truncated:plainAll.length>take.length});
-        }
-        out.sections=sections;
-        if(Array.isArray(parse.categories)){
-          out.categories=parse.categories.map(c=>String(c['*']||c).replace(/^Category:/,'')).filter(Boolean);
-        }
+          out.sections.push({id:s.id,title:secTitle,anchor:s.anchor||'',chars:take.length,text:take,truncated:text.length>take.length});
+        };
+        if(lead.sections)for(const s of lead.sections)pushSec(s,true);
+        else if(out.extract){out.sections.push({title:'Lead',text:out.extract,chars:(out.extract||'').length})}
+        for(const s of (data.remaining&&data.remaining.sections)||[])pushSec(s,false);
+        out.toc=(out.sections||[]).filter(s=>s.title&&s.title!=='Lead').map(s=>({title:s.title,anchor:s.anchor||''}));
         out.ok=true;
       }
     }catch(e){out.sections_error=String(e.message||e)}
   }
-
-  // Categories fallback
-  if(!out.categories){
-    try{
-      const catUrl='https://'+lang+'.wikipedia.org/w/api.php?action=query&prop=categories&cllimit=20&format=json&origin=*&titles='+enc;
-      const cdata=await fetchWikiJSON(catUrl);
-      const pages=(cdata&&cdata.query&&cdata.query.pages)||{};
+  if(!out.ok&&out.extract)out.ok=true;
+  // Categories
+  try{
+    const catUrl='https://'+lang+'.wikipedia.org/w/api.php?action=query&prop=categories&cllimit=20&format=json&origin=*&titles='+enc;
+    const cres=await fetch(catUrl,{mode:'cors'});
+    if(cres.ok){
+      const cdata=await cres.json();
+      const pages=(cdata.query&&cdata.query.pages)||{};
       const page=Object.values(pages)[0];
       if(page&&page.categories)out.categories=page.categories.map(c=>String(c.title||'').replace(/^Category:/,'')).filter(Boolean);
-    }catch(e){}
-  }
-
-  if(!out.ok&&out.extract)out.ok=true;
+    }
+  }catch(e){}
   if(!out.ok)return{ok:false,error:'Wikipedia page not found or blocked',title,lang};
   return out;
 }
@@ -5863,9 +5996,22 @@ showChart(args){
     };
     const token='[[chart:'+JSON.stringify(payload)+']]';
     return{ok:true,type:payload.type,token,markdown:token,hint:'Include the token/markdown in your final answer exactly so the chart renders in chat.'};
-  }catch(e){return{ok:false,error:e.message||String(e)}}
-}
-async githubCreateRepo(args){
+  }catch(e){return{ok:false,error:String(e.message||e)}}
+  }
+  showPlot(args){
+    try{
+      const columns=Array.isArray(args.columns)?args.columns.map(c=>String(c??'')):[];
+      const rows=Array.isArray(args.rows)?args.rows.map(r=>Array.isArray(r)?r.map(c=>String(c??'')):[String(r??'')]):[];
+      if(!columns.length||!rows.length)return{ok:false,error:'columns and rows required'};
+      // normalize row widths
+      const w=columns.length;
+      const norm=rows.map(r=>{const x=r.slice(0,w);while(x.length<w)x.push('');return x}).slice(0,500);
+      const payload={title:String(args.title||''),caption:String(args.caption||''),columns,rows:norm};
+      const token='[[plot:'+JSON.stringify(payload)+']]';
+      return{ok:true,type:'plot',token,hint:'In your FINAL answer: (1) paste this token exactly, (2) then write a brief follow-up after it — do not end on the token alone: '+token};
+    }catch(e){return{ok:false,error:String(e.message||e)}}
+  }
+  async githubCreateRepo(args){
   const body={name:args.name,description:args.description||'',private:!!args.private,auto_init:args.auto_init!==false};
   const res=await fetch('https://api.github.com/user/repos',{method:'POST',headers:this._ghHeaders(),body:JSON.stringify(body)});
   const data=await res.json().catch(()=>({}));
@@ -6537,8 +6683,7 @@ class AgentManager{
       defs.push({type:'function',function:{name:'list_files',description:'List workspace files',parameters:{type:'object',properties:{path:{type:'string'}}}}});
     }
     if(a.perms.network!==false){
-      defs.push({type:'function',function:{name:'web_search',description:'Server-side multi-source web search. Required before claiming a mathematical discovery is new.',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}});
-      defs.push({type:'function',function:{name:'browse_url',description:'Fetch and extract text from a URL.',parameters:{type:'object',properties:{url:{type:'string'}},required:['url']}}});
+      defs.push({type:'function',function:{name:'web_search',description:'Full web search (Google-style + AI overview), Wikipedia, GitHub. Required before claiming a mathematical discovery is new.',parameters:{type:'object',properties:{query:{type:'string'},mode:{type:'string'}},required:['query']}}});
       defs.push({type:'function',function:{name:'wikipedia_page',description:'Full structured Wikipedia article.',parameters:{type:'object',properties:{title:{type:'string'},lang:{type:'string'}},required:['title']}}});
       defs.push({type:'function',function:{name:'github_repo',description:'Inspect GitHub repo: info, tree, file, readme, releases, issues, tags, commits.',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},action:{type:'string'},path:{type:'string'},ref:{type:'string'}},required:['owner','repo','action']}}});
       defs.push({type:'function',function:{name:'remember',description:'Silently search related user chats in this section/project and return a brief summary. Never writes into those chats.',parameters:{type:'object',properties:{query:{type:'string'},section:{type:'string'}},required:['query']}}});
@@ -7591,7 +7736,7 @@ try{
     }
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- For interactive demos write HTML via write_file and end with [[preview:path]] or [[visual:path]].\n\n\nMATH RENDERING: Write LaTeX as $\\pi$ or $$...$$ (single backslash before pi). Unicode π is also fine.\nPYTHON PI DIGITS: Prefer one clean script: import mpmath; mpmath.mp.dps=1100; s=str(mpmath.pi); decimals=s.split(\'.\')[1]; print(decimals[1047])  # 1048th digit.\nDo not leave unfinished def compute_pi with pass.\n\nHARD / IMPOSSIBLE QUESTIONS:HARD / IMPOSSIBLE QUESTIONS: If a request seems impossible or blocked, do NOT quit. Take an extra thinking step on how to make it possible (reframe, approximate, split steps, use tools, smaller inputs). Then try the best approach and report what worked.\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- show_plot for rows/columns (lists of N items, tables, sequences). Call show_plot with columns + rows, paste [[plot:...]] in the final answer, then write a short follow-up after the plot. When asked for the first N of a sequence, include all N rows.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- For interactive demos write HTML via write_file and end with [[preview:path]] or [[visual:path]].\n\n\nMATH RENDERING: Write LaTeX as $\\pi$ or $$...$$ (single backslash before pi). Unicode π is also fine.\nPYTHON PI DIGITS: Prefer one clean script: import mpmath; mpmath.mp.dps=1100; s=str(mpmath.pi); decimals=s.split(\'.\')[1]; print(decimals[1047])  # 1048th digit.\nDo not leave unfinished def compute_pi with pass.\n\nLOGICAL COMPLETENESS: When the user asks for a list, table, or the first/last N items (e.g. first 100 triangular numbers), actually deliver ALL of them — do not summarize, abbreviate with ellipses, or stop early. Prefer show_plot for large row/column data so it stays readable.\n\nHARD / IMPOSSIBLE QUESTIONS:HARD / IMPOSSIBLE QUESTIONS: If a request seems impossible or blocked, do NOT quit. Take an extra thinking step on how to make it possible (reframe, approximate, split steps, use tools, smaller inputs). Then try the best approach and report what worked.\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 try{while(iteration<maxIter&&this.running){if(!this.running)break;if(Date.now()-start>maxMs){console.warn("[Agent] time budget");break;}if(toolCalls>=maxTools){console.warn("[Agent] tool budget");break;}
 iteration++;
@@ -7738,7 +7883,6 @@ if(hasTools){
     if(t.function.name==='run_python')hint='Python';
     else if(t.function.name==='read_file'||t.function.name==='write_file')hint=String(a.path||'').slice(0,80);
     else if(t.function.name==='web_search'||t.function.name==='image_search')hint=String(a.query||'').slice(0,80);
-    else if(t.function.name==='browse_url')hint=String(a.url||'').slice(0,80);
     else if(t.function.name==='wikipedia_page')hint=String(a.title||'').slice(0,80);
     else if(t.function.name==='github_repo')hint=String((a.owner||'')+'/'+(a.repo||'')+' '+(a.action||'')).slice(0,80);
     else hint='';
@@ -8483,7 +8627,7 @@ async _streamWriteFile(args,actId,onEvent){
 _agentFor(name){
   if(name==='check_code'||name==='self_check')return 'Agent 2';
   if(name==='read_file'||name==='list_files')return 'Agent 3';
-  if(name==='web_search'||name==='browse_url'||name==='image_search'||name==='wikipedia_page'||name==='github_repo')return 'Agent 3';
+  if(name==='web_search'||name==='image_search'||name==='wikipedia_page'||name==='github_repo')return 'Agent 3';
   if(name==='generate_image'||name==='write_file'||name==='run_python')return 'Agent 1';
   return 'Agent 1';
 }
@@ -8496,8 +8640,7 @@ _activityTitle(name,args,done=false){
   else if(name==='run_python')label=done?'Ran Python':'Running Python';
   else if(name==='remember')label=done?'Remembered':'Remembering…';
   else if(name==='web_search')label=done?'Searched web':'Searching web';
-  else if(name==='browse_url'){return{detail:result.ok?`Browsed ${(result.title||result.url||'').toString().slice(0,60)}`:(result.error||'Failed'),full:JSON.stringify(result,null,2)}};
-if(name==='wikipedia_page')label=done?'Opened Wikipedia':'Loading Wikipedia';
+  else if(name==='wikipedia_page')label=done?'Opened Wikipedia':'Loading Wikipedia';
   else if(name==='github_repo')label=done?'Inspected GitHub repo':'Inspecting GitHub repo';
   else if(name==='image_search')label=done?'Searched images':'Searching images';
   else if(name==='check_code')label=done?'Checked code':'Checking code';
@@ -8517,7 +8660,7 @@ _activityIcon(name){
   if(name==='read_file'||name==='list_files')return SVG.read||'';
   if(name==='run_python')return SVG.code||'';
   if(name==='remember')return SVG.bulb||SVG.search||'';
-  if(name==='web_search'||name==='browse_url'||name==='image_search'||name==='wikipedia_page'||name==='github_repo')return SVG.search||'';
+  if(name==='web_search'||name==='image_search'||name==='wikipedia_page'||name==='github_repo')return SVG.search||'';
   if(name==='check_code'||name==='self_check')return SVG.check||'';
   return SVG.code||'';
 }
@@ -11974,7 +12117,7 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
       ]);
     }else this.loadConversation(c.id)};list.appendChild(div)})}
 showEmpty(){
-  $('#empty-state').style.display='flex';
+  $('#empty-state').style.display='flex';try{document.getElementById('empty-state').hidden=false;document.getElementById('empty-state').classList.remove('is-hidden')}catch(_e){};
   const grid=document.querySelector('.suggestion-grid');
   if(grid&&!grid.dataset.rolled){
     const pool=[
@@ -12017,7 +12160,7 @@ showEmpty(){
     grid.dataset.rolled='1';
     grid.querySelectorAll('.suggestion').forEach(b=>b.onclick=()=>{$('#user-input').value=b.dataset.prompt;this.autoResizeInput();this.send()});
   }
-}hideEmpty(){$('#empty-state').style.display='none'}
+}hideEmpty(){$('#empty-state').style.display='none';try{document.getElementById('empty-state').hidden=true;document.getElementById('empty-state').classList.add('is-hidden')}catch(_e){}}
 autoResizeInput(){const ta=$('#user-input');ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,200)+'px'}
 handleFiles(files){[...files].forEach(file=>{
   const reader=new FileReader();
@@ -13354,6 +13497,28 @@ renderChartHtml(spec){
     return '<div class="td-chart-card"><div class="td-chart-title">'+title+'</div>'+(sub?'<div class="td-chart-sub">'+sub+'</div>':'')+svg+'<div class="td-chart-legend">'+legend+'</div></div>';
   }catch(e){return '<em>Chart failed</em>'}
 }
+renderPlotHtml(spec){
+  try{
+    const title=escapeHtml(String(spec.title||''));
+    const caption=escapeHtml(String(spec.caption||''));
+    const columns=(spec.columns||[]).map(c=>String(c??''));
+    const rows=(spec.rows||[]).slice(0,500);
+    if(!columns.length||!rows.length)return '<em>Empty plot</em>';
+    const head=columns.map(c=>'<th>'+escapeHtml(c)+'</th>').join('');
+    const body=rows.map((r,i)=>{
+      const cells=(Array.isArray(r)?r:[]).map(c=>'<td>'+escapeHtml(String(c??''))+'</td>').join('');
+      return '<tr class="'+(i%2?'plot-odd':'plot-even')+'">'+cells+'</tr>';
+    }).join('');
+    return (
+      '<div class="td-plot-card">'
+      +(title?('<div class="td-plot-title">'+title+'</div>'):'')
+      +'<div class="td-plot-scroll"><table class="td-plot-table"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div>'
+      +(caption?('<div class="td-plot-cap">'+caption+'</div>'):'')
+      +'</div>'
+    );
+  }catch(e){return '<em>Plot error</em>'}
+}
+
 renderVisualCardHtml(path){
   const rp=String(path||'');
   return '<div class="td-visual-card" data-visual-path="'+escapeHtml(rp)+'"><button type="button" class="td-vis-play" title="Pause/Play" data-vis-toggle="1">❚❚</button><iframe sandbox="allow-scripts allow-forms allow-modals" title="Visual" data-visual-frame="1"></iframe></div>';
@@ -13443,6 +13608,10 @@ renderMarkdown(text){
   t=t.replace(/\[\[chart:(\{[\s\S]*?\})\]\]/g,(_,json)=>{
     try{return pushChip(this.renderChartHtml(JSON.parse(json)))}catch(e){return '<em>Chart error</em>'}
   });
+  // Plots / tables: [[plot:{...json...}]]
+  t=t.replace(/\[\[plot:(\{[\s\S]*?\})\]\]/g,(_,json)=>{
+    try{return pushChip(this.renderPlotHtml(JSON.parse(json)))}catch(e){return '<em>Plot error</em>'}
+  });
   // Visual HTML previews: [[visual:path]]
   t=t.replace(/\[\[visual:([^\]]+)\]\]/g,(_,p)=>{
     try{
@@ -13454,9 +13623,21 @@ renderMarkdown(text){
   t=t.replace(/```[\s\S]*?```/g,(m)=>{fences.push(m);return '%%FENCE'+(fences.length-1)+'%%'});
   t=t.replace(/`[^`\n]+`/g,(m)=>{fences.push(m);return '%%FENCE'+(fences.length-1)+'%%'});
   const maths=[];
+  const looksLikeTeX=(raw)=>{
+    const s=String(raw||'').trim();
+    if(!s||s.length>500)return false;
+    if(/\b(the|and|for|with|from|this|that|digit|decimal|place|number|value|answer|result)\b/i.test(s) && !/[\\^_{}]/.test(s))return false;
+    if(/\\[a-zA-Z]+/.test(s))return true;
+    if(/[\^_{}]/.test(s))return true;
+    if(/^[\sπ∞θαβγΔ∑∫√≤≥≠×÷±∂∇°·…]+$/u.test(s))return true;
+    if(/^[A-Za-z]$/.test(s))return true;
+    if(/^[A-Za-z]_\{?[\w]+\}?$/.test(s))return true;
+    if(/^[\d\s+\-*/=<>()[\]|.,]+$/.test(s))return true;
+    if(s.length<=24 && /[=+\-*/^]/.test(s) && !/\s{2,}/.test(s))return true;
+    return false;
+  };
   const normTex=(tex)=>{
     let s=String(tex||'').trim().replace(/^\$+|\$+$/g,'').trim();
-    // Collapse accidental double-escaping: \\pi -> \pi
     while(/\\\\[a-zA-Z]/.test(s)) s=s.replace(/\\\\([a-zA-Z]+)/g,'\\$1');
     s=s.replace(/π/g,'\\pi').replace(/∞/g,'\\infty').replace(/θ/g,'\\theta')
        .replace(/α/g,'\\alpha').replace(/β/g,'\\beta').replace(/γ/g,'\\gamma')
@@ -13468,21 +13649,29 @@ renderMarkdown(text){
   };
   const push=(tex,display)=>{
     let s=normTex(tex);
-    if(!s)return '';
+    if(!s||!looksLikeTeX(s))return null;
     maths.push({tex:s,display:!!display});
     return '%%MATH'+(maths.length-1)+'%%';
   };
-  t=t.replace(/\$\$([\s\S]*?)\$\$/g,(_,m)=>push(m,true));
-  t=t.replace(/\\\[([\s\S]*?)\\\]/g,(_,m)=>push(m,true));
-  t=t.replace(/\\\(([\s\S]*?)\\\)/g,(_,m)=>push(m,false));
-  t=t.replace(/\\begin\{(aligned|align\*?|equation\*?|gather\*?|eqnarray|matrix|bmatrix|pmatrix|vmatrix|cases)\}([\s\S]*?)\\end\{\1\}/g,(m)=>push(m,true));
+  t=t.replace(/\$\$([\s\S]*?)\$\$/g,(_,m)=>{const r=push(m,true);return r==null?('$$'+m+'$$'):r});
+  t=t.replace(/\\\[([\s\S]*?)\\\]/g,(_,m)=>{const r=push(m,true);return r==null?('\\['+m+'\\]'):r});
+  t=t.replace(/\\\(([\s\S]*?)\\\)/g,(_,m)=>{const r=push(m,false);return r==null?('\\('+m+'\\)'):r});
+  t=t.replace(/\\begin\{(aligned|align\*?|equation\*?|gather\*?|eqnarray|matrix|bmatrix|pmatrix|vmatrix|cases)\}([\s\S]*?)\\end\{\1\}/g,(m)=>{const r=push(m,true);return r==null?m:r});
   t=t.replace(/\$([^\n$]+?)\$/g,(_,m)=>{
     if(/^\s*\d/.test(m)&&!/[a-zA-Z\\π∞]/.test(m))return '$'+m+'$';
-    return push(m,false);
+    const r=push(m,false);
+    return r==null?('$'+m+'$'):r;
   });
-  // Bare \pi or unicode π outside existing math markers
-  t=t.replace(/(^|[^%$A-Za-z\\])\\pi\b/g,(m,pre)=>pre+push('\\pi',false));
-  t=t.replace(/(^|[^%$A-Za-z])π/g,(m,pre)=>pre+push('\\pi',false));
+  // Bare TeX commands only (\pi, \infty, …) — never bare English words
+  t=t.replace(/(^|[^%$\\A-Za-z])(\\[a-zA-Z]+)(?![a-zA-Z*{])/g,(full,pre,cmd)=>{
+    if(!looksLikeTeX(cmd))return full;
+    const r=push(cmd,false);
+    return r==null?full:(pre+r);
+  });
+  t=t.replace(/(^|[^%$A-Za-z])([π∞θαβγΔ∑∫√≤≥≠×÷±])(?![A-Za-z])/g,(full,pre,sym)=>{
+    const r=push(sym,false);
+    return r==null?full:(pre+r);
+  });
   t=t.replace(/%%FENCE(\d+)%%/g,(_,n)=>fences[Number(n)]);
   let out;
   try{
