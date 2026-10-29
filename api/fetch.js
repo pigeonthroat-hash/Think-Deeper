@@ -48,7 +48,15 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const raw = String((req.query && req.query.url) || '').trim();
+  let raw = String((req.query && req.query.url) || '').trim();
+  // Fallback: some runtimes mangle nested query strings
+  if (!raw && req.url) {
+    try {
+      const q = req.url.split('?').slice(1).join('?');
+      const params = new URLSearchParams(q);
+      raw = String(params.get('url') || '').trim();
+    } catch (e) {}
+  }
   if (!raw) {
     res.status(400).json({ ok: false, error: 'Missing url' });
     return;
