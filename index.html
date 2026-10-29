@@ -5482,6 +5482,39 @@ async rememberAcrossChats(args){
     return{ok:true,found:true,query:q,briefs,brief:briefs.map(b=>b.title+':\n'+b.summary).join('\n\n').slice(0,3500)};
   }catch(e){return{ok:false,error:String(e.message||e)}}
 }
+_proxyUrl(url){
+  try{
+    if(typeof location==='undefined'||!location.origin)return url;
+    // same-origin vercel/netlify style proxy
+    return location.origin+'/api/fetch?url='+encodeURIComponent(url);
+  }catch(e){return url}
+}
+async _fetchJSONProxied(url,ms=12000){
+  const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
+  // try direct first (works for APIs that send ACAO)
+  try{
+    const res=await fetch(url,{signal:ctrl,mode:'cors',headers:{Accept:'application/json'}});
+    if(res.ok)return await res.json();
+  }catch(e){}
+  // same-origin proxy
+  try{
+    const res=await fetch(this._proxyUrl(url),{signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined,headers:{Accept:'application/json'}});
+    if(res.ok)return await res.json();
+    throw new Error('HTTP '+res.status);
+  }catch(e){throw e}
+}
+async _fetchTextProxied(url,ms=14000){
+  const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
+  try{
+    const res=await fetch(url,{signal:ctrl,mode:'cors'});
+    if(res.ok){const t=await res.text();if(t&&t.length>40)return t}
+  }catch(e){}
+  try{
+    const res=await fetch(this._proxyUrl(url),{signal:typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined});
+    if(res.ok){const t=await res.text();if(t&&t.length>40)return t}
+    throw new Error('HTTP '+res.status);
+  }catch(e){throw e}
+}
 async webSearch(query, args){
   if(!query||!String(query).trim())return{ok:false,error:'Empty search query',results:[]};
   const qRaw=String(query).trim();
@@ -5491,23 +5524,39 @@ async webSearch(query, args){
   let overview=null;
   let wikipedia_structured=null;
 
-  // Turn natural-language questions into search keys ("what is WebGPU and how..." → "WebGPU")
-  const cleanQuery=(s)=>{
-    let t=String(s||'').trim();
-    t=t.replace(/[?!.]+$/g,'').trim();
-    t=t.replace(/^(what\s+is|what\s+are|who\s+is|who\s+are|what\'s|whats|how\s+does|how\s+do|how\s+to|where\s+is|when\s+was|why\s+is|why\s+does|tell\s+me\s+about|explain|define|definition\s+of)\s+/i,'');
-    t=t.replace(/\s+and\s+how\s+(does|do|is|are|can|to)\b.*$/i,'');
-    t=t.replace(/\s+vs\.?\s+.*$/i,(m)=>m); // keep "vs" comparisons
-    t=t.replace(/\s+/g,' ').trim();
-    return t||s;
+  // Turn natural-language questions into search keys ("what is WebGPU and how..." → "WebGPU WebGL")
+  const STOP=new Set(['what','whats','what\'s','is','are','was','were','the','a','an','and','or','how','does','do','did','to','from','for','of','in','on','with','about','tell','me','please','explain','define','definition','difference','between','compared','compare','vs','versus','differ','differs','it','its','this','that','than','then','can','could','should','would','into','over','under','as','by','at','be','been','being','if','when','where','which','who','whom','why','not','no','yes']);
+  const techToken=(w)=>/^[A-Za-z][A-Za-z0-9.+#-]{1,48}$/.test(w)&&!STOP.has(w.toLowerCase());
+  const extractTerms=(s)=>{
+    const raw=String(s||'');
+    // Prefer CamelCase / known API-looking tokens first
+    const camel=(raw.match(/\b[A-Z][a-z]+[A-Z][A-Za-z0-9+#.-]*\b/g)||[]);
+    const words=raw.replace(/[?!.(),:;]+/g,' ').split(/\s+/).filter(Boolean);
+    const out=[];
+    const seen=new Set();
+    for(const w of camel.concat(words)){
+      const k=w.toLowerCase();
+      if(seen.has(k))continue;
+      if(!techToken(w)&&!/^[A-Z]{2,}$/.test(w)&&!/[A-Z].*[A-Z]/.test(w))continue;
+      // allow lowercase tech words length>=3 that aren't stopwords
+      if(w.length<2)continue;
+      if(STOP.has(k))continue;
+      seen.add(k);out.push(w);
+    }
+    // if nothing, fall back to non-stop words length>=3
+    if(!out.length){
+      for(const w of words){
+        const k=w.toLowerCase();
+        if(STOP.has(k)||k.length<3)continue;
+        if(seen.has(k))continue;
+        seen.add(k);out.push(w);
+      }
+    }
+    return out.slice(0,6);
   };
-  const q=cleanQuery(qRaw);
-  const qCompare=(()=>{
-    // "WebGPU vs WebGL" / "differ from WebGL" → keep both terms
-    const m=qRaw.match(/\b([A-Za-z][A-Za-z0-9.+#-]{1,40})\b.*\b(?:vs\.?|versus|differ(?:s)?\s+from|compared\s+to|difference\s+between)\b.*?([A-Za-z][A-Za-z0-9.+#-]{1,40})/i);
-    if(m)return (m[1]+' '+m[2]).trim();
-    return q;
-  })();
+  const terms=extractTerms(qRaw);
+  const q=terms.join(' ')||String(qRaw).trim();
+  const qCompare=q;
 
   const fetchJSON=async(url,ms=12000)=>{
     const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
@@ -5634,7 +5683,8 @@ async webSearch(query, args){
   if(wantGoogle||mode==='web'){
     try{
       const mdn='https://developer.mozilla.org/api/v1/search?q='+encodeURIComponent(qCompare||q)+'&locale=en-US';
-      const data=await fetchJSON(mdn,10000);
+      let data;
+      try{data=await fetchJSON(mdn,10000)}catch(eM){data=await this._fetchJSONProxied(mdn,10000)}
       const docs=(data&&data.documents)||[];
       for(const d of docs.slice(0,6)){
         const url=d.mdn_url?('https://developer.mozilla.org'+d.mdn_url):d.url;
@@ -5820,7 +5870,11 @@ async wikipediaPage(args){
   }catch(e){out.summary_error=String(e.message||e)}
   if(wantSections){
     try{
-      const mob=await fetch('https://'+lang+'.wikipedia.org/api/rest_v1/page/mobile-sections/'+enc,{mode:'cors',headers:{Accept:'application/json'}});
+      const mobUrl='https://'+lang+'.wikipedia.org/api/rest_v1/page/mobile-sections/'+enc;
+      let mob;
+      try{mob=await fetch(mobUrl,{mode:'cors',headers:{Accept:'application/json'}});if(!mob.ok)throw new Error('HTTP '+mob.status)}
+      catch(e1){mob=await fetch(this._proxyUrl(mobUrl),{headers:{Accept:'application/json'}})}
+      
       if(mob.ok){
         const data=await mob.json();
         const lead=(data.lead||{});
