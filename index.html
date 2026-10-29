@@ -5186,10 +5186,10 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 {type:'function',function:{name:'search_file',description:'Search a workspace file (or all uploads/) for a keyword or regex. Returns matching snippets with character offsets so you can read_file that section. Use this on large HTML/text instead of loading the whole file.',parameters:{type:'object',properties:{path:{type:'string',description:'File path or folder. Empty = search uploads/ and artifacts/'},query:{type:'string'},regex:{type:'boolean'},context:{type:'number',description:'Chars of context around each hit'},limit:{type:'number'}},required:['query']}}},
 {type:'function',function:{name:'run_onnx',description:'Run a workspace ONNX model in the browser with ONNX Runtime Web. path defaults to the last converted model. input is a number or JSON array of floats.',parameters:{type:'object',properties:{path:{type:'string'},input:{description:'Number or array of floats'}},required:[]}}},
 {type:'function',function:{name:'write_file',description:'Create or overwrite a file in the internal FS. In CODE MODE always write under the current session folder (code/<sessionId>/…), e.g. index.html or style.css — the runtime rewrites bare names into that folder. In chat mode prefer artifacts/ for work products and memory/ for durable facts. Previous versions are archived automatically.',parameters:{type:'object',properties:{path:{type:'string',description:'Destination path (code mode: relative to session code root, e.g. index.html)'},content:{type:'string',description:'Full file contents to write'}},required:['path','content']}}},
-{type:'function',function:{name:'delete_file',description:'Delete a file from the internal filesystem (a copy is archived). Use only when the user asks to remove something.',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}},{type:'function',function:{name:'write_pdf',description:'Create a real downloadable PDF in the workspace. path must end with .pdf; title optional; body is plain text with newlines.',parameters:{type:'object',properties:{path:{type:'string'},title:{type:'string'},body:{type:'string'}},required:['path','body']}}},{type:'function',function:{name:'fetch_url',description:'Fetch a public https URL (image, SVG, HTML, JSON, text) for coding or display. Only https.',parameters:{type:'object',properties:{url:{type:'string'},maxChars:{type:'number'}},required:['url']}}},
+{type:'function',function:{name:'delete_file',description:'Delete a file from the internal filesystem (a copy is archived). Use only when the user asks to remove something.',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}},{type:'function',function:{name:'write_pdf',description:'Create a real downloadable PDF in the workspace. path must end with .pdf; title optional; body is plain text with newlines.',parameters:{type:'object',properties:{path:{type:'string'},title:{type:'string'},body:{type:'string'}},required:['path','body']}}},{type:'function',function:{name:'fetch_url',description:'Fetch a full public web page or file by URL and return cleaned readable text (or image/SVG). Use AFTER web_search on promising result URLs when you need the full article, docs, or source — do not rely on snippets alone for important facts. Works via reader proxies when CORS blocks direct fetch. Prefer https; http is upgraded.',parameters:{type:'object',properties:{url:{type:'string',description:'Page or file URL'},maxChars:{type:'number',description:'Max characters of text to return (default 40000)'}},required:['url']}}},
 {type:'function',function:{name:'run_python',description:'Run Python in a sandbox. Workspace files are under /workspace (uploads/, artifacts/, models/). Helpers: ws_read(path,start,length) and ws_search(path,keyword). Prefer bounded for-range loops, simplified code, and small data. Infinite loops, huge allocations, and heavy recursion are blocked — especially in agent mode.',parameters:{type:'object',properties:{code:{type:'string',description:'Python source code to execute'}},required:['code']}}},
 {type:'function',function:{name:'self_check',description:'Record a brief self-check of correctness before finalizing an important answer. Use after tool results when stakes are high.',parameters:{type:'object',properties:{observation:{type:'string',description:'What you verified'},passed:{type:'boolean',description:'Whether the check passed'}},required:['observation']}}},
-{type:'function',function:{name:'web_search',description:'Search the web, fetch full page documents for top hits, then a research subagent summarizes them against your query goal. Returns a ready-to-use summary for the user-facing answer. Prefer this over raw link lists. Modes: web (default), wikipedia, github.',parameters:{type:'object',properties:{query:{type:'string',description:'Search goal / query (what you need answered)'},mode:{type:'string',description:'Optional: web|google|wikipedia|github'},max_pages:{type:'number',description:'Max full pages to fetch (default 4, max 6)'}},required:['query']}}},
+{type:'function',function:{name:'web_search',description:'Search the web, fetch full page documents for top hits, then a research subagent summarizes them against your query goal. Returns a ready-to-use summary for the user-facing answer. Prefer this over raw link lists. For a specific promising link, also call fetch_url to read the full page. Modes: web (default), wikipedia, github.',parameters:{type:'object',properties:{query:{type:'string',description:'Search goal / query (what you need answered)'},mode:{type:'string',description:'Optional: web|google|wikipedia|github'},max_pages:{type:'number',description:'Max full pages to fetch (default 4, max 6)'}},required:['query']}}},
 {type:'function',function:{name:'wikipedia_page',description:'Fetch a full Wikipedia page in structured form: title, summary/extract, table of contents sections, section texts, categories, and links. Use when you need the complete encyclopedia article rather than search snippets.',parameters:{type:'object',properties:{title:{type:'string',description:'Article title or slug (spaces or underscores)'},lang:{type:'string',description:'Wikipedia language code, default en'},sections:{type:'boolean',description:'Include section bodies (default true)'},max_chars:{type:'number',description:'Max characters of section text to return (default 24000)'}},required:['title']}}},
 {type:'function',function:{name:'github_repo',description:'Inspect a public (or token-authorized) GitHub repository. Actions: info (metadata), tree (recursive full file list), file (read a file path), readme, releases, issues, tags, commits, contents (list one directory). Use tree first, then file for specific paths.',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},action:{type:'string',description:'info|tree|file|readme|releases|issues|tags|commits|contents'},path:{type:'string',description:'For action=file or contents: path inside the repo'},ref:{type:'string',description:'Branch, tag, or commit SHA (default: default branch)'},limit:{type:'number',description:'Max items for lists (default 30, max 100)'},query:{type:'string',description:'Optional filter for issues/search within repo'}},required:['owner','repo','action']}}},
 {type:'function',function:{name:'check_code',description:'Runtime/syntax check files under code/ (or a specific path). Parses JS, runs Python compile checks, and basic HTML balance checks. Call after writing code and keep fixing until ok=true and errors is empty.',parameters:{type:'object',properties:{path:{type:'string',description:'Optional file path or folder under code/. Empty = check all code/ files.'}},required:[]}}},
@@ -5218,24 +5218,9 @@ case'write_pdf':{
   }catch(e){return {error:String(e.message||e)}}
 }
 case'fetch_url':{
-  const url=String((args&&args.url)||'').trim();
-  if(!/^https:\/\//i.test(url)) return {error:'Only https:// URLs are allowed'};
-  const maxChars=Math.min(200000, Math.max(500, Number(args&&args.maxChars)||40000));
-  try{
-    const res=await fetch(url, {mode:'cors'});
-    if(!res.ok) return {error:'HTTP '+res.status, url};
-    const ct=(res.headers.get('content-type')||'').toLowerCase();
-    if(/image\/(png|jpe?g|gif|webp|svg)/i.test(ct) || /\.svg(\?|$)/i.test(url)){
-      if(/svg/i.test(ct)||/\.svg/i.test(url)){
-        const text=await res.text();
-        return {url, contentType:ct||'image/svg+xml', kind:'svg', text:String(text).slice(0,maxChars)};
-      }
-      return {url, contentType:ct, kind:'image', bytes:0, note:'Image reachable — display in chat with markdown ![img]('+url+')'};
-    }
-    const text=await res.text();
-    return {url, contentType:ct||'text', kind:'text', text:String(text).slice(0,maxChars)};
-  }catch(e){return {error:String(e.message||e), url, hint:'CORS may block this host in the browser'}}
+  return await this.fetchUrl(args||{});
 }
+
 
 case'list_files':{const p=args.path||'';if(p.startsWith('external:')||p==='external'){const sub=p.replace(/^external:?/,'')||'';return await this.external.list(sub)}const paths=this.vfs.list(p);return paths.map(path=>({path,lines:this.vfs.files[path]?.lines,updated:this.vfs.files[path]?.updated}))}
 case'read_file':{
@@ -5873,12 +5858,87 @@ async webSearch(query, args){
     errors:errors.length?errors.slice(0,8):undefined,
     compute_note:computeNote||undefined,
     hint:research_summary
-      ?'PRIMARY: use research_summary to answer the user. Cite sources from pages_fetched/results when helpful.'
+      ?'PRIMARY: use research_summary to answer the user. For deeper detail on a key source, call fetch_url on that URL. Cite sources from pages_fetched/results.'
       :(clean.length?'Subagent summary unavailable — use overview + results + documents.':'No hits. Try a shorter query.')
   };
 }
 
 /** Fetch readable full text for a public URL (CORS proxies + jina reader). */
+
+/** Tool entry: fetch_url — full page/file with proxies + cleanup. */
+async fetchUrl(args){
+  let url=String((args&&args.url)||'').trim();
+  if(!url)return{ok:false,error:'url required'};
+  if(/^http:\/\//i.test(url))url='https://'+url.slice(7);
+  if(!/^https:\/\//i.test(url))return{ok:false,error:'Only http(s) URLs are allowed',url};
+  const maxChars=Math.min(200000, Math.max(500, Number(args&&args.maxChars)||40000));
+  if(/\.(png|jpe?g|gif|webp)(\?|$)/i.test(url)){
+    return{ok:true,url,kind:'image',contentType:'image',note:'Image URL — display with markdown ![img]('+url+')'};
+  }
+  try{
+    const doc=await this._fetchFullDocument(url, maxChars);
+    if(doc&&doc.text&&doc.text.length>=40){
+      return{
+        ok:true,
+        url,
+        title:doc.title||'',
+        kind:'text',
+        contentType:'text/plain',
+        text:String(doc.text).slice(0,maxChars),
+        chars:String(doc.text).length,
+        hint:'Use this full page text to answer. Cite the URL when helpful.'
+      };
+    }
+  }catch(e){}
+  const attempts=[
+    url,
+    'https://r.jina.ai/https://'+url.replace(/^https?:\/\//i,''),
+    'https://r.jina.ai/http://'+url.replace(/^https?:\/\//i,''),
+    'https://corsproxy.io/?'+encodeURIComponent(url),
+    'https://api.allorigins.win/raw?url='+encodeURIComponent(url),
+    'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(url)
+  ];
+  let lastErr=null;
+  for(const src of attempts){
+    try{
+      const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(15000):undefined;
+      const res=await fetch(src,{signal:ctrl,mode:'cors'});
+      if(!res.ok){lastErr=new Error('HTTP '+res.status);continue}
+      const ct=(res.headers.get('content-type')||'').toLowerCase();
+      let raw=await res.text();
+      try{const j=JSON.parse(raw); if(j&&typeof j.contents==='string')raw=j.contents}catch(e){}
+      if(!raw||raw.length<20){lastErr=new Error('empty body');continue}
+      if(/image\/(png|jpe?g|gif|webp)/i.test(ct)){
+        return{ok:true,url,kind:'image',contentType:ct,note:'Image reachable — ![img]('+url+')'};
+      }
+      if(/svg/i.test(ct)||/\.svg/i.test(url)){
+        return{ok:true,url,kind:'svg',contentType:ct||'image/svg+xml',text:String(raw).slice(0,maxChars)};
+      }
+      let body=raw;
+      if(/<html|<body|<article/i.test(raw)){
+        body=raw
+          .replace(/<script[\s\S]*?<\/script>/gi,' ')
+          .replace(/<style[\s\S]*?<\/style>/gi,' ')
+          .replace(/<noscript[\s\S]*?<\/noscript>/gi,' ')
+          .replace(/<nav[\s\S]*?<\/nav>/gi,' ')
+          .replace(/<footer[\s\S]*?<\/footer>/gi,' ')
+          .replace(/<header[\s\S]*?<\/header>/gi,' ')
+          .replace(/<[^>]+>/g,' ')
+          .replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+          .replace(/&#39;/g,"'").replace(/&quot;/g,'"')
+          .replace(/\s+/g,' ').trim();
+      }
+      body=String(body).replace(/\s+/g,' ').trim().slice(0,maxChars);
+      if(body.length<20){lastErr=new Error('too little text');continue}
+      let title='';
+      const tm=raw.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      if(tm)title=tm[1].replace(/<[^>]+>/g,'').trim().slice(0,200);
+      return{ok:true,url,title,kind:'text',contentType:ct||'text',text:body,chars:body.length,hint:'Full page text ready. Cite URL when answering.'};
+    }catch(e){lastErr=e}
+  }
+  return{ok:false,error:String(lastErr&&lastErr.message||lastErr||'Fetch failed'),url,hint:'All proxies failed. Try another URL from web_search results.'};
+}
+
 async _fetchFullDocument(url, maxChars){
   maxChars=Math.min(20000, Math.max(2000, Number(maxChars)||14000));
   const u=String(url||'').trim();
@@ -7940,7 +8000,7 @@ try{
     }
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- show_plot for rows/columns (lists of N items, tables, sequences). Call show_plot with columns + rows, paste [[plot:...]] in the final answer, then write a short follow-up after the plot. When asked for the first N of a sequence, include all N rows.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- For interactive demos write HTML via write_file and end with [[preview:path]] or [[visual:path]].\n\n\nMATH RENDERING: Write LaTeX as $\\pi$ or $$...$$ (single backslash before pi). Unicode π is also fine.\nPYTHON PI DIGITS: Prefer one clean script: import mpmath; mpmath.mp.dps=1100; s=str(mpmath.pi); decimals=s.split(\'.\')[1]; print(decimals[1047])  # 1048th digit.\nDo not leave unfinished def compute_pi with pass.\n\nLOGICAL COMPLETENESS: When the user asks for a list, table, or the first/last N items (e.g. first 100 triangular numbers), actually deliver ALL of them — do not summarize, abbreviate with ellipses, or stop early. Prefer show_plot for large row/column data so it stays readable.\n\nHARD / IMPOSSIBLE QUESTIONS:HARD / IMPOSSIBLE QUESTIONS: If a request seems impossible or blocked, do NOT quit. Take an extra thinking step on how to make it possible (reframe, approximate, split steps, use tools, smaller inputs). Then try the best approach and report what worked.\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- show_plot for rows/columns (lists of N items, tables, sequences). Call show_plot with columns + rows, paste [[plot:...]] in the final answer, then write a short follow-up after the plot. When asked for the first N of a sequence, include all N rows.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- For interactive demos write HTML via write_file and end with [[preview:path]] or [[visual:path]].\n\n\nMATH RENDERING: Write LaTeX as $\\pi$ or $$...$$ (single backslash before pi). Unicode π is also fine.\nPYTHON PI DIGITS: Prefer one clean script: import mpmath; mpmath.mp.dps=1100; s=str(mpmath.pi); decimals=s.split(\'.\')[1]; print(decimals[1047])  # 1048th digit.\nDo not leave unfinished def compute_pi with pass.\n\nRESEARCH WORKFLOW: For questions needing the live web: (1) call web_search with a clear goal/query, (2) read research_summary, (3) if a specific result URL matters or the summary is thin, call fetch_url on that URL for the full document, (4) answer the user with citations. Prefer fetch_url over guessing from titles alone.\n\nLOGICAL COMPLETENESS: When the user asks for a list, table, or the first/last N items (e.g. first 100 triangular numbers), actually deliver ALL of them — do not summarize, abbreviate with ellipses, or stop early. Prefer show_plot for large row/column data so it stays readable.\n\nHARD / IMPOSSIBLE QUESTIONS:HARD / IMPOSSIBLE QUESTIONS: If a request seems impossible or blocked, do NOT quit. Take an extra thinking step on how to make it possible (reframe, approximate, split steps, use tools, smaller inputs). Then try the best approach and report what worked.\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 try{while(iteration<maxIter&&this.running){if(!this.running)break;if(Date.now()-start>maxMs){console.warn("[Agent] time budget");break;}if(toolCalls>=maxTools){console.warn("[Agent] tool budget");break;}
 iteration++;
