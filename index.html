@@ -3116,7 +3116,7 @@ class CloudSync{
       model:String(data.model||'').trim(),
       fallbackBaseUrl:String(data.fallbackBaseUrl||'').trim(),
       fallbackModel:String(data.fallbackModel||'').trim(),
-      modelCatalog:Array.isArray(data.modelCatalog)?data.modelCatalog.slice(0,40):[],
+      modelCatalog:Array.isArray(data.modelCatalog)?data.modelCatalog.slice(0,120):[],
       updatedAt:Date.now(),
       updatedBy:String(devEmail||'').toLowerCase()
     };
@@ -3166,15 +3166,38 @@ class CloudSync{
     }
     if(data.fallbackBaseUrl&&(force||!c.fallbackBaseUrl))c.fallbackBaseUrl=String(data.fallbackBaseUrl||'').trim();
     if(data.fallbackModel&&(force||!c.fallbackModel))c.fallbackModel=String(data.fallbackModel||'').trim();
-    if(Array.isArray(data.modelCatalog)&&data.modelCatalog.length){
-      const lib=app.storage.get('discoveredModels',[])||[];
-      const ids=new Set(lib.map(m=>m.id||m));
-      data.modelCatalog.forEach(m=>{
-        const id=m.id||m;
-        if(id&&!ids.has(id))lib.push(typeof m==='object'?m:{id,description:m.description||''});
+    // Always merge modelCatalog into discoveredModels + modelList (never drop existing catalog)
+    if(Array.isArray(data.modelCatalog)){
+      const catalog=data.modelCatalog.map(m=>{
+        if(!m)return null;
+        if(typeof m==='string')return{id:m,name:m,description:''};
+        const id=String(m.id||m.name||'').trim();
+        if(!id)return null;
+        return{id,name:m.name||id,description:m.description||'',fromCatalog:true};
+      }).filter(Boolean);
+      try{app.storage.set('modelCatalog',catalog)}catch(e){}
+      // discoveredModels
+      let lib=app.storage.get('discoveredModels',[])||[];
+      const ids=new Set(lib.map(m=>(m&&(m.id||m))||'').filter(Boolean));
+      catalog.forEach(m=>{
+        if(!ids.has(m.id)){lib.push(m);ids.add(m.id)}
+        else{
+          // refresh description on existing
+          const hit=lib.find(x=>(x.id||x)===m.id);
+          if(hit&&typeof hit==='object'&&m.description)hit.description=m.description;
+        }
       });
       app.storage.set('discoveredModels',lib);
       app.provider.models=lib;
+      // modelList (settings / getModelList)
+      let mlist=app.storage.get('modelList',[])||[];
+      if(Array.isArray(app.provider.config.modelList))mlist=app.provider.config.modelList.slice();
+      const mids=new Set(mlist.map(m=>(m&&(m.id||m))||'').filter(Boolean));
+      catalog.forEach(m=>{
+        if(!mids.has(m.id)){mlist.push({id:m.id,name:m.name||m.id,main:false});mids.add(m.id)}
+      });
+      try{app.storage.set('modelList',mlist)}catch(e){}
+      if(app.provider.config)app.provider.config.modelList=mlist;
     }
     // Keep in live memory for guests + accounts
     app.provider.config=c;
@@ -3200,14 +3223,39 @@ class CloudSync{
     }catch(e){
       console.warn('[CloudSync] system defaults pull (need public read on system/defaults)',e&&e.message||e);
     }
-    // Prefer remote when present (survives cache clear); else local cache
+    // Prefer remote when present; always UNION modelCatalog so empty cloud never wipes local models
     let data=null;
-    if(remote&&(remote.apiKey||remote.baseUrl||remote.model)){
+    const unionCatalog=(a,b)=>{
+      const out=[]; const seen=new Set();
+      for(const src of [a,b]){
+        if(!Array.isArray(src))continue;
+        for(const m of src){
+          const id=typeof m==='string'?m:(m&&(m.id||m.name));
+          if(!id||seen.has(String(id)))continue;
+          seen.add(String(id));
+          out.push(typeof m==='string'?{id:m,name:m}:{id:String(m.id||m.name),name:m.name||m.id,description:m.description||''});
+        }
+      }
+      return out;
+    };
+    if(remote&&(remote.apiKey||remote.baseUrl||remote.model||(Array.isArray(remote.modelCatalog)&&remote.modelCatalog.length))){
       data=Object.assign({},local||{},remote);
-      // Always mirror cloud → local so offline restarts work until next clear
+      data.modelCatalog=unionCatalog(local&&local.modelCatalog, remote.modelCatalog);
       try{localStorage.setItem('thinkdeeper_v2_systemDefaults',JSON.stringify(Object.assign({},data,{updatedAt:data.updatedAt||Date.now()})))}catch(e){}
     }else if(local){
       data=local;
+      // also pull any standalone modelCatalog storage
+      try{
+        const extra=JSON.parse(localStorage.getItem('thinkdeeper_v2_modelCatalog')||'null');
+        if(Array.isArray(extra)&&extra.length)data.modelCatalog=unionCatalog(data.modelCatalog,extra);
+      }catch(e){}
+    }
+    // Ensure catalog from storage key is applied even if systemDefaults lacks it
+    if(data){
+      try{
+        const extra=app.storage.get('modelCatalog',[])||[];
+        if(Array.isArray(extra)&&extra.length)data.modelCatalog=unionCatalog(data.modelCatalog,extra);
+      }catch(e){}
     }
     if(data){
       // Force-apply system key for everyone who does not have a personal key
@@ -4160,7 +4208,8 @@ persist(){
   try{if(window.__app&&window.__app.cloud){window.__app.cloud.schedulePush(window.__app);window.__app.cloud.notifyTabs&&window.__app.cloud.notifyTabs()}}catch{}
 }}
 
-class ProviderManager{constructor(s){this.storage=s;this.config=s.get('apiConfig',{baseUrl:'https://api.openai.com/v1',apiKey:'',model:'',org:'',project:'',rememberKey:false,fallbackBaseUrl:'',fallbackApiKey:'',fallbackModel:''});this.models=s.get('discoveredModels',[])}
+class ProviderManager{constructor(s){this.storage=s;this.config=s.get('apiConfig',{baseUrl:'https://api.openai.com/v1',apiKey:'',model:'',org:'',project:'',rememberKey:false,fallbackBaseUrl:'',fallbackApiKey:'',fallbackModel:''});this.models=s.get('discoveredModels',[]);try{this.models=this._mergeCatalogIntoModels(this.models)}catch(e){}}
+_mergeCatalogIntoModels(models){const list=Array.isArray(models)?models.slice():[];const ids=new Set(list.map(m=>(m&&(m.id||m))||'').filter(Boolean));let catalog=[];try{catalog=this.storage.get('modelCatalog',[])||[]}catch(e){}if(!catalog.length){try{const d=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'null');catalog=(d&&d.modelCatalog)||[]}catch(e){}};(Array.isArray(catalog)?catalog:[]).forEach(m=>{const id=typeof m==='string'?m:(m&&(m.id||m.name));if(!id||ids.has(String(id)))return;ids.add(String(id));list.push(typeof m==='string'?{id:m,name:m}:{id:String(m.id||m.name),name:m.name||m.id,description:m.description||'',fromCatalog:true});});return list;}
 save(c){this.config={...this.config,...c};if(this.config.baseUrl)this.config.baseUrl=this.normalizeBaseUrl(this.config.baseUrl);if(this.config.fallbackBaseUrl)this.config.fallbackBaseUrl=this.normalizeBaseUrl(this.config.fallbackBaseUrl);const t={...this.config};if(!t.rememberKey&&!t._fromSystem)t.apiKey='';this.storage.set('apiConfig',t)}
 getHeaders(){const h={'Content-Type':'application/json',Authorization:`Bearer ${this.config.apiKey}`};if(this.config.org)h['OpenAI-Organization']=this.config.org;if(this.config.project)h['OpenAI-Project']=this.config.project;return h}
 isGeminiBase(base){
@@ -4526,7 +4575,8 @@ async discoverModels(){
       return {id,name:id,owned_by:'google'};
     }).filter(m=>m.id&&/gemini/i.test(m.id));
     models.sort((a,b)=>a.id.localeCompare(b.id));
-    this.models=models;this.storage.set('discoveredModels',models);return models;
+    models=this._mergeCatalogIntoModels(models);
+    models=this._mergeCatalogIntoModels?this._mergeCatalogIntoModels(models):models;this.models=models;this.storage.set('discoveredModels',models);return models;
   }
   const url=base.replace(/\/$/,'')+'/models';
   const res=await fetch(url,{headers:this.getHeaders()});
@@ -4534,7 +4584,7 @@ async discoverModels(){
   const data=await res.json();let models=[];
   if(Array.isArray(data.data))models=data.data.map(m=>({id:m.id,name:m.id,owned_by:m.owned_by||''}));
   else if(Array.isArray(data))models=data.map(m=>({id:m.id||m,name:m.id||m}));
-  models.sort((a,b)=>a.id.localeCompare(b.id));this.models=models;this.storage.set('discoveredModels',models);return models;
+  models.sort((a,b)=>a.id.localeCompare(b.id));models=this._mergeCatalogIntoModels?this._mergeCatalogIntoModels(models):models;this.models=models;this.storage.set('discoveredModels',models);return models;
 }
 normalizeMessages(messages){
   // OpenAI-compatible + Mistral + Gemini (thought_signature / extra_content)
@@ -11692,6 +11742,21 @@ closeModelDropdown(){$('#model-dropdown').classList.remove('open')}
 getModelList(){
   const c=this.app.provider.config||{};
   let list=Array.isArray(c.modelList)?c.modelList.slice():(this.app.storage.get('modelList',[])||[]);
+  // Include dev catalog + discovered models so they never vanish from the picker
+  const extra=[];
+  try{(this.app.storage.get('modelCatalog',[])||[]).forEach(m=>extra.push(m))}catch(e){}
+  try{(this.app.provider.models||[]).forEach(m=>extra.push(m))}catch(e){}
+  try{
+    const d=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'null');
+    (d&&d.modelCatalog||[]).forEach(m=>extra.push(m));
+  }catch(e){}
+  const ids=new Set(list.map(m=>(m&&(m.id||m))||'').filter(Boolean));
+  extra.forEach(m=>{
+    const id=typeof m==='string'?m:(m&&(m.id||m.name));
+    if(!id||ids.has(String(id)))return;
+    ids.add(String(id));
+    list.push(typeof m==='string'?{id:m,name:m}:{id:String(m.id||m.name),name:m.name||m.id,main:false});
+  });
   const main=c.model||'';
   if(main&&!list.some(m=>(m.id||m)===main))list.unshift({id:main,name:main,main:true});
   return list.map(m=>typeof m==='string'?{id:m,name:m}:{id:m.id,name:m.name||m.id,main:!!m.main||m.id===main});
@@ -14787,9 +14852,20 @@ bindAccountUi(){
   const ds=$('#dev-panel-save');if(ds)ds.onclick=()=>this.saveDevPanel();
   const dma=$('#dev-model-add');if(dma)dma.onclick=()=>{
     const id=($('#dev-model-id')?.value||'').trim();const desc=($('#dev-model-desc')?.value||'').trim();
-    if(!id)return;this._devCatalog=this._devCatalog||[];this._devCatalog.push({id,description:desc});
+    if(!id)return;this._devCatalog=this._devCatalog||[];
+    if(!this._devCatalog.some(m=>(m.id||m)===id))this._devCatalog.push({id,description:desc,name:id});
+    // Persist immediately so models survive refresh even before full Save
+    try{
+      const prev=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'{}')||{};
+      prev.modelCatalog=this._devCatalog.slice();
+      prev.updatedAt=Date.now();
+      localStorage.setItem('thinkdeeper_v2_systemDefaults',JSON.stringify(prev));
+      this.app.storage.set('modelCatalog',this._devCatalog.slice());
+      if(this.app.cloud&&this.app.cloud.applySystemDefaults)this.app.cloud.applySystemDefaults(this.app,{modelCatalog:this._devCatalog},{force:true});
+    }catch(e){console.warn(e)}
     if($('#dev-model-id'))$('#dev-model-id').value='';if($('#dev-model-desc'))$('#dev-model-desc').value='';
     this.renderDevCatalog();
+    try{this.renderModelList();this.renderModelLibrary();this.renderModelLabel()}catch(e){}
   };
   const dva=$('#dev-ver-add');if(dva)dva.onclick=()=>this.publishVersionFromDev();
 
@@ -15058,7 +15134,12 @@ openDevPanel(){
       // Never re-display secrets — write-only fields
       if($('#dev-api-key')){$('#dev-api-key').value='';$('#dev-api-key').placeholder=(data&&data.apiKey)?'•••• key set (leave blank to keep)':'sk-… (write-only)'}
       if($('#dev-fb-key')){$('#dev-fb-key').value='';$('#dev-fb-key').placeholder=(data&&data.fallbackApiKey)?'•••• key set (leave blank to keep)':'optional'}
-      this._devCatalog=(data&&data.modelCatalog)||[];
+      this._devCatalog=(data&&Array.isArray(data.modelCatalog)?data.modelCatalog.slice():[])||[];
+      try{
+        const extra=this.app.storage.get('modelCatalog',[])||[];
+        const ids=new Set(this._devCatalog.map(m=>m.id||m));
+        (extra||[]).forEach(m=>{const id=m.id||m; if(id&&!ids.has(id)){this._devCatalog.push(typeof m==='object'?m:{id});ids.add(id)}});
+      }catch(e){}
       this.renderDevCatalog();
       if(typeof this._renderDevKeyStatus==='function')this._renderDevKeyStatus(data);
     }catch(e){console.warn(e);toast('Could not load system defaults (check cloud rules)','error')}
@@ -15083,9 +15164,20 @@ _bindDevPanelOnce(){
   const dk=$('#dev-key-delete');if(dk)dk.onclick=e=>{e.preventDefault();this.deleteSystemApiKey()};
   const dma=$('#dev-model-add');if(dma)dma.onclick=()=>{
     const id=($('#dev-model-id')?.value||'').trim();const desc=($('#dev-model-desc')?.value||'').trim();
-    if(!id)return;this._devCatalog=this._devCatalog||[];this._devCatalog.push({id,description:desc});
+    if(!id)return;this._devCatalog=this._devCatalog||[];
+    if(!this._devCatalog.some(m=>(m.id||m)===id))this._devCatalog.push({id,description:desc,name:id});
+    // Persist immediately so models survive refresh even before full Save
+    try{
+      const prev=JSON.parse(localStorage.getItem('thinkdeeper_v2_systemDefaults')||'{}')||{};
+      prev.modelCatalog=this._devCatalog.slice();
+      prev.updatedAt=Date.now();
+      localStorage.setItem('thinkdeeper_v2_systemDefaults',JSON.stringify(prev));
+      this.app.storage.set('modelCatalog',this._devCatalog.slice());
+      if(this.app.cloud&&this.app.cloud.applySystemDefaults)this.app.cloud.applySystemDefaults(this.app,{modelCatalog:this._devCatalog},{force:true});
+    }catch(e){console.warn(e)}
     if($('#dev-model-id'))$('#dev-model-id').value='';if($('#dev-model-desc'))$('#dev-model-desc').value='';
     this.renderDevCatalog();
+    try{this.renderModelList();this.renderModelLibrary();this.renderModelLabel()}catch(e){}
   };
   // Agentic Testing
   const atStart=$('#at-start');
