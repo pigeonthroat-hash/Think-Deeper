@@ -5597,28 +5597,17 @@ async webSearch(query, args){
   let overview=null;
   let wikipedia_structured=null;
 
-  const piDigit=qRaw.match(/(\d+)\s*(?:st|nd|rd|th)?\s*digit\s+of\s+pi/i)
-    ||qRaw.match(/pi[^0-9]{0,20}(\d+)\s*(?:st|nd|rd|th)?\s*(?:decimal\s*)?digit/i)
-    ||qRaw.match(/(\d+)\s*(?:st|nd|rd|th)?\s*decimal\s*(?:digit|place)\s+of\s+pi/i);
-  if(piDigit){
-    const n=Number(piDigit[1]);
-    if(n>0&&n<100000){
-      return {
-        ok:true,
-        query:String(query).trim(),
-        cleaned_query:'pi digit '+n,
-        engine:'compute_hint',
-        overview:{
-          title:'Compute locally (recommended)',
-          text:'The '+n+(n===1?'st':n===2?'nd':n===3?'rd':'th')+' decimal digit of π is a pure computation task. Prefer run_python once — not web search. Example: from decimal import Decimal,getcontext; getcontext().prec=max(40,'+String(n+10)+'); ... or import mpmath; mpmath.mp.dps='+String(n+15)+'; print(str(mpmath.pi).split(".")[1]['+String(n-1)+'])',
-          source:'ThinkDeeper',
-          url:'',
-          type:'instant_answer'
-        },
-        results:[{title:'π decimal digits',snippet:'Use run_python. Zero-based index '+(n-1)+' is the '+n+'th digit after the decimal point.',url:'',source:'hint'}],
-        count:1,
-        hint:'Skip web search for digit-of-pi. Call run_python once and answer.'
-      };
+  // Soft note for pure digit-of-pi queries (still search the web — no early return)
+  let computeNote=null;
+  {
+    const piDigit=qRaw.match(/(\d+)\s*(?:st|nd|rd|th)?\s*digit\s+of\s+pi/i)
+      ||qRaw.match(/pi[^0-9]{0,20}(\d+)\s*(?:st|nd|rd|th)?\s*(?:decimal\s*)?digit/i)
+      ||qRaw.match(/(\d+)\s*(?:st|nd|rd|th)?\s*decimal\s*(?:digit|place)\s+of\s+pi/i);
+    if(piDigit){
+      const n=Number(piDigit[1]);
+      if(n>0&&n<100000){
+        computeNote='Also computable via run_python (index '+(n-1)+' after decimal). Search results below may list known digits.';
+      }
     }
   }
 
@@ -5827,7 +5816,8 @@ async webSearch(query, args){
     results:clean,
     count:clean.length,
     errors:errors.length?errors.slice(0,6):undefined,
-    hint:clean.length?'Use results/overview. For digit-of-pi prefer run_python.':'No hits. Try a shorter query or run_python for pure math facts.'
+    compute_note:computeNote||undefined,
+    hint:clean.length?'Use overview + results. You may still verify pure math with run_python.':'No hits. Try a shorter query, or run_python for pure computation.'
   };
 }
 async wikipediaPage(args){
@@ -13688,17 +13678,28 @@ renderMarkdown(text){
   t=t.replace(/```[\s\S]*?```/g,(m)=>{fences.push(m);return '%%FENCE'+(fences.length-1)+'%%'});
   t=t.replace(/`[^`\n]+`/g,(m)=>{fences.push(m);return '%%FENCE'+(fences.length-1)+'%%'});
   const maths=[];
+  // Strict: only real math. Never treat code ids, bold text, or snake_case as TeX.
   const looksLikeTeX=(raw)=>{
     const s=String(raw||'').trim();
     if(!s||s.length>500)return false;
-    if(/\b(the|and|for|with|from|this|that|digit|decimal|place|number|value|answer|result)\b/i.test(s) && !/[\\^_{}]/.test(s))return false;
+    // Markdown / prose / code-like
+    if(/\*\*|__/.test(s))return false;
+    if(/\b(the|and|for|with|from|this|that|digit|decimal|place|number|value|answer|result)\b/i.test(s) && !/[\\^]/.test(s) && !/[_^].*[\\{]/.test(s))return false;
+    // snake_case identifiers (web_search, foo_bar_baz) are NOT math
+    if(/^[A-Za-z][A-Za-z0-9]*(_[A-Za-z0-9]+)+$/.test(s))return false;
+    // multi-word English
+    if(/\s/.test(s) && !/[\\^_{}]/.test(s) && !/[π∞θαβγΔ∑∫√≤≥≠×÷±]/.test(s))return false;
+    // Real TeX commands / structure
     if(/\\[a-zA-Z]+/.test(s))return true;
-    if(/[\^_{}]/.test(s))return true;
+    if(/[\^]/.test(s))return true;
+    // subscript only for real math vars: x_1, x_{10} (single letter before _)
+    if(/^[A-Za-z]_\{[^}]+\}$/.test(s) || /^[A-Za-z]_[0-9A-Za-z]+$/.test(s))return true;
+    // lone braces not enough; need math context
+    if(/[_{}]/.test(s) && /\\[a-zA-Z]|[+\-*=<>^]|[π∞]/.test(s))return true;
     if(/^[\sπ∞θαβγΔ∑∫√≤≥≠×÷±∂∇°·…]+$/u.test(s))return true;
     if(/^[A-Za-z]$/.test(s))return true;
-    if(/^[A-Za-z]_\{?[\w]+\}?$/.test(s))return true;
     if(/^[\d\s+\-*/=<>()[\]|.,]+$/.test(s))return true;
-    if(s.length<=24 && /[=+\-*/^]/.test(s) && !/\s{2,}/.test(s))return true;
+    if(s.length<=24 && /[=+\-*/^]/.test(s) && !/\s{2,}/.test(s) && !/[a-zA-Z]{4,}/.test(s))return true;
     return false;
   };
   const normTex=(tex)=>{
@@ -13723,13 +13724,16 @@ renderMarkdown(text){
   t=t.replace(/\\\(([\s\S]*?)\\\)/g,(_,m)=>{const r=push(m,false);return r==null?('\\('+m+'\\)'):r});
   t=t.replace(/\\begin\{(aligned|align\*?|equation\*?|gather\*?|eqnarray|matrix|bmatrix|pmatrix|vmatrix|cases)\}([\s\S]*?)\\end\{\1\}/g,(m)=>{const r=push(m,true);return r==null?m:r});
   t=t.replace(/\$([^\n$]+?)\$/g,(_,m)=>{
+    // currency / plain dollars
     if(/^\s*\d/.test(m)&&!/[a-zA-Z\\π∞]/.test(m))return '$'+m+'$';
+    // never treat markdown or code ids as math
+    if(/\*\*|`/.test(m))return '$'+m+'$';
+    if(/^[A-Za-z][A-Za-z0-9]*(_[A-Za-z0-9]+)+$/.test(m.trim()))return '$'+m+'$';
     const r=push(m,false);
     return r==null?('$'+m+'$'):r;
   });
-  // Bare TeX commands only (\pi, \infty, …) — never bare English words
-  t=t.replace(/(^|[^%$\\A-Za-z])(\\[a-zA-Z]+)(?![a-zA-Z*{])/g,(full,pre,cmd)=>{
-    if(!looksLikeTeX(cmd))return full;
+  // Bare TeX commands only — whitelist common math macros (never random \words)
+  t=t.replace(/(^|[^%$\\A-Za-z])(\\(?:pi|infty|theta|alpha|beta|gamma|delta|Delta|sum|int|prod|sqrt|le|ge|neq|ne|times|pm|cdot|to|rightarrow|leftarrow|partial|nabla|infty|sin|cos|tan|log|ln|exp|lim|max|min|infty|phi|psi|omega|sigma|mu|nu|lambda|epsilon|varepsilon|approx|equiv|pm|mp|oplus|otimes|subset|supset|in|notin|forall|exists|cdot|cdots|ldots|dots|hbar|ell|Re|Im|nabla|partial)(?![a-zA-Z*{]))/g,(full,pre,cmd)=>{
     const r=push(cmd,false);
     return r==null?full:(pre+r);
   });
@@ -13737,14 +13741,27 @@ renderMarkdown(text){
     const r=push(sym,false);
     return r==null?full:(pre+r);
   });
-  t=t.replace(/%%FENCE(\d+)%%/g,(_,n)=>fences[Number(n)]);
+  // Keep %%FENCE placeholders through marked — restore as HTML after
+  // Do NOT restore fences before marked — placeholders survive markdown parse
   let out;
   try{
     if(window.marked&&typeof marked.parse==='function'){
-      marked.setOptions({breaks:true,gfm:true});
+      marked.setOptions({breaks:true,gfm:true,pedantic:false});
       out=marked.parse(t);
     }else out=this.builtinMarkdown(t);
   }catch(e){out=this.builtinMarkdown(t)}
+  // Restore fenced code as HTML (never pass through KaTeX)
+  out=String(out||'').replace(/%%FENCE(\d+)%%/g,(_,n)=>{
+    const raw=fences[Number(n)]||'';
+    if(/^```/.test(raw)){
+      const m=raw.match(/^```(\w*)\n?([\s\S]*?)```$/);
+      if(m)return '<pre><code class="language-'+(m[1]||'')+'">'+escapeHtml(m[2].replace(/\n$/,''))+'</code></pre>';
+      return '<pre><code>'+escapeHtml(raw.replace(/^```\w*\n?/,'').replace(/```$/,''))+'</code></pre>';
+    }
+    // inline `code`
+    const inner=raw.replace(/^`/,'').replace(/`$/,'');
+    return '<code>'+escapeHtml(inner)+'</code>';
+  });
   try{out=this._enhanceLinksAndImages(out)}catch(e){} try{out=this._wrapAllImages(out)}catch(e){}
   out=out.replace(/%%MATH(\d+)%%/g,(_,n)=>this._katexHTML(maths[Number(n)]));
   out=String(out||'').replace(/%%CHIP(\d+)%%/g,(_,n)=>chips[Number(n)]||'');
@@ -13832,13 +13849,12 @@ _renderMath(el){
         delimiters:[
           {left:'$$',right:'$$',display:true},
           {left:'\\[',right:'\\]',display:true},
-          {left:'$',right:'$',display:false},
           {left:'\\(',right:'\\)',display:false}
         ],
         throwOnError:false,
         strict:false,
-        ignoredTags:['script','noscript','style','textarea','pre','code'],
-        ignoredClasses:['katex','math-plain','canvas-doc']
+        ignoredTags:['script','noscript','style','textarea','pre','code','a','button'],
+        ignoredClasses:['katex','math-plain','canvas-doc','td-plot-card','td-plot-table']
       });
     }else if(window.katex){
       const rxDisp=/\$\$([\s\S]+?)\$\$/g;
