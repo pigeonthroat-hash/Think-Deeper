@@ -2424,7 +2424,7 @@ body.mode-canvas .sidebar-footer.collapsed{
 <script src="./config.local.js" onerror="console.info('[Think Deeper] config.local.js not found — Google login needs Client ID in that file or Settings')"></script>
 <script>
 const INTENSITY={
-  fast:{label:'Fast',maxTokens:2500,maxIterations:6,maxTools:8,temperature:0.2,extra:'FAST MODE — answer in one pass. No multi-step double-checking. For a single fact (e.g. Nth digit of pi): run_python ONCE with a short script, then give the answer. Do NOT re-verify three times. Do NOT call web_search for pure computation questions. Prefer direct computation over research. Keep replies short.',ultraSkills:false,team:false},
+  fast:{label:'Fast',maxTokens:2500,maxIterations:6,maxTools:8,temperature:0.2,extra:'FAST MODE — answer in one pass. No multi-step double-checking. For a single fact (e.g. Nth digit of pi): run_python ONCE with a short script, then give the answer. Do NOT re-verify three times. Do NOT call web_search for pure computation questions. Prefer direct computation over research. Keep replies short, but if asked for N items list all N (use show_plot for large tables).',ultraSkills:false,team:false},
   medium:{label:'Medium',maxTokens:6000,maxIterations:16,maxTools:24,temperature:0.4,extra:'Balanced replies. write_file and all tools are available at this intensity — call write_file whenever the user wants a file created or updated.',ultraSkills:false,team:false},
   hard:{label:'Hard',maxTokens:10000,maxIterations:24,maxTools:32,temperature:0.4,extra:'Thorough work. write_file and all tools are available — plan, write files with write_file, and verify.',ultraSkills:false,team:false},
   ultra:{label:'Ultra',maxTokens:16000,maxIterations:40,maxTools:48,temperature:0.4,extra:'Long-horizon work near a 16k-token budget. Agent 1 builds, Agent 2 checks, Agent 3 files.',ultraSkills:true,team:true,blurb:'Long jobs, team of 3 agents'},
@@ -5134,6 +5134,7 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 {type:'function',function:{name:'check_code',description:'Runtime/syntax check files under code/ (or a specific path). Parses JS, runs Python compile checks, and basic HTML balance checks. Call after writing code and keep fixing until ok=true and errors is empty.',parameters:{type:'object',properties:{path:{type:'string',description:'Optional file path or folder under code/. Empty = check all code/ files.'}},required:[]}}},
 {type:'function',function:{name:'image_search',description:'Search for images related to a topic. Returns image URLs with source credits. Use when a photo helps explain something.',parameters:{type:'object',properties:{query:{type:'string'}},required:['query']}}},
 {type:'function',function:{name:'show_chart',description:'Show a bar, pie, or line chart in chat. Use when data is clearer as a visual (trends, shares, comparisons) — user need not say chart.',parameters:{type:'object',properties:{type:{type:'string',description:'bar | pie | line'},title:{type:'string'},subtitle:{type:'string'},labels:{type:'array',items:{type:'string'}},values:{type:'array',items:{type:'number'}},colors:{type:'array',items:{type:'string'}},unit:{type:'string'}},required:['type','labels','values']}}},
+{type:'function',function:{name:'show_plot',description:'Show a sleek rows-and-columns table (plot of data) in chat. Use for lists of numbers, comparisons, first N sequences, inventories — clearer than a long prose list. Put the returned [[plot:...]] token in your final answer.',parameters:{type:'object',properties:{title:{type:'string',description:'Table title'},columns:{type:'array',items:{type:'string'},description:'Column headers'},rows:{type:'array',items:{type:'array',items:{type:'string'}},description:'Row values as arrays of strings/numbers'},caption:{type:'string'}},required:['columns','rows']}}},
 
 {type:'function',function:{name:'github_create_repo',description:'Create a GitHub repository using the configured token. Returns HTML URL and clone info.',parameters:{type:'object',properties:{name:{type:'string'},description:{type:'string'},private:{type:'boolean'},auto_init:{type:'boolean'}},required:['name']}}},
 {type:'function',function:{name:'github_commit_files',description:'Commit files from the code/ workspace folder to a GitHub repo (create blob/tree/commit/ref). paths are relative to code/ or absolute vfs paths under code/.',parameters:{type:'object',properties:{owner:{type:'string'},repo:{type:'string'},message:{type:'string'},branch:{type:'string'},paths:{type:'array',items:{type:'string'},description:'File paths to include; empty = all under code/'}},required:['owner','repo','message']}}},
@@ -5280,6 +5281,7 @@ case'github_repo':return await this.githubRepo(args||{});
 case'check_code':return await this.checkCode(args.path||'');
 case'image_search':return await this.imageSearch(args.query||'');
 case'show_chart':return this.showChart(args||{});
+case'show_plot':return this.showPlot(args||{});
 case'github_create_repo':return await this.githubCreateRepo(args);
 case'github_commit_files':return await this.githubCommitFiles(args);
 case'github_enable_pages':return await this.githubEnablePages(args);
@@ -5525,38 +5527,38 @@ async rememberAcrossChats(args){
 }
 async webSearch(query, args){
   if(!query||!String(query).trim())return{ok:false,error:'Empty search query',results:[]};
-  const qRaw=String(query).trim();
+  let qRaw=String(query).trim();
+  // Strip wrapper quotes / boolean OR noise from model queries
+  qRaw=qRaw.replace(/^["']+|["']+$/g,'').replace(/"\s*OR\s*"/gi,' ').replace(/"/g,' ').replace(/\s+/g,' ').trim();
   const mode=String((args&&args.mode)||'web').toLowerCase();
   const results=[];
   const errors=[];
   let overview=null;
   let wikipedia_structured=null;
 
-  // Pure computation questions should not waste search on irrelevant wiki pages
-  const piDigit=qRaw.match(/(\d+)(?:st|nd|rd|th)?\s*digit\s+of\s+pi/i)||qRaw.match(/pi[^a-z]{0,12}(\d+)(?:st|nd|rd|th)?\s*digit/i);
+  const piDigit=qRaw.match(/(\d+)\s*(?:st|nd|rd|th)?\s*digit\s+of\s+pi/i)
+    ||qRaw.match(/pi[^0-9]{0,20}(\d+)\s*(?:st|nd|rd|th)?\s*(?:decimal\s*)?digit/i)
+    ||qRaw.match(/(\d+)\s*(?:st|nd|rd|th)?\s*decimal\s*(?:digit|place)\s+of\s+pi/i);
   if(piDigit){
     const n=Number(piDigit[1]);
-    return {
-      ok:true,
-      query:qRaw,
-      cleaned_query:'pi digit '+n,
-      engine:'compute_hint',
-      overview:{
-        title:'Compute locally (recommended)',
-        text:'The '+n+(n===1?'st':n===2?'nd':n===3?'rd':'th')+' decimal digit of π is a pure computation task. Prefer run_python with mpmath or decimal — do not rely on web search. Example: import mpmath; mpmath.mp.dps=40; print(str(mpmath.pi).split(".")[1]['+(n-1)+'])',
-        source:'ThinkDeeper',
-        url:'',
-        type:'instant_answer'
-      },
-      results:[{
-        title:'π decimal digits (compute with run_python)',
-        snippet:'Use run_python. Index '+(n-1)+' is the '+n+'th decimal digit (after the decimal point).',
-        url:'',
-        source:'hint'
-      }],
-      count:1,
-      hint:'Skip Wikipedia/DDG for digit-of-pi questions. Call run_python once and answer.'
-    };
+    if(n>0&&n<100000){
+      return {
+        ok:true,
+        query:String(query).trim(),
+        cleaned_query:'pi digit '+n,
+        engine:'compute_hint',
+        overview:{
+          title:'Compute locally (recommended)',
+          text:'The '+n+(n===1?'st':n===2?'nd':n===3?'rd':'th')+' decimal digit of π is a pure computation task. Prefer run_python once — not web search. Example: from decimal import Decimal,getcontext; getcontext().prec=max(40,'+str(n+10)+'); ... or import mpmath; mpmath.mp.dps='+str(n+15)+'; print(str(mpmath.pi).split(".")[1]['+str(n-1)+'])',
+          source:'ThinkDeeper',
+          url:'',
+          type:'instant_answer'
+        },
+        results:[{title:'π decimal digits',snippet:'Use run_python. Zero-based index '+(n-1)+' is the '+n+'th digit after the decimal point.',url:'',source:'hint'}],
+        count:1,
+        hint:'Skip web search for digit-of-pi. Call run_python once and answer.'
+      };
+    }
   }
 
   const cleanQuery=(s)=>{
@@ -5568,28 +5570,36 @@ async webSearch(query, args){
     return t||s;
   };
   let q=cleanQuery(qRaw);
-  // Prefer core noun phrases for search (drop filler)
   q=q.replace(/\b(please|kindly|exactly|precisely)\b/gi,'').replace(/\s+/g,' ').trim()||qRaw;
 
   const fetchJSON=async(url,ms=12000)=>{
-    try{
-      const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
-      const res=await fetch(url,{signal:ctrl,mode:'cors',headers:{Accept:'application/json'}});
-      if(res.status===404)return null;
-      if(!res.ok)throw new Error('HTTP '+res.status);
-      return await res.json();
-    }catch(e){
-      if(/404/.test(String(e&&e.message)))return null;
-      throw e;
+    const attempts=[url];
+    // JSON via proxies when direct CORS fails
+    attempts.push('https://api.allorigins.win/raw?url='+encodeURIComponent(url));
+    attempts.push('https://corsproxy.io/?'+encodeURIComponent(url));
+    let lastErr=null;
+    for(const u of attempts){
+      try{
+        const ctrl=typeof AbortSignal!=='undefined'&&AbortSignal.timeout?AbortSignal.timeout(ms):undefined;
+        const res=await fetch(u,{signal:ctrl,mode:'cors',headers:{Accept:'application/json,text/plain,*/*'}});
+        if(res.status===404){lastErr=new Error('HTTP 404');continue}
+        if(!res.ok){lastErr=new Error('HTTP '+res.status);continue}
+        const textBody=await res.text();
+        try{return JSON.parse(textBody)}catch(e){
+          try{const j=JSON.parse(textBody); if(j&&j.contents)return JSON.parse(j.contents)}catch(e2){}
+          lastErr=e;
+        }
+      }catch(e){lastErr=e}
     }
+    throw lastErr||new Error('fetch failed');
   };
   const fetchText=async(url,ms=14000)=>{
     const attempts=[
       url,
       'https://corsproxy.io/?'+encodeURIComponent(url),
       'https://api.allorigins.win/raw?url='+encodeURIComponent(url),
-      'https://cors.isomorphic-git.org/'+url,
-      'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(url)
+      'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(url),
+      'https://cors.isomorphic-git.org/'+url
     ];
     let lastErr=null;
     for(const u of attempts){
@@ -5598,7 +5608,6 @@ async webSearch(query, args){
         if(r.status===404){lastErr=new Error('HTTP 404');continue}
         if(r.ok){
           let t=await r.text();
-          // allorigins sometimes wraps
           try{const j=JSON.parse(t); if(j&&typeof j.contents==='string')t=j.contents}catch(e){}
           if(t&&t.length>60&&!/^\s*<html[^>]*>\s*<head[^>]*>\s*<title>\s*404/i.test(t))return t;
         }else lastErr=new Error('HTTP '+r.status);
@@ -5621,8 +5630,7 @@ async webSearch(query, args){
     if(url&&results.some(r=>r.url===url))return;
     const title=stripHtml(item.title).slice(0,200);
     if(!title)return;
-    // Drop irrelevant generic pages for technical queries
-    results.push({title,snippet:stripHtml(item.snippet||'').slice(0,480),url,source:item.source||'duckduckgo'});
+    results.push({title,snippet:stripHtml(item.snippet||'').slice(0,480),url,source:item.source||'web'});
   };
   const relevant=(title,snippet)=>{
     const hay=((title||'')+' '+(snippet||'')).toLowerCase();
@@ -5632,7 +5640,30 @@ async webSearch(query, args){
     return hits>=Math.min(2, keys.length) || hay.includes(keys[0]);
   };
 
-  // PRIMARY: DuckDuckGo Instant Answer (often works CORS-free)
+  // Wikipedia search FIRST (reliable CORS with origin=*)
+  try{
+    const wiki='https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=8&srsearch='+encodeURIComponent(q)+'&format=json&origin=*';
+    const data=await fetchJSON(wiki,10000);
+    const hits=(data&&data.query&&data.query.search)||[];
+    for(const hit of hits){
+      const snip=(hit.snippet||'').replace(/<[^>]+>/g,'');
+      if(!relevant(hit.title,snip))continue;
+      push({title:hit.title,snippet:snip,url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(String(hit.title).replace(/ /g,'_')),source:'wikipedia'});
+    }
+    const best=hits.find(h=>relevant(h.title,(h.snippet||'').replace(/<[^>]+>/g,'')));
+    if(best){
+      try{
+        const slug=encodeURIComponent(String(best.title).replace(/ /g,'_'));
+        const sum=await fetchJSON('https://en.wikipedia.org/api/rest_v1/page/summary/'+slug,8000);
+        if(sum&&sum.extract&&sum.type!=='disambiguation'&&relevant(sum.title,sum.extract)){
+          const pageUrl=(sum.content_urls&&sum.content_urls.desktop&&sum.content_urls.desktop.page)||('https://en.wikipedia.org/wiki/'+slug);
+          if(!overview) overview={title:sum.title,text:String(sum.extract).slice(0,1500),source:'Wikipedia',url:pageUrl,type:'instant_answer'};
+        }
+      }catch(e){}
+    }
+  }catch(e){errors.push('wikipedia: '+(e.message||e))}
+
+  // DuckDuckGo Instant Answer API (+ proxies)
   try{
     const ddg='https://api.duckduckgo.com/?q='+encodeURIComponent(q)+'&format=json&no_html=1&skip_disambig=1&t=thinkdeeper';
     const data=await fetchJSON(ddg,10000);
@@ -5641,7 +5672,7 @@ async webSearch(query, args){
       const heading=String(data.Heading||'').trim();
       const absUrl=String(data.AbstractURL||'').trim();
       if(abs && relevant(heading,abs)){
-        overview={title:heading||q,text:abs.slice(0,1500),source:data.AbstractSource||'DuckDuckGo',url:absUrl||'',type:'instant_answer'};
+        if(!overview) overview={title:heading||q,text:abs.slice(0,1500),source:data.AbstractSource||'DuckDuckGo',url:absUrl||'',type:'instant_answer'};
         if(absUrl&&!isBadUrl(absUrl))push({title:heading||q,snippet:abs,url:absUrl,source:'duckduckgo'});
       }
       if(Array.isArray(data.RelatedTopics)){
@@ -5652,12 +5683,6 @@ async webSearch(query, args){
             if(st&&st.Text&&st.FirstURL&&!isBadUrl(st.FirstURL)&&relevant(st.Text,st.Text))
               push({title:(st.Text||'').split(' - ')[0].slice(0,120),snippet:st.Text,url:st.FirstURL,source:'duckduckgo'});
           }
-        }
-      }
-      if(Array.isArray(data.Results)){
-        for(const r of data.Results.slice(0,8)){
-          if(r&&r.Text&&r.FirstURL&&!isBadUrl(r.FirstURL)&&relevant(r.Text,r.Text))
-            push({title:r.Text.slice(0,120),snippet:r.Text,url:r.FirstURL,source:'duckduckgo'});
         }
       }
     }
@@ -5686,43 +5711,25 @@ async webSearch(query, args){
     }
     return count;
   };
-  if(results.length<5){
+  if(results.length<4){
     for(const base of ['https://html.duckduckgo.com/html/?q=','https://lite.duckduckgo.com/lite/?q=']){
       try{
         const html=await fetchText(base+encodeURIComponent(q),14000);
         parseDdgHtml(html, base.includes('lite')?'duckduckgo_lite':'duckduckgo_web');
-        if(results.length>=5)break;
+        if(results.length>=4)break;
       }catch(e){errors.push('duckduckgo_html: '+(e.message||e))}
     }
   }
 
-  // Wikipedia: search API FIRST (not raw slug of whole question)
-  if(mode!=='github'){
+  // Wikidata search as extra fallback
+  if(results.length<3){
     try{
-      const wiki='https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=8&srsearch='+encodeURIComponent(q)+'&format=json&origin=*';
-      const data=await fetchJSON(wiki,10000);
-      const hits=(data&&data.query&&data.query.search)||[];
-      for(const hit of hits){
-        const snip=(hit.snippet||'').replace(/<[^>]+>/g,'');
-        if(!relevant(hit.title,snip))continue;
-        push({title:hit.title,snippet:snip,url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(String(hit.title).replace(/ /g,'_')),source:'wikipedia'});
+      const wd='https://www.wikidata.org/w/api.php?action=wbsearchentities&search='+encodeURIComponent(q)+'&language=en&limit=5&format=json&origin=*';
+      const data=await fetchJSON(wd,8000);
+      for(const hit of (data&&data.search)||[]){
+        push({title:hit.label||hit.id,snippet:hit.description||'',url:'https://www.wikidata.org/wiki/'+(hit.id||''),source:'wikidata'});
       }
-      // Summary only for the best matching title (not "Decimal" for pi digit queries)
-      const best=hits.find(h=>relevant(h.title,(h.snippet||'').replace(/<[^>]+>/g,'')));
-      if(best){
-        try{
-          const slug=encodeURIComponent(String(best.title).replace(/ /g,'_'));
-          const sum=await fetchJSON('https://en.wikipedia.org/api/rest_v1/page/summary/'+slug,8000);
-          if(sum&&sum.extract&&sum.type!=='disambiguation'&&relevant(sum.title,sum.extract)){
-            const pageUrl=(sum.content_urls&&sum.content_urls.desktop&&sum.content_urls.desktop.page)||('https://en.wikipedia.org/wiki/'+slug);
-            if(!overview) overview={title:sum.title,text:String(sum.extract).slice(0,1500),source:'Wikipedia',url:pageUrl,type:'instant_answer'};
-            if(!wikipedia_structured&&(mode==='wikipedia'||mode==='web')){
-              try{wikipedia_structured=await this.wikipediaPage({title:sum.title,lang:'en',sections:true,max_chars:12000})}catch(e){}
-            }
-          }
-        }catch(e){}
-      }
-    }catch(e){errors.push('wikipedia: '+(e.message||e))}
+    }catch(e){errors.push('wikidata: '+(e.message||e))}
   }
 
   // MDN
@@ -5751,15 +5758,15 @@ async webSearch(query, args){
   const clean=results.filter(r=>r&&r.title).slice(0,12);
   return {
     ok:true,
-    query:qRaw,
+    query:String(query).trim(),
     cleaned_query:q,
-    engine:'duckduckgo',
+    engine:'duckduckgo+wikipedia',
     overview:overview||null,
     wikipedia_structured:wikipedia_structured||null,
     results:clean,
     count:clean.length,
     errors:errors.length?errors.slice(0,6):undefined,
-    hint:'DuckDuckGo-first. Irrelevant wiki hits are filtered. For digit-of-pi use run_python, not search.'
+    hint:clean.length?'Use results/overview. For digit-of-pi prefer run_python.':'No hits. Try a shorter query or run_python for pure math facts.'
   };
 }
 async wikipediaPage(args){
@@ -5978,9 +5985,22 @@ showChart(args){
     };
     const token='[[chart:'+JSON.stringify(payload)+']]';
     return{ok:true,type:payload.type,token,markdown:token,hint:'Include the token/markdown in your final answer exactly so the chart renders in chat.'};
-  }catch(e){return{ok:false,error:e.message||String(e)}}
-}
-async githubCreateRepo(args){
+  }catch(e){return{ok:false,error:String(e.message||e)}}
+  }
+  showPlot(args){
+    try{
+      const columns=Array.isArray(args.columns)?args.columns.map(c=>String(c??'')):[];
+      const rows=Array.isArray(args.rows)?args.rows.map(r=>Array.isArray(r)?r.map(c=>String(c??'')):[String(r??'')]):[];
+      if(!columns.length||!rows.length)return{ok:false,error:'columns and rows required'};
+      // normalize row widths
+      const w=columns.length;
+      const norm=rows.map(r=>{const x=r.slice(0,w);while(x.length<w)x.push('');return x}).slice(0,500);
+      const payload={title:String(args.title||''),caption:String(args.caption||''),columns,rows:norm};
+      const token='[[plot:'+JSON.stringify(payload)+']]';
+      return{ok:true,type:'plot',token,hint:'Paste this token into your final answer so the table renders for the user: '+token};
+    }catch(e){return{ok:false,error:String(e.message||e)}}
+  }
+  async githubCreateRepo(args){
   const body={name:args.name,description:args.description||'',private:!!args.private,auto_init:args.auto_init!==false};
   const res=await fetch('https://api.github.com/user/repos',{method:'POST',headers:this._ghHeaders(),body:JSON.stringify(body)});
   const data=await res.json().catch(()=>({}));
@@ -7705,7 +7725,7 @@ try{
     }
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- For interactive demos write HTML via write_file and end with [[preview:path]] or [[visual:path]].\n\n\nMATH RENDERING: Write LaTeX as $\\pi$ or $$...$$ (single backslash before pi). Unicode π is also fine.\nPYTHON PI DIGITS: Prefer one clean script: import mpmath; mpmath.mp.dps=1100; s=str(mpmath.pi); decimals=s.split(\'.\')[1]; print(decimals[1047])  # 1048th digit.\nDo not leave unfinished def compute_pi with pass.\n\nHARD / IMPOSSIBLE QUESTIONS:HARD / IMPOSSIBLE QUESTIONS: If a request seems impossible or blocked, do NOT quit. Take an extra thinking step on how to make it possible (reframe, approximate, split steps, use tools, smaller inputs). Then try the best approach and report what worked.\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- show_plot for rows/columns (lists of N items, tables, sequences). Call show_plot with columns + rows, then paste [[plot:...]] in the final answer. When asked for the first N of a sequence, include all N rows.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- For interactive demos write HTML via write_file and end with [[preview:path]] or [[visual:path]].\n\n\nMATH RENDERING: Write LaTeX as $\\pi$ or $$...$$ (single backslash before pi). Unicode π is also fine.\nPYTHON PI DIGITS: Prefer one clean script: import mpmath; mpmath.mp.dps=1100; s=str(mpmath.pi); decimals=s.split(\'.\')[1]; print(decimals[1047])  # 1048th digit.\nDo not leave unfinished def compute_pi with pass.\n\nLOGICAL COMPLETENESS: When the user asks for a list, table, or the first/last N items (e.g. first 100 triangular numbers), actually deliver ALL of them — do not summarize, abbreviate with ellipses, or stop early. Prefer show_plot for large row/column data so it stays readable.\n\nHARD / IMPOSSIBLE QUESTIONS:HARD / IMPOSSIBLE QUESTIONS: If a request seems impossible or blocked, do NOT quit. Take an extra thinking step on how to make it possible (reframe, approximate, split steps, use tools, smaller inputs). Then try the best approach and report what worked.\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 try{while(iteration<maxIter&&this.running){if(!this.running)break;if(Date.now()-start>maxMs){console.warn("[Agent] time budget");break;}if(toolCalls>=maxTools){console.warn("[Agent] tool budget");break;}
 iteration++;
@@ -13466,6 +13486,29 @@ renderChartHtml(spec){
     return '<div class="td-chart-card"><div class="td-chart-title">'+title+'</div>'+(sub?'<div class="td-chart-sub">'+sub+'</div>':'')+svg+'<div class="td-chart-legend">'+legend+'</div></div>';
   }catch(e){return '<em>Chart failed</em>'}
 }
+renderPlotHtml(spec){
+  try{
+    const title=escapeHtml(String(spec.title||''));
+    const caption=escapeHtml(String(spec.caption||''));
+    const columns=(spec.columns||[]).map(c=>String(c??''));
+    const rows=(spec.rows||[]).slice(0,500);
+    if(!columns.length||!rows.length)return '<em>Empty plot</em>';
+    const head=columns.map(c=>'<th>'+escapeHtml(c)+'</th>').join('');
+    const body=rows.map((r,i)=>{
+      const cells=(Array.isArray(r)?r:[]).map(c=>'<td>'+escapeHtml(String(c??''))+'</td>').join('');
+      return '<tr class="'+(i%2?'plot-odd':'plot-even')+'">'+cells+'</tr>';
+    }).join('');
+    return (
+      '<div class="td-plot-card">'
+      +(title?('<div class="td-plot-title">'+title+'</div>'):'')
+      +'<div class="td-plot-scroll"><table class="td-plot-table"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody></table></div>'
+      +(caption?('<div class="td-plot-cap">'+caption+'</div>'):'')
+      +'<div class="td-plot-meta">'+rows.length+' row'+(rows.length===1?'':'s')+' · '+columns.length+' col'+(columns.length===1?'':'s')+'</div>'
+      +'</div>'
+    );
+  }catch(e){return '<em>Plot error</em>'}
+}
+
 renderVisualCardHtml(path){
   const rp=String(path||'');
   return '<div class="td-visual-card" data-visual-path="'+escapeHtml(rp)+'"><button type="button" class="td-vis-play" title="Pause/Play" data-vis-toggle="1">❚❚</button><iframe sandbox="allow-scripts allow-forms allow-modals" title="Visual" data-visual-frame="1"></iframe></div>';
@@ -13554,6 +13597,10 @@ renderMarkdown(text){
   // Charts: [[chart:{...json...}]]
   t=t.replace(/\[\[chart:(\{[\s\S]*?\})\]\]/g,(_,json)=>{
     try{return pushChip(this.renderChartHtml(JSON.parse(json)))}catch(e){return '<em>Chart error</em>'}
+  });
+  // Plots / tables: [[plot:{...json...}]]
+  t=t.replace(/\[\[plot:(\{[\s\S]*?\})\]\]/g,(_,json)=>{
+    try{return pushChip(this.renderPlotHtml(JSON.parse(json)))}catch(e){return '<em>Plot error</em>'}
   });
   // Visual HTML previews: [[visual:path]]
   t=t.replace(/\[\[visual:([^\]]+)\]\]/g,(_,p)=>{
