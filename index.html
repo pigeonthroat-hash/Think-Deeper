@@ -4226,6 +4226,24 @@ normalizeBaseUrl(base){
   b=b.replace(/\/openai\/?$/i,'').replace(/\/chat\/completions\/?$/i,'');
   return b;
 }
+isReasoningCapable(model, base){
+  const m = String(model||'').toLowerCase();
+  const b = String(base||'').toLowerCase();
+  // DeepSeek reasoner / thinking models
+  if (m.includes('reasoner') || m.includes('r1') || m.includes('thinking') || m.includes('deepseek-reasoner')) return true;
+  if (b.includes('deepseek.com') || b.includes('api.deepseek')) return true;
+  // OpenRouter reasoning models
+  if (b.includes('openrouter.ai')) {
+    if (m.includes('deepseek') || m.includes('r1') || m.includes('reason') || m.includes('thinking') || m.includes('o1') || m.includes('o3')) return true;
+  }
+  // Groq DeepSeek / reasoning
+  if (b.includes('groq.com') || b.includes('api.groq')) {
+    if (m.includes('deepseek') || m.includes('r1') || m.includes('reason')) return true;
+  }
+  // Explicit flag or catalog
+  if (m.includes('reasoning') || m.includes('think')) return true;
+  return false;
+}
 geminiModelId(model){
   let m=String(model||this.config.model||'gemini-2.0-flash').trim();
   m=m.replace(/^models\//,'');
@@ -4477,7 +4495,12 @@ async chatGemini(messages,{model,tools,signal,temperature,maxTokens,toolChoice}=
   if(!key)throw new Error('API key required (Google AI Studio key)');
   const mid=this.geminiModelId(model);
   const base=this.normalizeBaseUrl(this.config.baseUrl||'https://generativelanguage.googleapis.com/v1beta');
-  const url=base.replace(/\/$/,'')+'/models/'+encodeURIComponent(mid)+':generateContent?key='+encodeURIComponent(key);
+  const midL = String(mid||'').toLowerCase();
+  const wantsThink = /thinking|gemini-2\.5|gemini-2\.0-flash-thinking|gemini-3|gemini-exp|flash-thinking/i.test(midL);
+  const useStream = wantsThink;
+  const endpoint = useStream ? ':streamGenerateContent' : ':generateContent';
+  const streamParam = useStream ? '&alt=sse' : '';
+  const url=base.replace(/\/$/,'')+'/models/'+encodeURIComponent(mid)+endpoint+'?key='+encodeURIComponent(key)+streamParam;
   const converted=this.messagesToGemini(this.normalizeMessages(messages));
   // Final pass: keep thoughtSignature on Parts with functionCall; strip it elsewhere / inside functionCall
   const scrub=(node)=>{
@@ -4507,9 +4530,10 @@ async chatGemini(messages,{model,tools,signal,temperature,maxTokens,toolChoice}=
       maxOutputTokens:maxTokens||8192
     }
   };
-  // Only request thought parts on models that advertise thinking / 2.5+ — others 400 on thinkingConfig
-  if(/thinking|gemini-2\.5|gemini-3|gemini-exp/i.test(String(mid||''))){
+  // Request thought summaries on thinking-capable Gemini models
+  if(wantsThink){
     body.generationConfig.thinkingConfig={includeThoughts:true};
+    console.log('[API] Gemini thinkingConfig enabled for', mid);
   }
   if(converted.system)body.systemInstruction={parts:[{text:converted.system}]};
   const gTools=this.toolsToGemini(tools);
@@ -4538,26 +4562,109 @@ async chatGemini(messages,{model,tools,signal,temperature,maxTokens,toolChoice}=
     }
     throw new Error('Network failed to fetch Gemini API ('+(e.message||e)+'). Check the key, model id, and that the Google AI API is enabled.');
   }
-  let raw=await res.text();
   if(!res.ok){
+    const raw=await res.text();
     let detail=raw.slice(0,400);
     try{detail=(JSON.parse(raw).error&&JSON.parse(raw).error.message)||detail}catch(e){}
     // Retry once without thinkingConfig if the model rejected it
     if(res.status===400&&body.generationConfig&&body.generationConfig.thinkingConfig&&/think/i.test(String(detail))){
       try{
         delete body.generationConfig.thinkingConfig;
-        res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal});
-        raw=await res.text();
+        const retryUrl = url.replace(':streamGenerateContent',':generateContent').replace('&alt=sse','');
+        res=await fetch(retryUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal});
         if(res.ok){
-          return this.geminiToOpenAI(JSON.parse(raw),mid);
+          const retryRaw=await res.text();
+          return this.geminiToOpenAI(JSON.parse(retryRaw),mid);
         }
-        try{detail=(JSON.parse(raw).error&&JSON.parse(raw).error.message)||raw.slice(0,400)}catch(e){detail=raw.slice(0,400)}
+        const r2=await res.text();
+        try{detail=(JSON.parse(r2).error&&JSON.parse(r2).error.message)||r2.slice(0,400)}catch(e){detail=r2.slice(0,400)}
       }catch(e){
         if(e&&(e.name==='AbortError'||(signal&&signal.aborted))){const err=new Error('Aborted');err.name='AbortError';throw err}
       }
     }
     throw new Error('Gemini API '+res.status+': '+detail);
   }
+  // Stream or non-stream response
+  if(useStream && res.body){
+    const reader=res.body.getReader();
+    const decoder=new TextDecoder();
+    let buffer='';
+    let text='';
+    let reasoning='';
+    const parts=[]; // collect for _geminiParts
+    const tool_calls=[];
+    let finishReason=null;
+    let usage=null;
+    try{
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        buffer+=decoder.decode(value,{stream:true});
+        const lines=buffer.split('\n');
+        buffer=lines.pop()||'';
+        for(const line of lines){
+          const t=line.trim();
+          if(!t.startsWith('data:'))continue;
+          const payload=t.slice(5).trim();
+          if(payload==='[DONE]')continue;
+          try{
+            const chunk=JSON.parse(payload);
+            const cand=(chunk.candidates&&chunk.candidates[0])||{};
+            const cparts=(cand.content&&cand.content.parts)||[];
+            cparts.forEach(p=>{
+              parts.push(p);
+              if(p.text){
+                if(p.thought===true||p.thought==='true')reasoning+=p.text;
+                else text+=p.text;
+              }
+              if(p.functionCall){
+                const sig=p.thoughtSignature||p.thought_signature||null;
+                const tc={
+                  id:'call_gem_'+tool_calls.length+'_'+Math.random().toString(36).slice(2,8),
+                  type:'function',
+                  function:{
+                    name:p.functionCall.name||'',
+                    arguments:JSON.stringify(p.functionCall.args||p.functionCall.arguments||{})
+                  }
+                };
+                if(sig){
+                  tc.thoughtSignature=sig;
+                  tc.thought_signature=sig;
+                  tc.extra_content={google:{thought_signature:sig,thoughtSignature:sig}};
+                }
+                tool_calls.push(tc);
+              }
+            });
+            if(cand.finishReason)finishReason=cand.finishReason;
+            if(chunk.usageMetadata)usage=chunk.usageMetadata;
+          }catch(e){}
+        }
+      }
+    }catch(e){console.warn('[API] Gemini stream error',e)}
+    // Build OpenAI-like response (same shape as geminiToOpenAI)
+    const extracted=extractTextToolCalls(text||'');
+    if(extracted.calls.length){
+      text=extracted.text;
+      extracted.calls.forEach(c=>tool_calls.push(c));
+    }else text=extracted.text||text;
+    const msg={role:'assistant',content:text||(tool_calls.length?null:'')};
+    if(tool_calls.length)msg.tool_calls=tool_calls;
+    if(reasoning&&reasoning.trim())msg.reasoning_content=reasoning.trim();
+    msg._geminiParts=parts;
+    const um=usage||{};
+    const prompt=Number(um.promptTokenCount||0);
+    const candidates=Number(um.candidatesTokenCount||0);
+    const thoughts=Number(um.thoughtsTokenCount||0);
+    const total=Number(um.totalTokenCount||0)||(prompt+candidates+thoughts);
+    console.log('[API] Gemini streamed reasoning length', (reasoning||'').length);
+    return {
+      choices:[{message:msg,finish_reason:tool_calls.length?'tool_calls':(finishReason||'stop')}],
+      usage:{prompt_tokens:prompt,completion_tokens:candidates,thinking_tokens:thoughts,total_tokens:Math.max(total,prompt+candidates+thoughts)},
+      model:mid
+    };
+  }
+  // Non-stream fallback
+  const raw=await res.text();
   let data;
   try{data=JSON.parse(raw)}catch(e){throw new Error('Invalid Gemini JSON response')}
   return this.geminiToOpenAI(data,mid);
@@ -4668,6 +4775,24 @@ async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTo
     const choice=toolChoice||this.storage.get('toolChoice','auto')||'auto';
     body.tool_choice=choice;
   }
+  // Enable real reasoning / thinking for supported models
+  const wantReasoning = this.isReasoningCapable(activeModel, base);
+  if (wantReasoning) {
+    body.stream = true;
+    const bLow = String(base||'').toLowerCase();
+    const mLow = String(activeModel||'').toLowerCase();
+    if (bLow.includes('deepseek') || mLow.includes('deepseek') || mLow.includes('reasoner')) {
+      body.thinking = {type: "enabled"};
+      body.reasoning_effort = "high";
+    } else if (bLow.includes('openrouter')) {
+      body.include_reasoning = true;
+      body.reasoning = {effort: "high", enabled: true};
+    } else if (bLow.includes('groq')) {
+      // Groq DeepSeek models typically expose reasoning_content
+      body.reasoning_effort = "high";
+    }
+    console.log('[API] reasoning mode enabled for', activeModel);
+  }
   console.groupCollapsed('[API] chat/completions →');
   console.log('model',body.model);
   console.log('tool_choice',body.tool_choice);
@@ -4694,9 +4819,82 @@ async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTo
     }
     throw new Error('Network failed to fetch API ('+((netErr&&netErr.message)||String(netErr))+'). Check base URL, CORS, ad-blockers, and browser access to the API.');
   }
-  const rawText=await res.text();
-  let data;
-  try{data=JSON.parse(rawText)}catch{data=null}
+  let data = null;
+  let rawText = '';
+  if (body.stream && res.ok) {
+    // Stream SSE and capture reasoning_content + content
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let contentAcc = '';
+    let reasoningAcc = '';
+    const toolCallsAcc = []; // by index
+    let finishReason = null;
+    let usage = null;
+    try {
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, {stream: true});
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          const payload = trimmed.slice(5).trim();
+          if (payload === '[DONE]') continue;
+          try {
+            const chunk = JSON.parse(payload);
+            const ch = chunk.choices && chunk.choices[0];
+            if (!ch) continue;
+            const delta = ch.delta || {};
+            if (delta.content) contentAcc += delta.content;
+            // DeepSeek / compatible
+            if (delta.reasoning_content) reasoningAcc += delta.reasoning_content;
+            // OpenRouter alias
+            if (delta.reasoning) reasoningAcc += delta.reasoning;
+            // Tool call deltas (basic accumulation)
+            if (delta.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                const idx = tc.index != null ? tc.index : 0;
+                if (!toolCallsAcc[idx]) toolCallsAcc[idx] = {id: tc.id || ('call_'+idx), type: 'function', function: {name: '', arguments: ''}};
+                if (tc.id) toolCallsAcc[idx].id = tc.id;
+                if (tc.function) {
+                  if (tc.function.name) toolCallsAcc[idx].function.name += tc.function.name;
+                  if (tc.function.arguments) toolCallsAcc[idx].function.arguments += tc.function.arguments;
+                }
+              }
+            }
+            if (ch.finish_reason) finishReason = ch.finish_reason;
+            if (chunk.usage) usage = chunk.usage;
+          } catch (e) { /* ignore partial json */ }
+        }
+      }
+    } catch (e) {
+      console.warn('[API] stream read error', e);
+    }
+    // Build OpenAI-compatible response
+    data = {
+      id: 'chatcmpl-stream',
+      object: 'chat.completion',
+      choices: [{
+        index: 0,
+        message: {
+          role: 'assistant',
+          content: contentAcc || null,
+          reasoning_content: reasoningAcc || null,
+          tool_calls: toolCallsAcc.filter(Boolean).length ? toolCallsAcc.filter(Boolean) : undefined
+        },
+        finish_reason: finishReason || (toolCallsAcc.length ? 'tool_calls' : 'stop')
+      }],
+      usage: usage
+    };
+    rawText = JSON.stringify(data);
+    console.log('[API] streamed reasoning length', (reasoningAcc||'').length, 'content', (contentAcc||'').length);
+  } else {
+    rawText = await res.text();
+    try { data = JSON.parse(rawText); } catch { data = null; }
+  }
   if(!res.ok){
     let msg=(data&&(data.message||data.error?.message||data.error))||rawText;
     if(typeof msg==='object')msg=JSON.stringify(msg);
@@ -4738,6 +4936,10 @@ async chat(messages,{model,tools,signal,toolChoice,temperature,useFallback,maxTo
   console.groupCollapsed('[API] response ←');
   console.log(data);
   const am=data?.choices?.[0]?.message;
+  // Normalize OpenRouter / other providers' reasoning field into reasoning_content
+  if (am && !am.reasoning_content && am.reasoning) {
+    am.reasoning_content = am.reasoning;
+  }
   console.log('assistant message',am);
   console.log('tool_calls',am?.tool_calls);
   console.log('finish_reason',data?.choices?.[0]?.finish_reason);
@@ -8160,7 +8362,8 @@ if(hasTools){
   const planText=(thought||'').trim();
   if(planText){
     this._emittedThink=true;
-    onEvent({type:'activity',name:deepThink?'Deep thinking':'Thinking',agent:'Agent 1',status:'done',detail:planText.slice(0,12000),expand:true});
+    const isReal = !!(assistantMsg.reasoning_content && String(assistantMsg.reasoning_content).trim());
+    onEvent({type:'activity',name:isReal ? (deepThink?'Model deep reasoning':'Model reasoning') : (deepThink?'Deep thinking':'Thinking'),agent:'Agent 1',status:'done',detail:planText.slice(0,12000),expand:true});
   }else{
     this._emittedThink=true; // tools will create their own activity cards
   }
