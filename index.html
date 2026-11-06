@@ -4496,7 +4496,8 @@ async chatGemini(messages,{model,tools,signal,temperature,maxTokens,toolChoice}=
   const mid=this.geminiModelId(model);
   const base=this.normalizeBaseUrl(this.config.baseUrl||'https://generativelanguage.googleapis.com/v1beta');
   const midL = String(mid||'').toLowerCase();
-  const wantsThink = /thinking|gemini-2\.5|gemini-2\.0-flash-thinking|gemini-3|gemini-exp|flash-thinking/i.test(midL);
+  // Match Gemini 3.x / 2.5 / thinking / flash-lite variants (including 3.5-flash-lite)
+  const wantsThink = /thinking|gemini-2\.5|gemini-2\.0-flash-thinking|gemini-3|gemini-exp|flash-thinking|flash-lite|3\.5-flash/i.test(midL);
   const useStream = wantsThink;
   const endpoint = useStream ? ':streamGenerateContent' : ':generateContent';
   const streamParam = useStream ? '&alt=sse' : '';
@@ -4530,10 +4531,13 @@ async chatGemini(messages,{model,tools,signal,temperature,maxTokens,toolChoice}=
       maxOutputTokens:maxTokens||8192
     }
   };
-  // Request thought summaries on thinking-capable Gemini models
+  // Request thought summaries + a real thinking level (Flash-Lite defaults to MINIMAL)
   if(wantsThink){
-    body.generationConfig.thinkingConfig={includeThoughts:true};
-    console.log('[API] Gemini thinkingConfig enabled for', mid);
+    body.generationConfig.thinkingConfig={
+      includeThoughts: true,
+      thinkingLevel: "medium"   // low | medium | high — medium gives usable CoT on 3.5 Flash-Lite
+    };
+    console.log('[API] Gemini thinkingConfig enabled for', mid, '(level=medium)');
   }
   if(converted.system)body.systemInstruction={parts:[{text:converted.system}]};
   const gTools=this.toolsToGemini(tools);
