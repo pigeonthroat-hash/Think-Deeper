@@ -9180,7 +9180,15 @@ init(){this.app.ui=this;window.__app=this.app;window.__app.ui=this;
   }catch(e){}
   this.bindEvents();try{this.syncProjectBundles()}catch(e){}this.renderConversations();this.renderModelLabel();this.applyTheme(this.app.storage.get('theme','dark'));this.updateWorkspaceBadge();this.autoResizeInput();this.initCodeMode();this.bindIntensityBars();this.renderAuth();try{applyCodeModeVisibility()}catch(e){}try{applyAgentModeVisibility()}catch(e){}
 try{this.rehydrateVfsFromStorage&&this.rehydrateVfsFromStorage()}catch(e){}
-const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>{try{if(this.isPhone&&this.isPhone())this.toggleSidebar(true)}catch(e){}this.setMode('canvas')};const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);this._preferEmptyBoot=true;this.newChat();try{setTimeout(()=>{try{this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);document.querySelectorAll(".conv-item.active").forEach(n=>n.classList.remove("active"));this.renderConversations&&this.renderConversations();this.showEmpty&&this.showEmpty()}catch(e){}},50)}catch(e){}
+const cs=$('#conv-search');if(cs)cs.oninput=()=>this.filterConversations(cs.value);this.renderAutomations();this.renderProjects();this.updateGitHubStatus();this.renderPins&&this.renderPins();this.bindModeMini();this.bindAccountUi();this.bindAutoBuilder();this.bindVersionUi();this.bindDevConsole();try{[...document.querySelectorAll('.deep-think-mini,[title="Deep Think"]')].forEach(n=>n.remove())}catch(e){}this.bindSelDismiss();this.bindScrollLock();this.bindResponsive();this.bindAskUi();const ab=$('#automations-btn');if(ab)ab.onclick=()=>{try{if(this.isPhone&&this.isPhone())this.toggleSidebar(true)}catch(e){}this.setMode('canvas')};const hs=$('#auto-hub-send');if(hs)hs.onclick=()=>this.buildAutomationFromText();const np=$('#new-project-btn');if(np)np.onclick=()=>this.openProjectSetup();const gh=$('#gh-connect-btn');if(gh)gh.onclick=()=>this.openGitHubConnect();this.app.conversations.currentId=null;this.app.storage.set("currentConvId",null);this._preferEmptyBoot=true;this.newChat();try{setTimeout(()=>{try{
+  // Only clear if the user hasn't started a chat yet
+  if(this.app.conversations.currentId)return;
+  this.app.conversations.currentId=null;
+  this.app.storage.set("currentConvId",null);
+  document.querySelectorAll(".conv-item.active").forEach(n=>n.classList.remove("active"));
+  this.renderConversations&&this.renderConversations();
+  this.showEmpty&&this.showEmpty();
+}catch(e){}},50)}catch(e){}
   window.addEventListener('beforeunload',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}try{this.app.conversations&&this.app.conversations.persist()}catch(e){}});
   window.addEventListener('pagehide',()=>{if(window.__tdLoggingOut)return;try{this.persistLiveAgent(true)}catch(e){}try{this.persistChatRun(true)}catch(e){}});
   document.addEventListener('visibilitychange',()=>{
@@ -12553,16 +12561,16 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
     if(c.type==='code'||c.mode==='code'||c.source==='code'||c.kind==='code')return false;
     seen.add(id);
     const msgs=c.messages||[];
-    // Keep any chat that has a real title or any messages. Only hide true empty shells.
+    // Keep any chat that has a real title or any messages, and always keep the active chat.
     const hasTitle=c.title&&c.title!=='New conversation';
+    const isCurrent=String(c.id)===String(this.app.conversations.currentId||'');
+    if(isCurrent)return true;
     if(!msgs.length&&!hasTitle)return false;
     return true;
   });
-  if(proj){
-    const set=new Set((proj.chatIds||[]).map(String));
-    // chatIds may accidentally include code session ids — only keep real conversations
-    chats=chats.filter(c=>(set.has(String(c.id))||String(c.projectId||'')===String(pid))&&!codeIds.has(String(c.id)));
-  }
+  // Main chat list always shows every conversation.
+  // Project membership is used for context/filtering elsewhere, but never hides chats here.
+  const curId=String(this.app.conversations.currentId||'');
   const q=(this._convQuery||'').trim().toLowerCase();
   if(q){chats=chats.filter(c=>{
     if((c.title||'').toLowerCase().includes(q))return true;
