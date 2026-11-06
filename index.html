@@ -12537,7 +12537,7 @@ newChat(){
     }
   }catch(e){}
 }
-loadConversation(id){this.hideSelToolbar();if(this.isPhone&&this.isPhone())this.toggleSidebar(true);if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>{if(m&&m.content){try{m.content=extractTextToolCalls(m.content).text}catch(e){}}if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);if(m&&Array.isArray(m.activities)&&m.activities.length){const seen=new Set();m.activities=m.activities.filter(a=>{if(!a)return false;const name=String(a.name||'').trim();const detail=String(a.detail||a.text||'').trim();if(!detail&&/^(Thought|Thought through|Thinking|Planning|Planned)$/i.test(name))return false;const k=String(a.agent||'')+'|'+name+'|'+detail.slice(0,100);if(seen.has(k))return false;seen.add(k);return true});if(!m.activities.length)delete m.activities}this.renderMessage(m,false)});this.scrollToBottom();this._loadingConv=null}
+loadConversation(id){this.hideSelToolbar();if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>{if(m&&m.content){try{const ex=extractTextToolCalls(m.content);if(ex&&ex.text&&ex.text!==m.content)m.content=ex.text}catch(e){}}if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);if(m&&Array.isArray(m.activities)&&m.activities.length){const seen=new Set();m.activities=m.activities.filter(a=>{if(!a)return false;const name=String(a.name||'').trim();const detail=String(a.detail||a.text||'').trim();if(!detail&&/^(Thought|Thought through|Thinking|Planning|Planned)$/i.test(name))return false;const k=String(a.agent||'')+'|'+name+'|'+detail.slice(0,100);if(seen.has(k))return false;seen.add(k);return true});if(!m.activities.length)delete m.activities}this.renderMessage(m,false)});this.scrollToBottom();this._loadingConv=null}
 renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>String(p.id)===String(pid)):null;
   const gone=new Set((this.app.storage.get('deletedConversations',[])||[]).map(String));
   let chats=this.app.conversations.list()||[];
@@ -12553,7 +12553,9 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
     if(c.type==='code'||c.mode==='code'||c.source==='code'||c.kind==='code')return false;
     seen.add(id);
     const msgs=c.messages||[];
-    if(!msgs.length&&(!c.title||c.title==='New conversation'))return false;
+    // Keep any chat that has a real title or any messages. Only hide true empty shells.
+    const hasTitle=c.title&&c.title!=='New conversation';
+    if(!msgs.length&&!hasTitle)return false;
     return true;
   });
   if(proj){
@@ -12586,7 +12588,7 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
   div.ondragend=()=>div.classList.remove('dragging');
   div.onclick=e=>{
     const act=e.target&&e.target.dataset&&e.target.dataset.act;
-    if(act==='delete'){e.stopPropagation();this.wipeConversation(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}
+    if(act==='delete'){e.stopPropagation();e.preventDefault();if(confirm('Delete this chat?')){this.wipeConversation(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}return}
     else if(act==='rename'){e.stopPropagation();this.appPrompt('Rename chat',c.title).then(v=>{if(v){this.app.conversations.rename(c.id,v);this.renderConversations()}})}
     else if(act==='to-project'){
       e.stopPropagation();
@@ -12609,7 +12611,7 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
         {label:'Rename',fn:()=>{this.appPrompt('Rename chat',c.title).then(v=>{if(v){this.app.conversations.rename(c.id,v);this.renderConversations()}})}},
         {label:'Pin',fn:()=>{const pins=this.app.storage.get('pins',[])||[];pins.unshift({id:uid(),text:c.title||'Chat',from:'chat'});this.app.storage.set('pins',pins.slice(0,8));this.renderPins&&this.renderPins();toast('Pinned','success')}},
         {label:'Refer',fn:()=>this.setReferQuote(c.title||'this chat')},
-        {label:'Delete',fn:()=>{this.wipeConversation(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}}
+        {label:'Delete',fn:()=>{if(confirm('Delete this chat?')){this.wipeConversation(c.id);this.renderConversations();if(this.app.conversations.currentId)this.loadConversation(this.app.conversations.currentId);else this.newChat()}}}
       ]);
     }else this.loadConversation(c.id)};list.appendChild(div)})}
 showEmpty(){
