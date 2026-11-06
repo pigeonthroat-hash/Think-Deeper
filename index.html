@@ -4644,7 +4644,20 @@ async chatGemini(messages,{model,tools,signal,temperature,maxTokens,toolChoice}=
           }catch(e){}
         }
       }
-    }catch(e){console.warn('[API] Gemini stream error',e)}
+    }catch(e){
+      console.warn('[API] Gemini stream error',e);
+      // Fall back to non-stream if stream failed mid-way
+      if(!text && !reasoning){
+        try{
+          const retryUrl = url.replace(':streamGenerateContent',':generateContent').replace('&alt=sse','');
+          const r2 = await fetch(retryUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal});
+          if(r2.ok){
+            const raw2 = await r2.text();
+            return this.geminiToOpenAI(JSON.parse(raw2),mid);
+          }
+        }catch(e2){console.warn('[API] Gemini stream fallback failed',e2)}
+      }
+    }
     // Build OpenAI-like response (same shape as geminiToOpenAI)
     const extracted=extractTextToolCalls(text||'');
     if(extracted.calls.length){
@@ -8776,8 +8789,9 @@ try{onEvent({type:'done'});}catch(e){}
 return finalContent}
 catch(e){if(e.name==='AbortError'){onEvent({type:'status',text:'Stopped'});onEvent({type:'final',content:finalContent||'*(Stopped)*'});onEvent({type:'done'});return finalContent}
 console.error('[Agent] fatal',e);
-try{onEvent({type:'error',message:e.message||String(e)});onEvent({type:'status',text:'Error'});onEvent({type:'done'})}catch(e2){console.warn('fatal ui',e2)}
-return finalContent||('Error: '+(e.message||e))}
+const errMsg = 'Something went wrong while thinking: '+(e.message||String(e))+'. You can send a follow-up to continue.';
+try{onEvent({type:'error',message:e.message||String(e)});onEvent({type:'final',content:finalContent||errMsg});onEvent({type:'status',text:'Error'});onEvent({type:'done'})}catch(e2){console.warn('fatal ui',e2)}
+return finalContent||errMsg}
 finally{this.running=false}}
 
 
@@ -9814,17 +9828,13 @@ purgeGhostConversations(){
       const msgs=c.messages||[];
       // Empty shell
       if(!msgs.length&&(!c.title||c.title==='New conversation')){removed++;return}
-      // Glitched: has user message(s) but ZERO assistant replies with content
+      // Softened: only delete truly empty shells. Do NOT auto-delete chats that have a user
+      // message but no assistant reply yet (they may still be in-flight or crashed mid-think).
       const hasUser=msgs.some(m=>m&&m.role==='user'&&String(m.content||'').trim());
       const hasAi=msgs.some(m=>m&&m.role==='assistant'&&String(m.content||'').trim());
-      if(hasUser&&!hasAi){
-        // Only delete the glitched user-only chat — never touch chats with any AI reply
-        try{
-          gone.add(id);
-          const list=this.app.storage.get('deletedConversations',[])||[];
-          if(!list.map(String).includes(id)){list.push(id);this.app.storage.set('deletedConversations',list.slice(-200))}
-        }catch(e){}
-        removed++;
+      // Keep the chat if it has any user content, even without an AI reply
+      if(hasUser){
+        if(!map.has(id))map.set(id,c);
         return;
       }
       if(!map.has(id))map.set(id,c);
