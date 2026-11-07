@@ -8511,10 +8511,16 @@ if(hasTools){
     const lastTool=(assistantMsg.tool_calls&&assistantMsg.tool_calls.length)?(assistantMsg.tool_calls[assistantMsg.tool_calls.length-1].function||{}).name:'';
     await new Promise(r=>setTimeout(r,lastTool==='run_python'?600:350));
   }catch(e){}
-  // If the assistant message had no text, remind the model to answer after tools (once)
+  // After tools: allow multi-step work. Only nudge toward a final reply late in the run.
   try{
-    if(!(assistantMsg.content||'').trim()&&!messages.some(m=>m.role==='user'&&/short final reply/i.test(String(m.content||'')))){
-      messages.push({role:'user',content:'Tools finished. Reply to the user now with a short final reply summarizing what you did (include file paths if you wrote any). Do not call more tools unless required.'});
+    const emptyContent=!(assistantMsg.content||'').trim();
+    const alreadyNudged=messages.some(m=>m.role==='user'&&/Tools finished|Continue the task|final reply/i.test(String(m.content||'')));
+    if(emptyContent&&!alreadyNudged){
+      if(iteration>=Math.max(4, Math.floor(maxIter*0.6)) || toolCalls>=Math.max(6, Math.floor(maxTools*0.7))){
+        messages.push({role:'user',content:'Tools finished. If the task is complete, reply to the user now with a short final reply (include file paths if you wrote any). You may still call tools if required to finish.'});
+      }else{
+        messages.push({role:'user',content:'Tools finished. Continue the task: use more tools if needed (read/verify/write/search/run), or give the final user-visible answer if you are done. Multi-step work is expected.'});
+      }
     }
   }catch(e){}
   // Continue loop — same response; do not treat empty assistant content as final when tools ran
@@ -8571,6 +8577,22 @@ try{
   }
 }catch(e){console.warn('think extract',e)}
 console.log('[Agent] final content length',String(finalContent||'').length,'finish',finish);
+// Multi-step fix: pure planning / thinking without tools should NOT end the run on step 1
+try{
+  const looksThink=typeof looksLikeThinkingOnly==='function'&&looksLikeThinkingOnly(finalContent);
+  const shortPlan=/^(Planning|Planned|Thinking|Deep thinking|I need to|Let me|I'll |I will |First[, ]|Step\s*1)/i.test(String(finalContent||'').trim()) && String(finalContent||'').trim().length<600;
+  if((looksThink||shortPlan) && iteration<Math.max(3,maxIter-1) && toolCalls<maxTools){
+    const planText=String(finalContent||'').trim();
+    if(planText){
+      this._emittedThink=true;
+      onEvent({type:'activity',name:'Thinking',agent:'Agent 1',status:'done',detail:planText.slice(0,12000),expand:true});
+    }
+    // assistantMsg already in messages — only nudge the model to continue
+    messages.push({role:'user',content:'That was only a plan/thinking step. Now EXECUTE: call the needed tools (write_file, read_file, run_python, web_search, etc.) or produce the complete final answer. Do not stop after one thinking step.'});
+    finalContent='';
+    continue;
+  }
+}catch(e){console.warn('multi-step continue',e)}
 if(String(finalContent||'').trim())break;
 // After tools (e.g. write_file), synthesize a reply if the model returned empty — avoids silent ends in normal chat
 if(!String(finalContent||'').trim()){
