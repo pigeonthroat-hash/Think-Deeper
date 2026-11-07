@@ -14132,8 +14132,7 @@ renderMarkdown(text){
   // Strict: only real math. Never treat code ids, bold text, or snake_case as TeX.
   const looksLikeTeX=(raw)=>{
     const s=String(raw||'').trim();
-    // Allow long display/align blocks; only reject absurd pastes
-    if(!s||s.length>12000)return false;
+    if(!s||s.length>500)return false;
     // Markdown / prose / code-like
     if(/\*\*|__/.test(s))return false;
     if(/\b(the|and|for|with|from|this|that|digit|decimal|place|number|value|answer|result)\b/i.test(s) && !/[\\^]/.test(s) && !/[_^].*[\\{]/.test(s))return false;
@@ -14156,20 +14155,12 @@ renderMarkdown(text){
   };
   const normTex=(tex)=>{
     let s=String(tex||'').trim().replace(/^\$+|\$+$/g,'').trim();
-    // Collapse accidental double-backslashes on commands (\\frac → \frac) but keep \\ line breaks
-    s=s.replace(/\\\\([a-zA-Z]+)/g,'\\$1');
-    // Unicode → TeX
+    while(/\\\\[a-zA-Z]/.test(s)) s=s.replace(/\\\\([a-zA-Z]+)/g,'\\$1');
     s=s.replace(/π/g,'\\pi').replace(/∞/g,'\\infty').replace(/θ/g,'\\theta')
        .replace(/α/g,'\\alpha').replace(/β/g,'\\beta').replace(/γ/g,'\\gamma')
        .replace(/Δ/g,'\\Delta').replace(/∑/g,'\\sum').replace(/∫/g,'\\int')
-       .replace(/√\(/g,'\\sqrt{').replace(/√([0-9A-Za-z])/g,'\\sqrt{$1}')
        .replace(/√/g,'\\sqrt').replace(/≤/g,'\\le').replace(/≥/g,'\\ge')
-       .replace(/≠/g,'\\ne').replace(/×/g,'\\times').replace(/±/g,'\\pm').replace(/≈/g,'\\approx');
-    // Model often writes frac67 without backslash/braces — leave alone if already TeX
-    // Prefer aligned over raw & outside environments
-    if(/[^\\]&/.test(s) && !/\\begin\{/.test(s)){
-      s='\\begin{aligned}'+s+'\\end{aligned}';
-    }
+       .replace(/≠/g,'\\ne').replace(/×/g,'\\times').replace(/±/g,'\\pm');
     if(/^(pi|Pi|PI)$/.test(s)) s='\\pi';
     return s;
   };
@@ -14184,11 +14175,19 @@ renderMarkdown(text){
   t=t.replace(/\\\(([\s\S]*?)\\\)/g,(_,m)=>{const r=push(m,false);return r==null?('\\('+m+'\\)'):r});
   t=t.replace(/\\begin\{(aligned|align\*?|equation\*?|gather\*?|eqnarray|matrix|bmatrix|pmatrix|vmatrix|cases)\}([\s\S]*?)\\end\{\1\}/g,(m)=>{const r=push(m,true);return r==null?m:r});
   t=t.replace(/\$([^\n$]+?)\$/g,(_,m)=>{
-    // currency / plain dollars
-    if(/^\s*\d/.test(m)&&!/[a-zA-Z\\π∞]/.test(m))return '$'+m+'$';
     // never treat markdown or code ids as math
     if(/\*\*|`/.test(m))return '$'+m+'$';
     if(/^[A-Za-z][A-Za-z0-9]*(_[A-Za-z0-9]+)+$/.test(m.trim()))return '$'+m+'$';
+    // Currency vs math: paired $...$ with only a short money-like amount (≤2 decimals)
+    // stays literal. High-precision numbers, operators, or letters → real math.
+    // Fixes "$210.4867$" showing with visible dollar signs.
+    if(/^\s*\d/.test(m)&&!/[a-zA-Z\\π∞]/.test(m)){
+      const pure=m.trim();
+      const isMoney=/^\d{1,3}(,\d{3})*(\.\d{1,2})?$/.test(pure) || /^\d+(\.\d{1,2})?$/.test(pure);
+      const highPrecision=/\.\d{3,}/.test(pure); // 210.4867 → math
+      const hasOp=/[+\-*/=<>^]/.test(pure);
+      if(isMoney && !highPrecision && !hasOp) return '$'+m+'$';
+    }
     const r=push(m,false);
     return r==null?('$'+m+'$'):r;
   });
@@ -14254,53 +14253,29 @@ _katexHTML(item){
   if(!item)return '';
   let tex=String(item.tex||'').trim();
   if(!tex)return '';
-  // Collapse \\frac → \frac but keep real line-breaks as \\
-  tex=tex.replace(/\\\\([a-zA-Z]+)/g,'\\$1');
+  while(/\\\\[a-zA-Z]/.test(tex)) tex=tex.replace(/\\\\([a-zA-Z]+)/g,'\\$1');
   tex=tex.replace(/π/g,'\\pi');
   if(/^(pi|Pi|PI)$/.test(tex)) tex='\\pi';
-  // Bare & rows without an environment → aligned
-  if(/[^\\]&/.test(tex) && !/\\begin\{/.test(tex)){
-    tex='\\begin{aligned}'+tex+'\\end{aligned}';
-  }
-  const opts={
-    displayMode:!!item.display,
-    throwOnError:false,
-    strict:false,
-    output:'html',
-    macros:{'\\R':'\\mathbb{R}','\\N':'\\mathbb{N}','\\Z':'\\mathbb{Z}','\\C':'\\mathbb{C}'}
-  };
-  const tryRender=(t)=>{
-    try{
-      if(!window.katex)return null;
-      const html=katex.renderToString(t,opts);
-      if(html&&!html.includes('katex-error'))return html;
-      return null;
-    }catch(e){return null}
-  };
   try{
-    if(!window.katex){
+    if(!window.katex && window.katex==null){
       return item.display?('<div class="math-fallback">$$'+escapeHtml(tex)+'$$</div>'):('<span class="math-fallback">$'+escapeHtml(tex)+'$</span>');
     }
-    let html=tryRender(tex);
-    // Retry: strip \begin{align*} wrappers that some models break
-    if(!html && /\\begin\{align/.test(tex)){
-      const inner=tex.replace(/\\begin\{align\*?\}/g,'').replace(/\\end\{align\*?\}/g,'');
-      html=tryRender('\\begin{aligned}'+inner+'\\end{aligned}') || tryRender(inner.replace(/&/g,' '));
-    }
-    // Retry: split multi-line into sequential display math
-    if(!html && /\\\\/.test(tex)){
-      const parts=tex.replace(/\\begin\{[^}]+\}/g,'').replace(/\\end\{[^}]+\}/g,'').split(/\\\\/);
-      const bits=[];
-      for(const p of parts){
-        const line=p.replace(/&/g,'').trim();
-        if(!line)continue;
-        const h=tryRender(line);
-        if(h)bits.push(h);
-        else bits.push('<div class="math-plain">'+(escapeHtml(this._texToPlain(line)))+'</div>');
+    if(window.katex){
+      const html=katex.renderToString(tex,{
+        displayMode:!!item.display,
+        throwOnError:false,
+        strict:false,
+        output:'html',
+        macros:{'\\R':'\\mathbb{R}','\\N':'\\mathbb{N}','\\Z':'\\mathbb{Z}','\\C':'\\mathbb{C}'}
+      });
+      // If KaTeX embedded an error span, prefer plain readable form
+      if(html.includes('katex-error')){
+        return (item.display?'<div class="math-plain math-display">':'<span class="math-plain">')
+          +escapeHtml(this._texToPlain(tex))
+          +(item.display?'</div>':'</span>');
       }
-      if(bits.length)return bits.join('');
+      return html;
     }
-    if(html)return html;
   }catch(e){}
   return (item.display?'<div class="math-plain math-display">':'<span class="math-plain">')
     +escapeHtml(this._texToPlain(tex))
@@ -14308,74 +14283,18 @@ _katexHTML(item){
 }
 _texToPlain(tex){
   let s=String(tex||'');
-  // Balanced-brace helper for one-arg and two-arg macros
-  const takeGroup=(str,start)=>{
-    if(str[start]!=='{')return null;
-    let depth=0;
-    for(let i=start;i<str.length;i++){
-      if(str[i]==='{')depth++;
-      else if(str[i]==='}'){depth--;if(depth===0)return {inner:str.slice(start+1,i),end:i+1};}
-    }
-    return null;
-  };
-  const replaceCmd2=(str,cmd,fmt)=>{
-    const needle='\\'+cmd;
-    let out='',i=0;
-    while(i<str.length){
-      const j=str.indexOf(needle,i);
-      if(j<0){out+=str.slice(i);break;}
-      out+=str.slice(i,j);
-      let k=j+needle.length;
-      while(str[k]===' ')k++;
-      const a=takeGroup(str,k); if(!a){out+=str.slice(j,j+needle.length);i=j+needle.length;continue;}
-      while(str[a.end]===' ') a.end++;
-      const b=takeGroup(str,a.end); if(!b){out+=str.slice(j,a.end);i=a.end;continue;}
-      out+=fmt(a.inner,b.inner);
-      i=b.end;
-    }
-    return out;
-  };
-  const replaceCmd1=(str,cmd,fmt)=>{
-    const needle='\\'+cmd;
-    let out='',i=0;
-    while(i<str.length){
-      const j=str.indexOf(needle,i);
-      if(j<0){out+=str.slice(i);break;}
-      out+=str.slice(i,j);
-      let k=j+needle.length;
-      while(str[k]===' ')k++;
-      // \sqrt2 style
-      if(str[k]!=='{'){
-        const m=str.slice(k).match(/^([0-9A-Za-z]+)/);
-        if(m){out+=fmt(m[1]);i=k+m[1].length;continue;}
-        out+=str.slice(j,j+needle.length);i=j+needle.length;continue;
-      }
-      const a=takeGroup(str,k); if(!a){out+=str.slice(j,j+needle.length);i=j+needle.length;continue;}
-      out+=fmt(a.inner); i=a.end;
-    }
-    return out;
-  };
   s=s.replace(/\\begin\{[^}]+\}/g,'').replace(/\\end\{[^}]+\}/g,'');
-  // Line breaks in align
-  s=s.replace(/\\\\/g,' · ');
-  s=s.replace(/&/g,' ');
-  // Nested-safe frac / sqrt (repeat a few times for nesting)
-  for(let n=0;n<6;n++){
-    const prev=s;
-    s=replaceCmd2(s,'frac',(a,b)=>'('+a+')/('+b+')');
-    s=replaceCmd2(s,'dfrac',(a,b)=>'('+a+')/('+b+')');
-    s=replaceCmd1(s,'sqrt',(a)=>'√('+a+')');
-    if(s===prev)break;
-  }
+  s=s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g,'($1)/($2)');
+  s=s.replace(/\\sqrt\{([^{}]+)\}/g,'√($1)');
   s=s.replace(/\\left|\\right/g,'');
   s=s.replace(/\\cdot/g,'·').replace(/\\times/g,'×').replace(/\\div/g,'÷').replace(/\\pm/g,'±');
-  s=s.replace(/\\leq/g,'≤').replace(/\\geq/g,'≥').replace(/\\neq/g,'≠').replace(/\\approx/g,'≈').replace(/\\sim/g,'~');
+  s=s.replace(/\\leq/g,'≤').replace(/\\geq/g,'≥').replace(/\\neq/g,'≠').replace(/\\approx/g,'≈');
   s=s.replace(/\\infty/g,'∞').replace(/\\pi\b/g,'π').replace(/\\theta\b/g,'θ').replace(/\\lambda\b/g,'λ');
   s=s.replace(/\\alpha\b/g,'α').replace(/\\beta\b/g,'β');
   s=s.replace(/\\mathbf\{([^{}]+)\}/g,'$1').replace(/\\mathrm\{([^{}]+)\}/g,'$1');
-  s=s.replace(/\\mathbb\{([^{}]+)\}/g,'$1').replace(/\\text\{([^{}]+)\}/g,'$1').replace(/\\operatorname\{([^{}]+)\}/g,'$1');
-  s=s.replace(/\\quad|\\qquad|\\,|\\;|\\!/g,' ');
-  s=s.replace(/\\(log|ln|sin|cos|tan|cot|sec|csc)\b/g,'$1');
+  s=s.replace(/\\mathbb\{([^{}]+)\}/g,'$1').replace(/\\text\{([^{}]+)\}/g,'$1');
+  s=s.replace(/\\quad|\\qquad|\\,|\\;/g,' ');
+  s=s.replace(/\\(log|ln|sin|cos|tan)\b/g,'$1');
   s=s.replace(/\^\{([^{}]+)\}/g,'^($1)').replace(/_\{([^{}]+)\}/g,'_($1)');
   s=s.replace(/\\([a-zA-Z]+)/g,'$1');
   s=s.replace(/[{}]/g,'').replace(/\s+/g,' ').trim();
