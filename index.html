@@ -1784,6 +1784,111 @@ body.mode-canvas .sidebar-footer.collapsed{
 #agent-token-badge{display:none!important}
 #swarm-usage .tok-dup,#swarm-usage[data-tokens]{/* page-level tokens removed */}
 </style>
+<style id="task-ui-css">
+.task-view{display:none;flex:1;min-height:0;overflow-y:auto;background:var(--bg-primary);justify-content:center}
+.task-view.active{display:flex}
+.task-shell{width:100%;max-width:880px;padding:36px 28px 56px;display:flex;flex-direction:column;gap:28px}
+.task-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.task-eyebrow{display:inline-block;font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-hover);background:var(--accent-soft);padding:4px 10px;border-radius:999px;margin-bottom:12px}
+.task-head h2{margin:0 0 8px;font-size:1.7rem;line-height:1.2;font-weight:600;color:var(--text-primary);letter-spacing:-.01em}
+.task-head p{margin:0;color:var(--text-secondary);font-size:.95rem;max-width:560px;line-height:1.5}
+.task-instr-btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;border:1px solid var(--border-strong);background:var(--bg-elevated);color:var(--text-primary);font-size:.85rem;cursor:pointer;white-space:nowrap}
+.task-instr-btn:hover{border-color:var(--accent)}
+.task-instr-dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.task-compose{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-xl);padding:18px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05);display:flex;flex-direction:column;gap:14px}
+.task-compose textarea{width:100%;border:none;outline:none;resize:vertical;background:transparent;color:var(--text-primary);font:inherit;font-size:1rem;line-height:1.55;min-height:88px}
+.task-compose textarea::placeholder{color:var(--text-secondary);opacity:.7}
+.task-nudge{animation:taskNudge .45s}
+@keyframes taskNudge{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.task-compose-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:12px}
+.task-presets{display:flex;gap:6px;flex-wrap:wrap}
+.task-preset{padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:.82rem;cursor:pointer}
+.task-preset:hover{color:var(--text-primary);border-color:var(--border-strong);background:var(--bg-sidebar)}
+.task-start{display:inline-flex;align-items:center;gap:10px;padding:9px 18px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-weight:600;font-size:.9rem;cursor:pointer;box-shadow:0 2px 8px rgba(217,119,87,.3)}
+.task-start:hover{background:var(--accent-hover)}
+.task-start span{font-weight:400;opacity:.8;font-size:.78rem}
+.task-limits{display:flex;gap:16px;flex-wrap:wrap;font-size:.78rem;color:var(--text-secondary)}
+.task-limits b{color:var(--text-primary);font-weight:600}
+.task-runs-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
+.task-runs-head h3{margin:0;font-size:1rem;font-weight:600;color:var(--text-primary)}
+.task-runs-head span{font-size:.8rem;color:var(--text-secondary)}
+.task-runs{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.task-card{text-align:left;display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:16px;border:1px solid var(--border);background:var(--bg-elevated);cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s;min-height:120px;font:inherit;color:inherit}
+.task-card:hover{transform:translateY(-2px);border-color:var(--border-strong);box-shadow:0 8px 20px rgba(0,0,0,.07)}
+.task-card-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.task-card-when{font-size:.74rem;color:var(--text-secondary)}
+.task-card-title{font-size:.92rem;line-height:1.4;color:var(--text-primary);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;flex:1}
+.task-card-foot{display:flex;justify-content:space-between;font-size:.76rem;color:var(--text-secondary)}
+.task-card-open{color:var(--accent-hover);font-weight:600}
+.task-status{font-size:.7rem;font-weight:600;padding:3px 9px;border-radius:999px;letter-spacing:.02em}
+.task-status.done{background:rgba(46,125,50,.12);color:#2e7d32}
+.task-status.run{background:var(--accent-soft);color:var(--accent-hover);animation:taskPulse 1.6s infinite}
+@keyframes taskPulse{50%{opacity:.55}}
+.task-empty{grid-column:1/-1;text-align:center;padding:36px 20px;border:1px dashed var(--border-strong);border-radius:16px;color:var(--text-secondary)}
+.task-empty h4{margin:10px 0 6px;color:var(--text-primary);font-size:1rem}
+.task-empty p{margin:0 auto;max-width:420px;font-size:.88rem;line-height:1.5}
+.task-empty-mark{width:36px;height:36px;margin:0 auto;border-radius:12px;background:var(--accent-soft);position:relative}
+.task-empty-mark::after{content:"";position:absolute;inset:11px;border-radius:50%;background:var(--accent)}
+.task-back{align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg-primary);font-size:.85rem;color:var(--text-secondary);flex-shrink:0}
+.task-back button{padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);cursor:pointer;font-size:.82rem}
+.task-back button:hover{border-color:var(--accent)}
+.agents-overlay{position:fixed;inset:0;background:rgba(20,18,14,.45);display:none;align-items:center;justify-content:center;z-index:9000;padding:24px;backdrop-filter:blur(3px)}
+.agents-overlay.open{display:flex}
+.agents-modal{width:min(960px,100%);height:min(640px,calc(100vh - 48px));background:var(--bg-elevated);border:1px solid var(--border);border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden}
+.agents-head{display:flex;justify-content:space-between;align-items:flex-start;padding:20px 24px;border-bottom:1px solid var(--border)}
+.agents-head h3{margin:0 0 4px;font-size:1.1rem;color:var(--text-primary);font-weight:600}
+.agents-head p{margin:0;font-size:.84rem;color:var(--text-secondary)}
+.agents-x{border:none;background:transparent;font-size:1rem;color:var(--text-secondary);cursor:pointer;padding:4px 8px;border-radius:8px}
+.agents-x:hover{background:var(--bg-sidebar);color:var(--text-primary)}
+.agents-body{flex:1;display:flex;min-height:0}
+.agents-side{width:230px;border-right:1px solid var(--border);background:var(--bg-sidebar);padding:16px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+.agents-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-secondary);font-weight:600;margin-top:6px}
+.agents-tpls{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.agents-tpl{padding:7px;border-radius:10px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:.8rem;cursor:pointer}
+.agents-tpl:hover{border-color:var(--accent)}
+.agents-files{display:flex;flex-direction:column;gap:6px}
+.agents-file{text-align:left;padding:9px 10px;border-radius:10px;border:1px solid transparent;background:transparent;cursor:pointer;display:flex;flex-direction:column;gap:2px;color:var(--text-primary)}
+.agents-file:hover{background:var(--bg-elevated)}
+.agents-file.on{background:var(--bg-elevated);border-color:var(--border-strong);box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.agents-file-name{font-size:.84rem;font-weight:500;word-break:break-all}
+.agents-file-scope{font-size:.72rem;color:var(--text-secondary)}
+.agents-add{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.agents-add input{padding:7px 9px;border-radius:9px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font:inherit;font-size:.82rem}
+.agents-add button{padding:7px;border-radius:9px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:.8rem;cursor:pointer}
+.agents-main{flex:1;display:flex;flex-direction:column;padding:16px 20px;gap:12px;min-width:0}
+.agents-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.agents-path{display:flex;flex-direction:column}
+.agents-path span{font-weight:600;color:var(--text-primary);font-size:.92rem}
+.agents-path small{color:var(--text-secondary);font-size:.78rem}
+.agents-switch{display:inline-flex;align-items:center;gap:8px;font-size:.84rem;color:var(--text-secondary);cursor:pointer}
+.agents-switch input{display:none}
+.agents-switch span{width:36px;height:20px;border-radius:999px;background:var(--border-strong);position:relative;transition:background .2s}
+.agents-switch span::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.agents-switch input:checked + span{background:var(--accent)}
+.agents-switch input:checked + span::after{transform:translateX(16px)}
+.agents-editor{flex:1;min-height:200px;width:100%;resize:none;border:1px solid var(--border);border-radius:14px;padding:14px 16px;background:var(--bg-primary);color:var(--text-primary);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.86rem;line-height:1.6;outline:none}
+.agents-editor:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.agents-meter{display:flex;align-items:center;gap:12px;font-size:.76rem;color:var(--text-secondary)}
+.agents-meter-bar{flex:0 0 160px;height:6px;border-radius:999px;background:var(--bg-sidebar);overflow:hidden}
+#agents-meter-fill{height:100%;width:0;background:var(--accent);border-radius:999px;transition:width .2s}
+#agents-meter-fill.warn{background:#c77700}
+.agents-foot{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-top:1px solid var(--border);gap:10px;flex-wrap:wrap}
+.agents-foot-left{display:flex;gap:8px;flex-wrap:wrap}
+.agents-btn{padding:8px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-primary);font-size:.84rem;cursor:pointer}
+.agents-btn:hover{border-color:var(--border-strong)}
+.agents-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.agents-btn.primary:hover{background:var(--accent-hover)}
+.agents-btn span{opacity:.75;font-size:.74rem;margin-left:4px}
+@media (max-width:720px){
+  .task-shell{padding:22px 16px 40px;gap:20px}
+  .task-head h2{font-size:1.35rem}
+  .agents-body{flex-direction:column}
+  .agents-side{width:auto;border-right:none;border-bottom:1px solid var(--border);max-height:180px}
+  .agents-modal{height:calc(100vh - 24px)}
+  .agents-overlay{padding:10px}
+  .agents-meter-bar{flex:1}
+}
+</style>
 </head>
 <body>
 <div class="app" id="app">
@@ -1793,6 +1898,7 @@ body.mode-canvas .sidebar-footer.collapsed{
 <button class="icon-btn" id="collapse-sidebar" aria-label="Collapse sidebar" title="Collapse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button></div>
 <div class="mode-tabs" id="mode-tabs">
 <button type="button" class="mode-tab active" data-mode="chat" id="mode-chat">Chat</button>
+<button type="button" class="mode-tab" data-mode="task" id="mode-task">Task</button>
 <button type="button" class="mode-tab" data-mode="code" id="mode-code" style="display:none" hidden aria-hidden="true">Code</button>
 <button type="button" class="mode-tab" data-mode="swarm" id="mode-swarm" style="display:none" hidden aria-hidden="true">Agent</button>
 </div>
@@ -1868,7 +1974,7 @@ body.mode-canvas .sidebar-footer.collapsed{
   </div>
 </div>
 <div id="pin-bar" class="pin-bar" style="display:none"></div>
-<div class="chat-area" id="chat-area"><div class="chat-inner" id="chat-inner">
+<div class="chat-area" id="chat-area"><div class="task-back" id="task-back" style="display:none"><button type="button" id="task-back-btn">← Tasks</button><span>Task run</span></div><div class="chat-inner" id="chat-inner">
 <div class="empty-state" id="empty-state"><h1>Think deeper.</h1><p>An agentic environment that gives ordinary models time, tools, and self-correction so they can solve harder problems reliably.</p>
 <div class="suggestion-grid">
 <button class="suggestion" data-prompt="Explain the difference between correlation and causation with a concrete example.">Correlation vs causation</button>
@@ -1878,6 +1984,36 @@ body.mode-canvas .sidebar-footer.collapsed{
 </div></div>
 <div id="messages"></div>
 </div></div>
+
+<div id="task-view" class="task-view">
+<div class="task-shell">
+  <header class="task-head">
+    <div class="task-head-text">
+      <span class="task-eyebrow">Task mode</span>
+      <h2>Give it a job. Come back to a finished result.</h2>
+      <p>It plans the work, searches several sources, runs code to check itself, and keeps notes as it goes.</p>
+    </div>
+    <button type="button" class="task-instr-btn" id="task-instr-btn"><span class="task-instr-dot"></span><span id="task-instr-label">Add project instructions</span></button>
+  </header>
+  <section class="task-compose">
+    <textarea id="task-input" rows="3" placeholder="e.g. Compare three sources on battery recycling costs, work out the cost per tonne, and write a one-page summary"></textarea>
+    <div class="task-compose-foot">
+      <div class="task-presets">
+        <button type="button" class="task-preset" data-prompt="Research the following using at least five sources. Cross-check key figures and give me a summary with links: ">Research</button>
+        <button type="button" class="task-preset" data-prompt="Solve this exactly with Python, then verify the result a second way: ">Compute</button>
+        <button type="button" class="task-preset" data-prompt="Write a well-structured document on the following and save it as a file: ">Write</button>
+        <button type="button" class="task-preset" data-prompt="Build and test a small Python tool that does the following. Include unit tests and run them: ">Build</button>
+      </div>
+      <button type="button" class="task-start" id="task-start">Start task <span>⌘↵</span></button>
+    </div>
+    <div class="task-limits" id="task-limits"></div>
+  </section>
+  <section class="task-runs-wrap">
+    <div class="task-runs-head"><h3>Recent tasks</h3><span id="task-count"></span></div>
+    <div class="task-runs" id="task-runs"></div>
+  </section>
+</div>
+</div>
 
 <div id="code-view">
   <div class="code-shell">
@@ -2072,6 +2208,7 @@ body.mode-canvas .sidebar-footer.collapsed{
 <button type="button" class="intensity-chip active" data-intensity="medium">Medium</button>
 <button type="button" class="intensity-chip" data-intensity="hard">Hard</button>
 <button type="button" class="intensity-chip" data-intensity="ultra">Ultra</button>
+<button type="button" class="intensity-chip" data-intensity="task">Task</button>
 </div>
 <div class="input-area"><div class="input-inner">
 <div class="pin-dock" id="chat-pins"></div>
@@ -2432,6 +2569,270 @@ body.mode-canvas .sidebar-footer.collapsed{
   </div>
 </div>
 
+<script>
+/* Think Deeper — extra agent tools (dependency-free). Loaded before the main app script.
+   Registers window.ThinkTools = { definitions, handles(name), run(toolManager, name, args) }. */
+(function(){
+const G = (typeof window!=='undefined') ? window : globalThis;
+const clean = p => String(p||'').replace(/^\/+/,'').trim();
+const num = (v, d) => (v===undefined||v===null||v==='') ? d : Number(v);
+
+/* ---------- calc: safe recursive-descent math parser (no eval) ---------- */
+const CALC_FN = {
+  sqrt:Math.sqrt, abs:Math.abs, sin:Math.sin, cos:Math.cos, tan:Math.tan, asin:Math.asin, acos:Math.acos, atan:Math.atan,
+  log:Math.log10, log2:Math.log2, ln:Math.log, exp:Math.exp, floor:Math.floor, ceil:Math.ceil, round:Math.round,
+  min:Math.min, max:Math.max, pow:Math.pow, hypot:Math.hypot, cbrt:Math.cbrt, sign:Math.sign
+};
+const CALC_CONST = { pi:Math.PI, e:Math.E, tau:2*Math.PI };
+function calcEval(src){
+  const s = String(src).replace(/\s+/g,'');
+  if (!s) throw new Error('empty expression');
+  if (s.length > 500) throw new Error('expression too long');
+  let i = 0;
+  const expr = () => { let v = term(); while (s[i]==='+'||s[i]==='-') { const op=s[i++], r=term(); v = op==='+'?v+r:v-r; } return v; };
+  const term = () => { let v = unary(); while (s[i]==='*'||s[i]==='/'||s[i]==='%') { const op=s[i++], r=unary(); v = op==='*'?v*r:op==='/'?v/r:v%r; } return v; };
+  const unary = () => { if (s[i]==='-'){i++; return -unary();} if (s[i]==='+'){i++; return unary();} return pow(); };
+  const pow = () => { const b = atom(); if (s[i]==='^'){ i++; return Math.pow(b, unary()); } return b; };
+  const atom = () => {
+    if (s[i]==='(') { i++; const v = expr(); if (s[i]!==')') throw new Error('missing )'); i++; return v; }
+    const rest = s.slice(i);
+    let m = /^(\d+\.?\d*(?:e[+-]?\d+)?|\.\d+)/i.exec(rest);
+    if (m) { i += m[0].length; return parseFloat(m[0]); }
+    m = /^[a-z_]+/i.exec(rest);
+    if (m) {
+      const name = m[0].toLowerCase(); i += m[0].length;
+      if (s[i]==='(') {
+        const fn = CALC_FN[name]; if (!fn) throw new Error('unknown function: '+name);
+        i++; const args = [];
+        if (s[i]===')') { i++; } else {
+          for (;;) { args.push(expr()); if (s[i]===','){i++; continue;} if (s[i]===')'){i++; break;} throw new Error('bad function call'); }
+        }
+        return fn(...args);
+      }
+      if (name in CALC_CONST) return CALC_CONST[name];
+      throw new Error('unknown name: '+name);
+    }
+    throw new Error('unexpected "'+(s[i]||'end')+'"');
+  };
+  const v = expr();
+  if (i !== s.length) throw new Error('unexpected "'+s[i]+'"');
+  if (!Number.isFinite(v)) throw new Error('result is not a finite number');
+  return v;
+}
+
+/* ---------- units ---------- */
+const UNITS = {
+  length:{m:1,km:1000,cm:0.01,mm:0.001,mi:1609.344,yd:0.9144,ft:0.3048,in:0.0254,nmi:1852},
+  mass:{kg:1,g:0.001,mg:1e-6,lb:0.45359237,oz:0.028349523125,t:1000,st:6.35029318},
+  volume:{l:1,ml:0.001,m3:1000,gal:3.785411784,qt:0.946352946,pt:0.473176473,cup:0.2365882365,floz:0.0295735295625,tbsp:0.01478676478125,tsp:0.00492892159375},
+  area:{m2:1,km2:1e6,ha:1e4,acre:4046.8564224,ft2:0.09290304,cm2:1e-4},
+  data:{b:1,kb:1e3,mb:1e6,gb:1e9,tb:1e12,kib:1024,mib:1048576,gib:1073741824},
+  time:{s:1,ms:0.001,min:60,h:3600,day:86400,week:604800,year:31557600},
+  speed:{mps:1,kmh:1/3.6,mph:0.44704,knot:0.5144444444}
+};
+function convertUnits(value, from, to){
+  from=String(from).toLowerCase(); to=String(to).toLowerCase(); value=Number(value);
+  const temp = ['c','f','k'];
+  if (temp.includes(from) && temp.includes(to)) {
+    const toC = {c:v=>v, f:v=>(v-32)*5/9, k:v=>v-273.15}[from](value);
+    const out = {c:v=>v, f:v=>v*9/5+32, k:v=>v+273.15}[to](toC);
+    return {value:out, from, to};
+  }
+  for (const cat of Object.values(UNITS)) {
+    if (from in cat && to in cat) return {value: value*cat[from]/cat[to], from, to};
+  }
+  throw new Error('cannot convert '+from+' to '+to+' (different categories or unknown unit)');
+}
+
+/* ---------- datetime / timezones ---------- */
+function tzOffsetMin(date, tz){
+  const p = new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(date);
+  const g = t => +p.find(x=>x.type===t).value;
+  const asUTC = Date.UTC(g('year'),g('month')-1,g('day'),g('hour'),g('minute'),g('second'));
+  return (asUTC - (date.getTime() - date.getMilliseconds())) / 60000;
+}
+function wallToInstant(wallMs, tz){
+  const g1 = wallMs - tzOffsetMin(new Date(wallMs), tz)*60000;
+  return wallMs - tzOffsetMin(new Date(g1), tz)*60000;
+}
+function fmtIn(ms, tz){
+  return new Intl.DateTimeFormat('en-GB',{timeZone:tz,dateStyle:'full',timeStyle:'long'}).format(new Date(ms));
+}
+function parseWhen(s){
+  if (!s) return new Date();
+  const t = String(s).trim().replace(' ','T');
+  const d = new Date(/T/.test(t) ? t : t+'T00:00:00');
+  if (isNaN(d)) throw new Error('unparseable date: '+s);
+  return d;
+}
+
+/* ---------- ICS helpers ---------- */
+const icsUTC = d => d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');
+const icsEsc = v => String(v||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\r?\n/g,'\\n');
+
+/* ---------- tool definitions ---------- */
+const obj = (props, req=[]) => ({type:'object', properties:props, required:req});
+const str = d => ({type:'string', description:d});
+const definitions = [
+  {type:'function',function:{name:'calc',description:'Exact arithmetic. Use for any calculation instead of mental math. Supports + - * / % ^, parentheses, and functions sqrt, abs, sin, cos, tan, asin, acos, atan, log (base 10), log2, ln, exp, floor, ceil, round, min, max, pow, hypot, cbrt; constants pi, e, tau. Example: "sqrt(2)*pi^2/3".',parameters:obj({expression:str('Math expression')},['expression'])}},
+  {type:'function',function:{name:'units',description:'Convert a value between units of the same kind: length, mass, volume, area, data (b, kb, mib, gb...), time, speed, temperature (c, f, k).',parameters:obj({value:{type:'number'},from:str('Source unit, e.g. "mi"'),to:str('Target unit, e.g. "km"')},['value','from','to'])}},
+  {type:'function',function:{name:'datetime',description:'Date and time work. op="now": current time, optionally formatted in a timezone (IANA name like Australia/Melbourne). op="add": date plus days and/or hours. op="diff": difference between date and to_date. op="convert": a wall-clock time in from_tz shown in to_tz. Dates are "YYYY-MM-DD" or "YYYY-MM-DD HH:MM".',parameters:obj({op:{type:'string',enum:['now','add','diff','convert']},date:str('Start date/time'),to_date:str('End date/time for diff'),days:{type:'number'},hours:{type:'number'},timezone:str('IANA timezone for now'),from_tz:str('IANA source timezone'),to_tz:str('IANA target timezone')},['op'])}},
+  {type:'function',function:{name:'regex_test',description:'Run a JavaScript regex over text and return matches with their positions and capture groups. Use to check a pattern before using it in code.',parameters:obj({pattern:str('Regex source'),flags:str('Flags, subset of gimsuy'),text:str('Text to search'),max_matches:{type:'number'}},['pattern','text'])}},
+  {type:'function',function:{name:'plan',description:'Keep a visible task plan for multi-step work. op="set": replace the whole plan with tasks [{id,title,status}]. op="update": change one task by id (status and/or title). op="get": read the plan. status is one of pending, in_progress, done, blocked. Update the plan as you finish steps.',parameters:obj({op:{type:'string',enum:['set','update','get']},tasks:{type:'array',items:{type:'object'}},id:str('Task id for update'),status:str('New status'),title:str('New title')},['op'])}},
+  {type:'function',function:{name:'edit_file',description:'Replace one exact snippet inside an existing internal workspace file. old must match exactly once in the file, otherwise the edit is refused. Prefer this over rewriting a whole file with write_file.',parameters:obj({path:str('Workspace path'),old:str('Exact text to replace (include surrounding lines for uniqueness)'),new:str('Replacement text (may be empty)')},['path','old','new'])}},
+  {type:'function',function:{name:'validate_file',description:'Check that a workspace file is well-formed before handing it over. kind: json (parses), csv (consistent column counts), js (compiles without running). Kind is inferred from the extension if omitted.',parameters:obj({path:str('Workspace path'),kind:{type:'string',enum:['json','csv','js']}},['path'])}},
+  {type:'function',function:{name:'calendar_ics',description:'Create an .ics calendar event file the user can import into any calendar app. start and end are "YYYY-MM-DD HH:MM" in the user\'s local timezone, or "YYYY-MM-DD" for an all-day event.',parameters:obj({title:str('Event title'),start:str('Start'),end:str('End (optional, defaults to 1 hour, or next day for all-day)'),location:str('Location'),description:str('Notes'),path:str('Output path, default artifacts/event.ics')},['title','start'])}}
+];
+const NAMES = new Set(definitions.map(d=>d.function.name));
+
+/* ---------- handlers ---------- */
+const PLAN_PATH = 'memory/plan.json';
+const PLAN_STATUS = ['pending','in_progress','done','blocked'];
+
+async function run(tm, name, args){
+  args = args || {};
+  const vfs = tm.vfs;
+  try {
+    switch (name) {
+      case 'calc': {
+        const value = calcEval(args.expression);
+        return {expression: args.expression, result: value};
+      }
+      case 'units': {
+        const r = convertUnits(args.value, args.from, args.to);
+        return {value: Number(args.value), from: r.from, to: r.to, result: Number(r.value.toPrecision(12))};
+      }
+      case 'datetime': {
+        const op = args.op;
+        if (op === 'now') {
+          const d = new Date();
+          const out = {iso: d.toISOString(), unix: Math.floor(d/1000)};
+          if (args.timezone) out.local = fmtIn(d.getTime(), args.timezone);
+          return out;
+        }
+        if (op === 'add') {
+          const d = parseWhen(args.date);
+          d.setTime(d.getTime() + (num(args.days,0)*86400000) + (num(args.hours,0)*3600000));
+          return {iso: d.toISOString()};
+        }
+        if (op === 'diff') {
+          const a = parseWhen(args.date), b = parseWhen(args.to_date);
+          const ms = b - a;
+          return {days: Number((ms/86400000).toFixed(4)), hours: Number((ms/3600000).toFixed(4))};
+        }
+        if (op === 'convert') {
+          const wall = String(args.date||'').trim().replace(' ','T');
+          const naive = Date.parse(/T\d/.test(wall) ? wall+'Z' : wall+'T00:00:00Z');
+          if (isNaN(naive)) throw new Error('unparseable date: '+args.date);
+          const inst = wallToInstant(naive, args.from_tz || 'UTC');
+          return {from: fmtIn(inst, args.from_tz || 'UTC'), to: fmtIn(inst, args.to_tz || 'UTC'), iso: new Date(inst).toISOString()};
+        }
+        throw new Error('unknown op: '+op);
+      }
+      case 'regex_test': {
+        const flags = String(args.flags||'').replace(/[^gimsuy]/g,'');
+        const re = new RegExp(args.pattern, flags.includes('g')?flags:flags+'g');
+        const text = String(args.text||'').slice(0, 200000);
+        const max = Math.min(num(args.max_matches,100), 500);
+        const matches = []; let m;
+        while ((m = re.exec(text)) && matches.length < max) {
+          matches.push({match:m[0], index:m.index, groups:m.slice(1)});
+          if (m[0].length === 0) re.lastIndex++;
+        }
+        return {count: matches.length, truncated: matches.length>=max, matches};
+      }
+      case 'plan': {
+        let plan = {tasks:[]};
+        try { const raw = vfs.read(PLAN_PATH); if (raw) plan = JSON.parse(String(raw)); } catch(e){}
+        const summary = () => ({tasks: plan.tasks, counts: PLAN_STATUS.reduce((o,s)=>(o[s]=plan.tasks.filter(t=>t.status===s).length,o),{})});
+        if (args.op === 'get') return summary();
+        if (args.op === 'set') {
+          const tasks = (Array.isArray(args.tasks)?args.tasks:[]).map((t,k)=>({
+            id: String(t.id ?? k+1), title: String(t.title||'').slice(0,200),
+            status: PLAN_STATUS.includes(t.status) ? t.status : 'pending'}));
+          plan = {tasks};
+        } else if (args.op === 'update') {
+          const t = plan.tasks.find(x=>x.id===String(args.id));
+          if (!t) throw new Error('no task with id '+args.id);
+          if (args.status !== undefined) { if (!PLAN_STATUS.includes(args.status)) throw new Error('bad status'); t.status = args.status; }
+          if (args.title) t.title = String(args.title).slice(0,200);
+        } else throw new Error('op must be set, update or get');
+        vfs.write(PLAN_PATH, JSON.stringify(plan), {archiveOld:false});
+        return summary();
+      }
+      case 'edit_file': {
+        const p = clean(args.path);
+        if (!p || String(args.path).startsWith('external:')) throw new Error('edit_file only works on internal workspace files');
+        const content = vfs.read(p);
+        if (content == null) throw new Error('file not found: '+p);
+        const text = String(content), old = String(args.old||'');
+        if (!old) throw new Error('old must not be empty');
+        const count = text.split(old).length - 1;
+        if (count !== 1) throw new Error('old text found '+count+' times; it must appear exactly once');
+        vfs.write(p, text.replace(old, () => String(args.new ?? '')));
+        return {path:p, ok:true, replaced:1};
+      }
+      case 'validate_file': {
+        const p = clean(args.path);
+        const raw = vfs.read(p);
+        if (raw == null) throw new Error('file not found: '+p);
+        const text = String(raw);
+        const kind = args.kind || (/\.json$/i.test(p)?'json':/\.csv$/i.test(p)?'csv':/\.(m?js)$/i.test(p)?'js':'');
+        if (kind === 'json') { const v = JSON.parse(text); return {path:p, valid:true, kind, type: Array.isArray(v)?'array':typeof v}; }
+        if (kind === 'js') { new Function(text); return {path:p, valid:true, kind, note:'compiles; not executed'}; }
+        if (kind === 'csv') {
+          const rows = []; let row = [], cell = '', q = false;
+          for (let k=0;k<text.length;k++){
+            const c = text[k];
+            if (q) { if (c==='"'){ if (text[k+1]==='"'){cell+='"';k++;} else q=false; } else cell+=c; }
+            else if (c==='"') q = true;
+            else if (c===',') { row.push(cell); cell=''; }
+            else if (c==='\n') { row.push(cell); rows.push(row); row=[]; cell=''; }
+            else if (c!=='\r') cell+=c;
+          }
+          if (cell || row.length) { row.push(cell); rows.push(row); }
+          const widths = rows.map(r=>r.length), expected = widths[0]||0;
+          const bad = widths.map((w,k)=>({line:k+1,cols:w})).filter(x=>x.cols!==expected);
+          return {path:p, valid: bad.length===0, kind, rows: rows.length, columns: expected, mismatched: bad.slice(0,10)};
+        }
+        throw new Error('cannot infer kind; pass kind json, csv or js');
+      }
+      case 'calendar_ics': {
+        const isAllDay = s => !/[T ]\d/.test(String(s));
+        const allDay = isAllDay(args.start);
+        const start = parseWhen(args.start);
+        let end = args.end ? parseWhen(args.end) : new Date(start.getTime() + (allDay?86400000:3600000));
+        if (allDay && !args.end) end = new Date(start.getTime()+86400000);
+        const dayStr = d => d.toISOString().slice(0,10).replace(/-/g,'');
+        const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Think Deeper//EN','BEGIN:VEVENT',
+          'UID:'+Date.now().toString(36)+Math.random().toString(36).slice(2)+'@think-deeper',
+          'DTSTAMP:'+icsUTC(new Date()),
+          allDay ? 'DTSTART;VALUE=DATE:'+dayStr(start) : 'DTSTART:'+icsUTC(start),
+          allDay ? 'DTEND;VALUE=DATE:'+dayStr(end) : 'DTEND:'+icsUTC(end),
+          'SUMMARY:'+icsEsc(args.title)];
+        if (args.location) lines.push('LOCATION:'+icsEsc(args.location));
+        if (args.description) lines.push('DESCRIPTION:'+icsEsc(args.description));
+        lines.push('END:VEVENT','END:VCALENDAR');
+        const path = clean(args.path) || 'artifacts/event.ics';
+        vfs.write(path, lines.join('\r\n'), {archiveOld:true});
+        return {path, ok:true, all_day: allDay, note:'ICS written — download from Files'};
+      }
+      default: return {error:'Unknown tool: '+name};
+    }
+  } catch (e) {
+    return {error: String((e && e.message) || e)};
+  }
+}
+
+G.ThinkTools = {
+  definitions,
+  handles: name => NAMES.has(name),
+  run,
+  _internal: {calcEval, convertUnits, wallToInstant, tzOffsetMin}   // exposed for testing
+};
+})();
+
+</script>
 <script src="./config.local.js" onerror="console.info('[Think Deeper] config.local.js not found — Google login needs Client ID in that file or Settings')"></script>
 <script>
 const INTENSITY={
@@ -2439,6 +2840,7 @@ const INTENSITY={
   medium:{label:'Medium',maxTokens:6000,maxIterations:16,maxTools:24,temperature:0.4,extra:'Balanced replies. write_file and all tools are available at this intensity — call write_file whenever the user wants a file created or updated.',ultraSkills:false,team:false},
   hard:{label:'Hard',maxTokens:10000,maxIterations:24,maxTools:32,temperature:0.4,extra:'Thorough work. write_file and all tools are available — plan, write files with write_file, and verify.',ultraSkills:false,team:false},
   ultra:{label:'Ultra',maxTokens:16000,maxIterations:40,maxTools:48,temperature:0.4,extra:'Long-horizon work near a 16k-token budget. Agent 1 builds, Agent 2 checks, Agent 3 files.',ultraSkills:true,team:true,blurb:'Long jobs, team of 3 agents'},
+  task:{label:'Task',maxTokens:16000,maxIterations:80,maxTools:160,maxTime:1800,temperature:0.3,deep:true,task:true,extra:'TASK MODE — deep, long-horizon work. Act like a careful research analyst and engineer, not a quick chatbot. Optimize for correctness and completeness during the work; brevity only matters in the final answer. (1) PLAN FIRST: call plan with op set listing concrete steps, and plan with op update as each finishes. (2) RESEARCH WIDELY: run at least 5 web_search queries from different angles (official sources, primary data, recent news, critics, technical detail), then fetch_url the 3 to 6 most authoritative pages and read them. Cross-check every important number or claim against a second independent source and say when sources disagree. (3) COMPUTE: use run_python for calculations, data processing, simulations and tables instead of estimating; verify key results a second way. Use calc and units for quick exact arithmetic. (4) KEEP NOTES: keep research/notes.md current with write_file (findings plus source links) so nothing is lost if older tool output is trimmed; re-read it before the final answer. (5) VERIFY: before finishing, call self_check once on the main conclusions and validate_file on any file you produced. (6) DO NOT STOP EARLY: keep working until every plan item is done or explicitly blocked. (7) FINAL ANSWER: lead with the direct answer, then key evidence with source links, what you verified and how, remaining uncertainty, and what you could not confirm. If the user asked for a document or file, write it with write_file and give the path.',ultraSkills:false,team:false,blurb:'Deep research and compute · up to 30 min'},
   xultra:{label:'Extreme Ultra',maxTokens:32000,maxIterations:60,maxTools:64,temperature:0.2,extra:'Authenticated Extreme Ultra. Maximum reasoning tokens. Cross-check every claim. Prefer tools over guesses. Aim for zero hallucinations.',ultraSkills:true,team:true,authOnly:true,blurb:'Signed-in only · max precision'}
 };
 const CODE_SKILLS=[{"id": "tdd", "name": "TDD", "description": "Tests first, then implement.", "body": "Red-green-refactor. Small tests. Keep green."}, {"id": "code-review", "name": "Code review", "description": "Correctness, security, clarity.", "body": "Edge cases, errors, secrets, tests."}, {"id": "refactor", "name": "Refactor", "description": "Structure without behavior change.", "body": "Small steps; keep tests green."}, {"id": "debug", "name": "Debug", "description": "Systematic diagnosis.", "body": "Reproduce, isolate, fix, verify."}, {"id": "architecture", "name": "Architecture", "description": "Module boundaries.", "body": "Clear interfaces; avoid cycles."}, {"id": "github-ship", "name": "GitHub ship", "description": "Repo, commit, Pages.", "body": "Use github_* tools; coherent commits."}, {"id": "web-research", "name": "Web research", "description": "web_search + image_search.", "body": "Verify APIs with search; note URLs."}, {"id": "frontend", "name": "Frontend", "description": "Clean UI implementation.", "body": "Semantic HTML, responsive, accessible."}, {"id": "migrate", "name": "Migration", "description": "Upgrades and ports.", "body": "Inventory APIs; incremental migration."}, {"id": "docs", "name": "Docs", "description": "README and guides.", "body": "Setup, run, architecture; concise."}];
@@ -4171,6 +4573,7 @@ create(t='New conversation',opts){
   opts=opts||{};
   const c={id:uid(),title:t,messages:[],created:now(),updated:now()};
   if(opts.projectId)c.projectId=opts.projectId;
+  if(opts.taskRun)c.taskRun=true;
   this.conversations.unshift(c);this.currentId=c.id;this.persist();return c
 }
 update(id,patch){const c=this.get(id);if(!c)return;Object.assign(c,patch,{updated:now()});this.persist()}
@@ -5399,7 +5802,7 @@ except Exception:
 
 }
 }
-class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.python=py;this.definitions=[
+class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.python=py;this.definitions=[...((window.ThinkTools&&window.ThinkTools.definitions)||[]),
 {type:'function',function:{name:'list_files',description:'List files and folders in the AI internal filesystem. Use when you need to see what exists before reading or writing. Paths include artifacts/, archive/, uploads/, memory/, plugins/. For an external workspace use path prefix \"external:\".',parameters:{type:'object',properties:{path:{type:'string',description:'Directory path to list. Use \"\" or \"/\" or \"artifacts\" for roots.'}},required:[]}}},
 {type:'function',function:{name:'read_file',description:'Read a file from the workspace (including files YOU wrote earlier). Always call this before editing an existing file so you update it instead of recreating it from scratch. For large files, pass start and length to page through it.',parameters:{type:'object',properties:{path:{type:'string'},start:{type:'number',description:'Character offset'},length:{type:'number',description:'Max characters to return'}},required:['path']}}},
 {type:'function',function:{name:'search_file',description:'Search a workspace file (or all uploads/) for a keyword or regex. Returns matching snippets with character offsets so you can read_file that section. Use this on large HTML/text instead of loading the whole file.',parameters:{type:'object',properties:{path:{type:'string',description:'File path or folder. Empty = search uploads/ and artifacts/'},query:{type:'string'},regex:{type:'boolean'},context:{type:'number',description:'Chars of context around each hit'},limit:{type:'number'}},required:['query']}}},
@@ -5555,7 +5958,7 @@ case'show_site_options':return await this.showSiteOptions(args);
 case'generate_image':return await this.generateImage(args);
 case'search_file':return this.searchFile(args);
 case'run_onnx':return await this.runOnnx(args);
-default:throw new Error('Unknown tool: '+name)}}
+default:if(window.ThinkTools&&window.ThinkTools.handles(name))return await window.ThinkTools.run(this,name,args);throw new Error('Unknown tool: '+name)}}
 async askUser(args){
   const ui=window.__app&&window.__app.ui;
   if(!ui||!ui.promptAskUser)return{ok:false,error:'No UI'};
@@ -8196,6 +8599,22 @@ ${deep}
 ${personality?'Personality:\n'+personality+'\n':''}${pluginInj?'Plugins:\n'+pluginInj+'\n':''}
 User can expand tool cards to see full code and outputs. Finish when the answer is solid unless Deep Think is on.`
 }
+_compactHistory(msgs){
+  const CHARS=260000, KEEP_TOOL=8, OLD_TOOL=700, OLD_TEXT=2500;
+  const size=m=>String(m.content||'').length+(m.tool_calls?JSON.stringify(m.tool_calls).length:0);
+  if(msgs.reduce((a,m)=>a+size(m),0)<CHARS) return msgs;
+  const toolIdx=[]; msgs.forEach((m,i)=>{if(m.role==='tool')toolIdx.push(i)});
+  const keep=new Set(toolIdx.slice(-KEEP_TOOL));
+  const cut=msgs.length-12;
+  return msgs.map((m,i)=>{
+    const c=String(m.content||'');
+    if(m.role==='tool'&&!keep.has(i)&&c.length>OLD_TOOL)
+      return Object.assign({},m,{content:c.slice(0,OLD_TOOL)+' …[trimmed to fit context; read research/notes.md or re-run the tool if needed]'});
+    if(m.role==='assistant'&&i>0&&i<cut&&c.length>OLD_TEXT)
+      return Object.assign({},m,{content:c.slice(0,OLD_TEXT)+' …[trimmed]'});
+    return m;
+  });
+}
 async run(userMessage,history,attachments,onEvent,{deepThink=false}={}){this.running=true;this._toolCallsThisRun=0;this._emittedThink=false;this.abortController=new AbortController();const signal=this.abortController.signal;const maxIter=Math.max(8,Number(this.settings&&this.settings.maxIterations)||24);const maxTools=Math.max(20,Number(this.settings&&this.settings.maxTools)||48);const start=Date.now();const maxMs=Math.max(60000,Number(this.settings&&this.settings.maxTime)||300)*1000;
 if(attachments?.length){for(const a of attachments){
   try{
@@ -8219,7 +8638,7 @@ try{
     }
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- show_plot for rows/columns (lists of N items, tables, sequences). Call show_plot with columns + rows, paste [[plot:...]] in the final answer, then write a short follow-up after the plot. When asked for the first N of a sequence, include all N rows.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- For interactive demos write HTML via write_file and end with [[preview:path]] or [[visual:path]].\n\n\nMATH RENDERING: Write LaTeX as $\\pi$ or $$...$$ (single backslash before pi). Unicode π is also fine.\nPYTHON PI DIGITS: Prefer one clean script: import mpmath; mpmath.mp.dps=1100; s=str(mpmath.pi); decimals=s.split(\'.\')[1]; print(decimals[1047])  # 1048th digit.\nDo not leave unfinished def compute_pi with pass.\n\nRESEARCH WORKFLOW: For questions needing the live web: (1) call web_search with a clear goal/query, (2) read research_summary, (3) if a specific result URL matters or the summary is thin, call fetch_url on that URL for the full document, (4) answer the user with citations. Prefer fetch_url over guessing from titles alone.\n\nLOGICAL COMPLETENESS: When the user asks for a list, table, or the first/last N items (e.g. first 100 triangular numbers), actually deliver ALL of them — do not summarize, abbreviate with ellipses, or stop early. Prefer show_plot for large row/column data so it stays readable.\n\nHARD / IMPOSSIBLE QUESTIONS:HARD / IMPOSSIBLE QUESTIONS: If a request seems impossible or blocked, do NOT quit. Take an extra thinking step on how to make it possible (reframe, approximate, split steps, use tools, smaller inputs). Then try the best approach and report what worked.\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this._agentsRootBlock?this._agentsRootBlock():'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- show_plot for rows/columns (lists of N items, tables, sequences). Call show_plot with columns + rows, paste [[plot:...]] in the final answer, then write a short follow-up after the plot. When asked for the first N of a sequence, include all N rows.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- For interactive demos write HTML via write_file and end with [[preview:path]] or [[visual:path]].\n\n\nMATH RENDERING: Write LaTeX as $\\pi$ or $$...$$ (single backslash before pi). Unicode π is also fine.\nPYTHON PI DIGITS: Prefer one clean script: import mpmath; mpmath.mp.dps=1100; s=str(mpmath.pi); decimals=s.split(\'.\')[1]; print(decimals[1047])  # 1048th digit.\nDo not leave unfinished def compute_pi with pass.\n\nRESEARCH WORKFLOW: For questions needing the live web: (1) call web_search with a clear goal/query, (2) read research_summary, (3) if a specific result URL matters or the summary is thin, call fetch_url on that URL for the full document, (4) answer the user with citations. Prefer fetch_url over guessing from titles alone.\n\nLOGICAL COMPLETENESS: When the user asks for a list, table, or the first/last N items (e.g. first 100 triangular numbers), actually deliver ALL of them — do not summarize, abbreviate with ellipses, or stop early. Prefer show_plot for large row/column data so it stays readable.\n\nHARD / IMPOSSIBLE QUESTIONS:HARD / IMPOSSIBLE QUESTIONS: If a request seems impossible or blocked, do NOT quit. Take an extra thinking step on how to make it possible (reframe, approximate, split steps, use tools, smaller inputs). Then try the best approach and report what worked.\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
 let toolCalls=0,finalContent='',iteration=0;
 try{while(iteration<maxIter&&this.running){if(!this.running)break;if(Date.now()-start>maxMs){console.warn("[Agent] time budget");break;}if(toolCalls>=maxTools){console.warn("[Agent] tool budget");break;}
 iteration++;
@@ -8270,6 +8689,8 @@ const doChat=async(withTools)=>{
       const intenKey=this.storage.get('intensity','medium')||'medium';
       let tok=this.maxTokens||INTENSITY[intenKey]?.maxTokens||4000;
       if(wantsFile&&tok<4000)tok=4000;
+      if(this._agentsFlush)this._agentsFlush(messages);
+      if(this._taskMode)messages=this._compactHistory(messages);
       return await this.provider.chat(messages,{
         tools:useTools?this.tools.definitions:undefined,
         signal,
@@ -9314,8 +9735,9 @@ async regenerateLast(){
   this.app.agent.temperature=inten.temperature;
   this.app.agent.maxTokens=inten.maxTokens||4000;
   this.app.agent.intensityExtra=inten.extra;
+  this.app.agent._taskMode=!!inten.task;
   try{
-    await this.app.agent.run(userMsg.content,conv.messages.filter(m=>m.id!==aiMsg.id),userMsg.attachments||[],ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!(this.isDeepThink&&this.isDeepThink())||!!inten.team});
+    await this.app.agent.run(userMsg.content,conv.messages.filter(m=>m.id!==aiMsg.id),userMsg.attachments||[],ev=>this.handleAgentEvent(ev,aiEl,aiMsg),{deepThink:!!(this.isDeepThink&&this.isDeepThink())||!!inten.team||!!inten.deep});
   }catch(e){this.explainApiError(e)}
   finally{
     this.app.agent.settings=prevSettings;this.app.agent.intensityExtra='';
@@ -11290,6 +11712,7 @@ bindIntensityBars(){
   syncAgentN();
 }
 getIntensity(){
+  if(this.mode==='task')return INTENSITY.task;
   const k=this.app.storage.get('intensity','medium')||'medium';
   return INTENSITY[k]||INTENSITY.medium;
 }
@@ -11357,7 +11780,8 @@ setMode(mode){
     try{document.body.classList.remove('mode-canvas')}catch(e){}
     if(this.isPhone&&this.isPhone())this.toggleSidebar(true);
   }
-  this.mode=mode;this.app.mode=mode;
+  const _wasMode=this.mode;this.mode=mode;this.app.mode=mode;
+  if(_wasMode!==mode&&(mode==='task'||_wasMode==='task')){try{this.newChat()}catch(e){}}
   try{this.app.storage.set('appMode',mode)}catch(e){}
   document.querySelectorAll('.mode-tab').forEach(t=>t.classList.toggle('active',t.dataset.mode===mode));
   const code=$('#code-view'),chat=$('#chat-area'),auto=$('#auto-view'),hub=$('#auto-hub');
@@ -11368,11 +11792,11 @@ setMode(mode){
   if(hub)hub.classList.toggle('active',mode==='auto');
   // Explicit display values — Firefox ignores empty-string display restores in some flex layouts
   if(chat){
-    if(mode==='chat'){chat.style.display='flex';chat.style.flex='1';chat.style.minHeight='0';chat.style.flexDirection='column'}
+    if(mode==='chat'||mode==='task'){chat.style.display='flex';chat.style.flex='1';chat.style.minHeight='0';chat.style.flexDirection='column'}
     else chat.style.display='none';
   }
   if(inputArea){
-    if(mode==='chat'){inputArea.style.display='block';inputArea.style.flexShrink='0';inputArea.style.visibility='visible';inputArea.style.opacity='1'}
+    if(mode==='chat'||mode==='task'){inputArea.style.display='block';inputArea.style.flexShrink='0';inputArea.style.visibility='visible';inputArea.style.opacity='1'}
     else inputArea.style.display='none';
   }
   if(intensityChat)intensityChat.style.display='none';
@@ -11428,7 +11852,7 @@ setMode(mode){
   const swarm=$('#swarm-view');
   if(swarm)swarm.classList.toggle('active',mode==='swarm');
   // Lists never overlap: chat / agent / code each own the sidebar list area
-  const showChat=mode==='chat';
+  const showChat=mode==='chat'||mode==='task';
   const showAgent=mode==='swarm';
   const showCode=mode==='code';
   const setDisp=(sel,on)=>{
@@ -12548,7 +12972,7 @@ newChat(){
 loadConversation(id){this.hideSelToolbar();if(this._loadingConv===id)return;this._loadingConv=id;this.app.conversations.setCurrent(id);this.renderConversations();const c=this.app.conversations.get(id);$('#messages').innerHTML='';if(!c||!c.messages.length){this.showEmpty();this._loadingConv=null;return}this.hideEmpty();c.messages.forEach(m=>{if(m&&m.content){try{const ex=extractTextToolCalls(m.content);if(ex&&ex.text&&ex.text!==m.content)m.content=ex.text}catch(e){}}if(m&&m.content&&this.app.vfs&&this.app.vfs.rewriteLinks)m.content=this.app.vfs.rewriteLinks(m.content);if(m&&Array.isArray(m.activities)&&m.activities.length){const seen=new Set();m.activities=m.activities.filter(a=>{if(!a)return false;const name=String(a.name||'').trim();const detail=String(a.detail||a.text||'').trim();if(!detail&&/^(Thought|Thought through|Thinking|Planning|Planned)$/i.test(name))return false;const k=String(a.agent||'')+'|'+name+'|'+detail.slice(0,100);if(seen.has(k))return false;seen.add(k);return true});if(!m.activities.length)delete m.activities}this.renderMessage(m,false)});this.scrollToBottom();this._loadingConv=null}
 renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML='';const pid=this.app.storage.get('currentProjectId',null);const projects=this.app.storage.get('projects',[])||[];const proj=pid?projects.find(p=>String(p.id)===String(pid)):null;
   const gone=new Set((this.app.storage.get('deletedConversations',[])||[]).map(String));
-  let chats=this.app.conversations.list()||[];
+  let chats=(this.app.conversations.list()||[]).filter(c=>!!c&&!!c.taskRun===(this.mode==='task'));
   // Never show code-mode sessions in the normal chat list
   const codeIds=new Set();
   try{(this.codeSessions?this.codeSessions():(this.app.storage.get('codeSessions',[])||[])).forEach(s=>{if(s&&s.id)codeIds.add(String(s.id))})}catch(e){}
@@ -12746,7 +13170,7 @@ this.hideEmpty();let conv=this.app.conversations.get(this.app.conversations.curr
 if(!conv){
   // Conversation is created only when the user sends a message — bind to active project immediately
   const pid=this._pendingProjectId||this.app.storage.get('currentProjectId',null)||null;
-  conv=this.app.conversations.create('New conversation', pid?{projectId:pid}:{});
+  conv=this.app.conversations.create('New conversation', Object.assign(pid?{projectId:pid}:{},this.mode==='task'?{taskRun:true}:{}));
   if(pid){
     conv.projectId=pid;
     this.app.conversations.update(conv.id,{projectId:pid});
@@ -15125,7 +15549,7 @@ bindModeMini(){
     if(!pop)return;
     const cur=this.app.storage.get('intensity','medium')||'medium';
     const signed=!!(this.app.storage.getActiveUser&&this.app.storage.getActiveUser());
-    const keys=['fast','medium','hard','ultra'].concat(signed?['xultra']:[]);
+    const keys=['fast','medium','hard','ultra','task'].concat(signed?['xultra']:[]);
     const blurb={fast:'Quick replies · ~1.5k tokens',medium:'Balanced · ~4k tokens',hard:'Thorough · ~8k tokens',ultra:'Team of 3 agents · ~16k',xultra:'Signed-in max precision · ~32k'};
     pop.innerHTML=keys.map(k=>`<button type="button" data-intensity="${k}" class="${k===cur?'active':''}">${INTENSITY[k].label}<small>${INTENSITY[k].blurb||blurb[k]||''}</small></button>`).join('')
       +'<button type="button" data-mode="swarm">Agent<small>Multi-agent team with Supervisor</small></button>';
@@ -17069,6 +17493,302 @@ async _restoreCloudSession(){
   }catch(e){console.warn('[CloudSync] restore',e)}
 }
 }
+/* AGENTS.md support for Think Deeper.
+   - Discovers AGENTS.md (and AGENTS.override.md, which wins in its folder) anywhere in the workspace.
+   - Root-level files go into the system prompt at the start of each run.
+   - Nested files are injected once, the first time the agent reads or writes a path under their folder.
+   - Capped at 32 KB per injection, like the common AGENTS.md convention. */
+(function(){
+const CAP = 32000;
+const NAME = /(^|\/)AGENTS(\.override)?\.md$/i;
+
+Agent.prototype._agentsEntries = function(){
+  if (window.__app && window.__app.storage && window.__app.storage.get('agentsMdEnabled', true) === false) return [];
+  const vfs = this.tools && this.tools.vfs;
+  if (!vfs || typeof vfs.list !== 'function') return [];
+  const byDir = new Map();
+  for (const k of vfs.list('')) {
+    if (k.startsWith('archive/') || !NAME.test(k)) continue;
+    const dir = k.includes('/') ? k.slice(0, k.lastIndexOf('/')) : '';
+    const override = /AGENTS\.override\.md$/i.test(k);
+    const cur = byDir.get(dir);
+    if (!cur || (override && !cur.override)) byDir.set(dir, {dir, path: k, override});
+  }
+  const out = [];
+  for (const e of byDir.values()) {
+    let text = '';
+    try { text = String(vfs.read(e.path) || ''); } catch (err) {}
+    if (text.trim()) out.push(Object.assign(e, {text}));
+  }
+  return out;
+};
+
+Agent.prototype._agentsRootBlock = function(){
+  const roots = this._agentsEntries().filter(e => e.dir === '');
+  if (!roots.length) return '';
+  const body = roots.map(e => 'PROJECT INSTRUCTIONS (' + e.path + '):\n' + e.text).join('\n\n');
+  return ('\n\nAGENTS.md: project instructions written by the user. Follow them for all work in this workspace unless the current user message says otherwise. They set conventions; they do not override safety rules.\n\n' + body).slice(0, CAP);
+};
+
+Agent.prototype._agentsFlush = function(messages){
+  if (!messages || !messages.length) return;
+  if (this._agentsRun !== messages[0]) { this._agentsRun = messages[0]; this._agentsSeen = new Set(); }
+  const nested = this._agentsEntries().filter(e => e.dir !== '');
+  if (!nested.length) return;
+  const paths = [];
+  for (const m of messages) {
+    if (m.role !== 'assistant' || !Array.isArray(m.tool_calls)) continue;
+    for (const tc of m.tool_calls) {
+      try {
+        const a = JSON.parse((tc.function && tc.function.arguments) || '{}');
+        if (a && typeof a.path === 'string') paths.push(a.path.replace(/^\/+/, ''));
+      } catch (err) {}
+    }
+  }
+  const add = [];
+  for (const e of nested) {
+    if (this._agentsSeen.has(e.path)) continue;
+    if (paths.some(p => p === e.dir || p.startsWith(e.dir + '/'))) { this._agentsSeen.add(e.path); add.push(e); }
+  }
+  if (!add.length) return;
+  const body = add.map(e => 'PROJECT INSTRUCTIONS (' + e.path + ', applies under ' + e.dir + '/):\n' + e.text).join('\n\n');
+  messages.push({role: 'user', content: ('[Nested AGENTS.md applies to the files you are now working on. Follow it for paths under its folder.]\n' + body).slice(0, CAP)});
+};
+})();
+
+/* Task tab + Project instructions (AGENTS.md) editor.
+   Extends UIManager without rewriting it. Task runs reuse the normal send pipeline,
+   so streaming, tools and saving behave exactly like Chat. */
+(function(){
+const AGENTS_CAP = 32768;
+const AGENTS_RE = /(^|\/)AGENTS(\.override)?\.md$/i;
+const TEMPLATES = {
+  blank: '# Project instructions\n\n## Goals\n\n## Conventions\n\n## Do not\n',
+  research: '# Research instructions\n\n- Use at least five independent sources and prefer primary or official ones.\n- Cross-check every key number and say when sources disagree.\n- End with the sources used and anything that could not be confirmed.\n',
+  code: '# Code instructions\n\n- Write tests for every function and run them before reporting success.\n- Keep changes small and list each file you touched.\n- Explain any dependency you add.\n',
+  writing: '# Writing instructions\n\n- Plain language, short sentences, active voice.\n- Use headings for anything over 300 words.\n- Match the language and spelling the user writes in.\n'
+};
+const ts = x => typeof x === 'number' ? x : (Date.parse(x) || 0);
+const fmtWhen = x => { const d = new Date(ts(x)); return d.getTime() ? d.toLocaleString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : ''; };
+const bytes = s => new Blob([String(s || '')]).size;
+
+const P = UIManager.prototype;
+
+/* ---------- Task view ---------- */
+P.isTaskEnabledMode = function(){ return this.mode === 'task'; };
+
+P.syncTaskView = function(){
+  const onTask = this.mode === 'task';
+  const open = onTask && !!this._taskOpen;
+  const tv = $('#task-view'); if (tv) tv.classList.toggle('active', onTask && !open);
+  const chat = $('#chat-area'); if (chat && onTask) chat.style.display = open ? 'flex' : 'none';
+  const inp = document.querySelector('.input-area'); if (inp && onTask) inp.style.display = open ? 'block' : 'none';
+  const back = $('#task-back'); if (back) back.style.display = open ? 'flex' : 'none';
+  if (onTask && !open) this.renderTaskRuns();
+};
+
+P.taskTitle = function(c){
+  if (c.title && c.title !== 'New conversation') return c.title;
+  const first = (c.messages || []).find(m => m && m.role === 'user');
+  return first ? String(first.content || '').replace(/\s+/g, ' ').slice(0, 90) : 'Untitled task';
+};
+
+P.renderTaskLimits = function(){
+  const el = $('#task-limits'); if (!el || !INTENSITY.task) return;
+  el.innerHTML = '<span>Up to <b>80</b> steps</span><span><b>160</b> tool calls</span><span><b>30</b> min</span><span>Deep thinking on</span>';
+};
+
+P.renderTaskRuns = function(){
+  const box = $('#task-runs'); if (!box) return;
+  this.renderTaskLimits();
+  const runs = (this.app.conversations.list() || []).filter(c => c && c.taskRun)
+    .sort((a, b) => ts(b.updated) - ts(a.updated));
+  const count = $('#task-count'); if (count) count.textContent = runs.length ? runs.length + (runs.length === 1 ? ' task' : ' tasks') : '';
+  if (!runs.length) {
+    box.innerHTML = '<div class="task-empty"><div class="task-empty-mark"></div><h4>No tasks yet</h4><p>Describe a job above. Think Deeper will plan it, search several sources, run code to check its work, and keep notes as it goes.</p></div>';
+  } else {
+    box.innerHTML = runs.map(c => {
+      const running = this.app.agent && this.app.agent.running && this._runningTaskId === c.id;
+      const msgs = (c.messages || []).length;
+      const status = running ? '<span class="task-status run">Running</span>' : '<span class="task-status done">Done</span>';
+      return '<button type="button" class="task-card" data-id="' + escapeHtml(c.id) + '">'
+        + '<div class="task-card-top">' + status + '<span class="task-card-when">' + escapeHtml(fmtWhen(c.updated || c.created)) + '</span></div>'
+        + '<div class="task-card-title">' + escapeHtml(this.taskTitle(c)) + '</div>'
+        + '<div class="task-card-foot"><span>' + msgs + ' message' + (msgs === 1 ? '' : 's') + '</span><span class="task-card-open">Open →</span></div>'
+        + '</button>';
+    }).join('');
+    box.querySelectorAll('.task-card').forEach(b => b.onclick = () => this.openTaskRun(b.dataset.id));
+  }
+  const pill = $('#task-instr-label');
+  if (pill) pill.textContent = this.agentsStatusText();
+};
+
+P.startTask = function(){
+  const ta = $('#task-input');
+  const text = ((ta && ta.value) || '').trim();
+  if (!text) { if (ta) { ta.focus(); ta.classList.add('task-nudge'); setTimeout(() => ta.classList.remove('task-nudge'), 500); } return; }
+  this.newChat();
+  this._taskOpen = true;
+  const ui = $('#user-input');
+  if (ui) { ui.value = text; ui.dispatchEvent(new Event('input', {bubbles: true})); }
+  if (ta) ta.value = '';
+  this.syncTaskView();
+  setTimeout(() => {
+    const btn = $('#send-btn'); if (btn) { btn.disabled = false; btn.click(); }
+    setTimeout(() => { this._runningTaskId = this.app.conversations.currentId; }, 80);
+  }, 30);
+};
+
+P.openTaskRun = function(id){
+  this._taskOpen = true;
+  this.loadConversation(id);
+  this.syncTaskView();
+};
+
+P.backToTasks = function(){
+  this._taskOpen = false;
+  this.newChat();
+  this.syncTaskView();
+};
+
+P.bindTaskUI = function(){
+  if (this._taskUIBound) return; this._taskUIBound = true;
+  const tab = $('#mode-task'); if (tab) tab.onclick = () => this.setMode('task');
+  const start = $('#task-start'); if (start) start.onclick = () => this.startTask();
+  const ta = $('#task-input');
+  if (ta) ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); this.startTask(); } });
+  document.querySelectorAll('.task-preset').forEach(b => b.onclick = () => {
+    const t = ta; if (!t) return;
+    t.value = b.dataset.prompt || ''; t.focus(); t.setSelectionRange(t.value.length, t.value.length);
+  });
+  const instr = $('#task-instr-btn'); if (instr) instr.onclick = () => this.openAgentsEditor();
+  const back = $('#task-back-btn'); if (back) back.onclick = () => this.backToTasks();
+};
+
+/* ---------- Project instructions (AGENTS.md) ---------- */
+P.agentsEnabled = function(){ return this.app.storage.get('agentsMdEnabled', true) !== false; };
+
+P.agentsFiles = function(){
+  const vfs = this.app.vfs;
+  return vfs.list('').filter(k => !k.startsWith('archive/') && AGENTS_RE.test(k)).sort((a, b) => a.length - b.length);
+};
+
+P.agentsStatusText = function(){
+  const root = this.app.vfs.read('AGENTS.md');
+  if (!root || !String(root).trim()) return 'Add project instructions';
+  return this.agentsEnabled() ? 'AGENTS.md active' : 'AGENTS.md off';
+};
+
+P.openAgentsEditor = function(){
+  this._agentsPath = 'AGENTS.md';
+  this.loadAgentsFile('AGENTS.md');
+  const o = $('#agents-overlay'); if (o) o.classList.add('open');
+  const t = $('#agents-editor'); if (t) setTimeout(() => t.focus(), 40);
+};
+
+P.closeAgentsEditor = function(){ const o = $('#agents-overlay'); if (o) o.classList.remove('open'); };
+
+P.loadAgentsFile = function(path){
+  this._agentsPath = path;
+  const ed = $('#agents-editor');
+  const text = this.app.vfs.read(path);
+  if (ed) ed.value = text ? String(text) : (path === 'AGENTS.md' ? '' : '');
+  $('#agents-toggle') && ($('#agents-toggle').checked = this.agentsEnabled());
+  $('#agents-path') && ($('#agents-path').textContent = path);
+  $('#agents-scope') && ($('#agents-scope').textContent = path === 'AGENTS.md' ? 'Applies to the whole workspace' : 'Applies under ' + path.replace(/\/AGENTS(\.override)?\.md$/i, '') + '/');
+  this.renderAgentsMeta();
+};
+
+P.renderAgentsMeta = function(){
+  const ed = $('#agents-editor'); if (!ed) return;
+  const size = bytes(ed.value);
+  const pct = Math.min(100, Math.round(size / AGENTS_CAP * 100));
+  const bar = $('#agents-meter-fill'); if (bar) { bar.style.width = pct + '%'; bar.classList.toggle('warn', pct > 85); }
+  const label = $('#agents-meter-label'); if (label) label.textContent = (size / 1024).toFixed(1) + ' KB of 32 KB' + (size > AGENTS_CAP ? ' · will be cut off' : '');
+  const nested = this.agentsFiles().filter(p => p !== 'AGENTS.md');
+  const list = $('#agents-files');
+  if (list) {
+    list.innerHTML = '<button type="button" class="agents-file' + (this._agentsPath === 'AGENTS.md' ? ' on' : '') + '" data-path="AGENTS.md"><span class="agents-file-name">AGENTS.md</span><span class="agents-file-scope">whole workspace</span></button>'
+      + nested.map(p => '<button type="button" class="agents-file' + (this._agentsPath === p ? ' on' : '') + '" data-path="' + escapeHtml(p) + '"><span class="agents-file-name">' + escapeHtml(p) + '</span><span class="agents-file-scope">' + escapeHtml(p.replace(/\/AGENTS(\.override)?\.md$/i, '')) + '/</span></button>').join('')
+      + '<div class="agents-add"><input id="agents-folder" placeholder="folder, e.g. code/app" autocomplete="off"><button type="button" id="agents-add-btn">Add nested file</button></div>';
+    list.querySelectorAll('.agents-file').forEach(b => b.onclick = () => { if (this._agentsDirty && !confirm('Discard unsaved changes?')) return; this._agentsDirty = false; this.loadAgentsFile(b.dataset.path); });
+    const add = $('#agents-add-btn'); if (add) add.onclick = () => this.addNestedAgents();
+  }
+  const pill = $('#task-instr-label'); if (pill) pill.textContent = this.agentsStatusText();
+};
+
+P.addNestedAgents = function(){
+  const input = $('#agents-folder');
+  const folder = ((input && input.value) || '').trim().replace(/^\/+|\/+$/g, '');
+  if (!folder || /\.\.|^archive/.test(folder)) { toast('Enter a folder such as code/app', 'error'); return; }
+  const path = folder + '/AGENTS.md';
+  if (!this.app.vfs.read(path)) this.app.vfs.write(path, '# Instructions for ' + folder + '/\n\n- \n', {archiveOld: true});
+  this._agentsDirty = false;
+  this.loadAgentsFile(path);
+  toast('Nested file ready. It applies to files under ' + folder + '/', 'success');
+};
+
+P.saveAgents = function(){
+  const ed = $('#agents-editor'); if (!ed) return;
+  const path = this._agentsPath || 'AGENTS.md';
+  if (bytes(ed.value) > AGENTS_CAP) { toast('Instructions are over 32 KB. Shorten them.', 'error'); return; }
+  this.app.vfs.write(path, ed.value, {archiveOld: true});
+  this._agentsDirty = false;
+  this.renderAgentsMeta();
+  toast('Saved ' + path, 'success');
+};
+
+P.bindAgentsEditor = function(){
+  const ed = $('#agents-editor');
+  if (ed) {
+    ed.addEventListener('input', () => { this._agentsDirty = true; this.renderAgentsMeta(); });
+    ed.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); this.saveAgents(); } });
+  }
+  const save = $('#agents-save'); if (save) save.onclick = () => this.saveAgents();
+  const close = $('#agents-close'); if (close) close.onclick = () => this.closeAgentsEditor();
+  const ov = $('#agents-overlay'); if (ov) ov.addEventListener('click', e => { if (e.target === ov) this.closeAgentsEditor(); });
+  const toggle = $('#agents-toggle');
+  if (toggle) toggle.onchange = () => { this.app.storage.set('agentsMdEnabled', !!toggle.checked); this.renderAgentsMeta(); toast(toggle.checked ? 'Project instructions on' : 'Project instructions off', 'info'); };
+  document.querySelectorAll('.agents-tpl').forEach(b => b.onclick = () => {
+    const t = TEMPLATES[b.dataset.tpl] || TEMPLATES.blank;
+    if (ed) { ed.value = t; this._agentsDirty = true; this.renderAgentsMeta(); ed.focus(); }
+  });
+  const revert = $('#agents-revert'); if (revert) revert.onclick = () => this.loadAgentsFile(this._agentsPath || 'AGENTS.md');
+  const dl = $('#agents-download'); if (dl) dl.onclick = () => {
+    const path = this._agentsPath || 'AGENTS.md';
+    const blob = new Blob([ed ? ed.value : ''], {type: 'text/markdown'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = path.split('/').pop(); a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  const imp = $('#agents-import'); const file = $('#agents-file-input');
+  if (imp && file) { imp.onclick = () => file.click(); file.onchange = () => {
+    const f = file.files && file.files[0]; if (!f) return;
+    const r = new FileReader(); r.onload = () => { if (ed) { ed.value = String(r.result || ''); this._agentsDirty = true; this.renderAgentsMeta(); toast('Imported ' + f.name + '. Save to apply.', 'info'); } }; r.readAsText(f); file.value = '';
+  }; }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#agents-overlay') && $('#agents-overlay').classList.contains('open')) this.closeAgentsEditor(); });
+};
+
+/* ---------- wiring ---------- */
+const _bind = P.bindEvents;
+P.bindEvents = function(){ const r = _bind.apply(this, arguments); try { this.bindTaskUI(); this.bindAgentsEditor(); } catch (e) { console.warn('[TaskUI]', e); } return r; };
+
+const _setMode = P.setMode;
+P.setMode = function(m){
+  if (m !== 'task') this._taskOpen = false;
+  const r = _setMode.apply(this, arguments);
+  this.syncTaskView();
+  return r;
+};
+
+const _load = P.loadConversation;
+P.loadConversation = function(id){
+  if (this.mode === 'task') this._taskOpen = true;
+  const r = _load.apply(this, arguments);
+  this.syncTaskView();
+  return r;
+};
+})();
+
 const app=new App();app.start();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
@@ -17099,5 +17819,44 @@ const app=new App();app.start();
 </div>
 
 <div class="rate-limit-banner" id="rate-limit-banner" role="status" aria-live="polite"><span>Rate limited — try again in</span> <span class="rl-count" id="rate-limit-count">0</span> <span>s</span></div>
+<div class="agents-overlay" id="agents-overlay">
+<div class="agents-modal" role="dialog" aria-label="Project instructions">
+  <header class="agents-head">
+    <div><h3>Project instructions</h3><p>The agent reads these at the start of every run. Nested files apply inside their own folder.</p></div>
+    <button type="button" class="agents-x" id="agents-close" aria-label="Close">✕</button>
+  </header>
+  <div class="agents-body">
+    <aside class="agents-side">
+      <div class="agents-label">Start from</div>
+      <div class="agents-tpls">
+        <button type="button" class="agents-tpl" data-tpl="blank">Blank</button>
+        <button type="button" class="agents-tpl" data-tpl="research">Research</button>
+        <button type="button" class="agents-tpl" data-tpl="code">Code</button>
+        <button type="button" class="agents-tpl" data-tpl="writing">Writing</button>
+      </div>
+      <div class="agents-label">Files</div>
+      <div class="agents-files" id="agents-files"></div>
+    </aside>
+    <div class="agents-main">
+      <div class="agents-toolbar">
+        <div class="agents-path"><span id="agents-path">AGENTS.md</span><small id="agents-scope"></small></div>
+        <label class="agents-switch"><input type="checkbox" id="agents-toggle"><span></span>Enabled</label>
+      </div>
+      <textarea id="agents-editor" class="agents-editor" spellcheck="false" placeholder="# Project instructions&#10;&#10;Describe how the agent should work in this workspace."></textarea>
+      <div class="agents-meter"><div class="agents-meter-bar"><div id="agents-meter-fill"></div></div><span id="agents-meter-label"></span></div>
+    </div>
+  </div>
+  <footer class="agents-foot">
+    <div class="agents-foot-left">
+      <button type="button" class="agents-btn" id="agents-import">Import</button>
+      <button type="button" class="agents-btn" id="agents-download">Download</button>
+      <button type="button" class="agents-btn" id="agents-revert">Revert</button>
+    </div>
+    <button type="button" class="agents-btn primary" id="agents-save">Save <span>⌘S</span></button>
+  </footer>
+  <input type="file" id="agents-file-input" accept=".md,.txt,text/markdown,text/plain" hidden>
+</div>
+</div>
+
 </body>
 </html>
