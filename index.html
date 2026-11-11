@@ -1888,6 +1888,37 @@ body.mode-canvas .sidebar-footer.collapsed{
   .agents-overlay{padding:10px}
   .agents-meter-bar{flex:1}
 }
+
+/* Task mode polish: collapsible user msgs, complete badge, finished glow, text appear, drop zone */
+.message.user .message-body{position:relative}
+.message.user .msg-collapse-wrap{position:relative;max-height:4.65em;overflow:hidden;transition:max-height .38s cubic-bezier(.4,0,.2,1)}
+.message.user .msg-collapse-wrap.expanded{max-height:2000px}
+.message.user .msg-collapse-wrap:not(.expanded)::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2.1em;background:linear-gradient(to bottom,transparent,var(--bg-primary));pointer-events:none;opacity:1;transition:opacity .28s ease}
+.message.user .msg-collapse-wrap.expanded::after{opacity:0}
+.message.user .msg-expand-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin-top:6px;border-radius:50%;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;transition:background .2s,transform .25s cubic-bezier(.4,0,.2,1),border-color .2s}
+.message.user .msg-expand-btn:hover{background:var(--bg-hover);border-color:var(--border-strong);color:var(--text-primary)}
+.message.user .msg-expand-btn.expanded{transform:rotate(180deg)}
+.message.user .msg-expand-btn svg{width:14px;height:14px}
+.msg-text-appear{opacity:0;animation:tdTextIn .22s ease forwards}
+@keyframes tdTextIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.conv-item.finished{box-shadow:inset 3px 0 0 0 #3b82f6;background:rgba(59,130,246,.08)}
+.conv-item.finished .title{color:#60a5fa}
+.task-complete-fab{position:absolute;top:12px;right:16px;z-index:20;width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--shadow-sm);transition:background .2s,color .2s,transform .2s,box-shadow .2s}
+.task-complete-fab:hover{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.task-complete-fab.done{background:rgba(59,130,246,.15);color:#3b82f6;border-color:#3b82f6}
+.task-complete-fab svg{width:18px;height:18px}
+.td-complete-pop{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;z-index:12000;display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:14px;background:var(--bg-elevated);border:1px solid var(--border);box-shadow:var(--shadow-lg);font-weight:600;color:var(--text-primary);pointer-events:none;transition:opacity .35s cubic-bezier(.4,0,.2,1),transform .35s cubic-bezier(.4,0,.2,1)}
+.td-complete-pop.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.td-complete-pop .td-complete-icon{width:22px;height:22px;border-radius:50%;background:var(--success);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px}
+.input-area.drop-active .input-box,.chat-area.drop-active{outline:2px dashed var(--accent);outline-offset:-4px;background:var(--accent-soft)}
+.thought-step{display:flex;align-items:flex-start;gap:10px;padding:6px 0;font-size:.88rem;color:var(--text-secondary);line-height:1.45}
+.thought-step .ts-check{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--border-strong);flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:10px;color:transparent;transition:all .2s}
+.thought-step.done .ts-check{background:var(--success);border-color:var(--success);color:#fff}
+.thought-step .ts-label{flex:1}
+.thought-step.running .ts-label{color:var(--text-primary)}
+.thought-process-title{font-size:.9rem;font-weight:500;color:var(--text-primary);padding:4px 0 8px;cursor:pointer;display:flex;align-items:center;gap:8px}
+.thought-process-title .th-chev{width:12px;height:12px;opacity:.6;transition:transform .2s}
+.thought-process-title.open .th-chev{transform:rotate(180deg)}
 </style>
 </head>
 <body>
@@ -1990,8 +2021,8 @@ body.mode-canvas .sidebar-footer.collapsed{
   <header class="task-head">
     <div class="task-head-text">
       <span class="task-eyebrow">Task mode</span>
-      <h2>Give it a job. Come back to a finished result.</h2>
-      <p>It plans the work, searches several sources, runs code to check itself, and keeps notes as it goes.</p>
+      <h2>What will you complete today?</h2>
+      <p>Describe a job. Think Deeper plans it, searches sources, runs code to verify, and delivers a finished result.</p>
     </div>
     <button type="button" class="task-instr-btn" id="task-instr-btn"><span class="task-instr-dot"></span><span id="task-instr-label">Add project instructions</span></button>
   </header>
@@ -2208,7 +2239,6 @@ body.mode-canvas .sidebar-footer.collapsed{
 <button type="button" class="intensity-chip active" data-intensity="medium">Medium</button>
 <button type="button" class="intensity-chip" data-intensity="hard">Hard</button>
 <button type="button" class="intensity-chip" data-intensity="ultra">Ultra</button>
-<button type="button" class="intensity-chip" data-intensity="task">Task</button>
 </div>
 <div class="input-area"><div class="input-inner">
 <div class="pin-dock" id="chat-pins"></div>
@@ -12502,6 +12532,22 @@ handleCodeAgentEvent(ev,aiEl,aiMsg){
 }
 bindEvents(){$('#new-chat-btn').onclick=()=>this.newChat();const _sb=$('#settings-btn');if(_sb)_sb.onclick=()=>this.openSettings();document.querySelectorAll('#settings-btn,#settings-btn-footer,#settings-btn-dock,.settings-open-btn').forEach(b=>{if(b)b.onclick=()=>this.openSettings()});$('#close-settings').onclick=()=>this.closeSettings();$('#settings-overlay').onclick=e=>{if(e.target===$('#settings-overlay'))this.closeSettings()};$('#theme-btn').onclick=()=>this.toggleTheme();$('#collapse-sidebar').onclick=()=>this.toggleSidebar(true);$('#open-sidebar').onclick=()=>this.toggleSidebar(false);$('#workspace-btn').onclick=()=>this.selectWorkspace();const wsc=$('#workspace-clear-btn');if(wsc)wsc.onclick=()=>this.clearExternalWorkspace();const fb=$('#chat-files-btn');if(fb)fb.onclick=()=>this.openFiles();$('#files-fab')&&($('#files-fab').onclick=()=>this.openFiles());const hfb=$('#header-files-btn');if(hfb)hfb.onclick=()=>this.openFiles();$('#close-files').onclick=()=>$('#files-overlay').classList.remove('open');$('#files-overlay').onclick=e=>{if(e.target===$('#files-overlay'))$('#files-overlay').classList.remove('open')};$('#plugins-btn').onclick=()=>this.openPlugins();$('#close-plugins').onclick=()=>$('#plugins-overlay').classList.remove('open');$('#plugins-overlay').onclick=e=>{if(e.target===$('#plugins-overlay'))$('#plugins-overlay').classList.remove('open')};$('#new-plugin-btn').onclick=()=>this.editPlugin(null);$('#import-plugin-btn').onclick=()=>$('#import-plugin-file').click();$('#import-plugin-file').onchange=e=>this.importPlugin(e.target.files[0]);$('#save-plugin').onclick=()=>this.savePlugin();$('#cancel-plugin').onclick=()=>{$('#plugin-editor').style.display='none'};
 $('#model-btn').onclick=e=>{e.stopPropagation();this.toggleModelDropdown()};document.addEventListener('click',()=>this.closeModelDropdown());$('#model-search').oninput=e=>this.filterModels(e.target.value);$('#send-btn').onclick=()=>this.send();$('#stop-btn').onclick=()=>{try{this.app.agent.stop()}catch(e){}this._chatBusy=false;try{this.setSendLocked(false)}catch(e){}};$('#user-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(this.isRateLimited&&this.isRateLimited()){const left=Math.max(1,Math.ceil((this._rateLimitUntil-Date.now())/1000));toast('Rate limited — try again in '+left+'s','error');return}if(this.isAppBusy&&this.isAppBusy()){toast('Wait for the current response to finish','info');return}this.send()}};$('#user-input').oninput=()=>{this.autoResizeInput();$('#send-btn').disabled=!$('#user-input').value.trim()&&!this.pendingAttachments.length};$('#attach-btn').onclick=()=>$('#file-input').click();const cab=$('#code-attach-btn');if(cab)cab.onclick=()=>$('#file-input').click();const aab=$('#agent-attach-btn');if(aab)aab.onclick=()=>$('#file-input').click();$('#file-input').onchange=e=>this.handleFiles(e.target.files);
+// File drag & drop onto chat input / chat area
+(function bindFileDrop(ui){
+  const zones=[document.querySelector('.input-area'),document.getElementById('chat-area'),document.querySelector('.input-box')].filter(Boolean);
+  const onDrag=(e)=>{e.preventDefault();e.stopPropagation();zones.forEach(z=>z&&z.classList.add('drop-active'))};
+  const onLeave=(e)=>{e.preventDefault();zones.forEach(z=>z&&z.classList.remove('drop-active'))};
+  const onDrop=(e)=>{
+    e.preventDefault();e.stopPropagation();
+    zones.forEach(z=>z&&z.classList.remove('drop-active'));
+    const files=e.dataTransfer&&e.dataTransfer.files;
+    if(files&&files.length)ui.handleFiles(files);
+  };
+  zones.forEach(z=>{
+    z.addEventListener('dragenter',onDrag);z.addEventListener('dragover',onDrag);
+    z.addEventListener('dragleave',onLeave);z.addEventListener('drop',onDrop);
+  });
+})(this);
 $$('.suggestion').forEach(btn=>{btn.onclick=()=>{$('#user-input').value=btn.dataset.prompt;$('#send-btn').disabled=false;this.autoResizeInput();this.send()}});
 $$('.preset-btn').forEach(btn=>{btn.onclick=()=>this.applyPreset(btn.dataset.preset)});
 $('#save-api').onclick=()=>this.saveApi();$('#discover-models').onclick=()=>this.discoverModels();const mab=$('#model-add-btn');if(mab)mab.onclick=()=>this.addModelId();$('#save-agent').onclick=()=>this.saveAgentSettings();
@@ -13005,7 +13051,7 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
     list.innerHTML='<div style="padding:10px 12px;font-size:.78rem;color:var(--text-tertiary)">No chats in this project yet. Click <b>New chat</b> or drag a conversation onto the project.</div>';
     return;
   }
-  chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+((this.app.conversations.currentId&&String(c.id)===String(this.app.conversations.currentId))?' active':'');div.draggable=true;div.dataset.chatId=c.id;
+  chats.forEach(c=>{const div=document.createElement('div');div.className='conv-item'+((this.app.conversations.currentId&&String(c.id)===String(this.app.conversations.currentId))?' active':'')+(c.finished?' finished':'');div.draggable=true;div.dataset.chatId=c.id;
   const projMenu=projects.length?('<button type="button" data-act="to-project">Move to project…</button>'+(c.projectId?'<button type="button" data-act="leave-project">Remove from project</button>':'')):'';
   const createdTs=c.created||c.updated||0;
   const tsLabel=createdTs?new Date(createdTs).toLocaleString([], {dateStyle:'medium',timeStyle:'short'}):'';
@@ -13048,6 +13094,17 @@ renderConversations(){const list=$('#conv-list');if(!list)return;list.innerHTML=
     }else this.loadConversation(c.id)};list.appendChild(div)})}
 showEmpty(){
   $('#empty-state').style.display='flex';try{document.getElementById('empty-state').hidden=false;document.getElementById('empty-state').classList.remove('is-hidden')}catch(_e){};
+  try{
+    const h1=$('#empty-state h1');
+    const p=$('#empty-state p');
+    if(this.mode==='task'){
+      if(h1)h1.textContent='What will you complete today?';
+      if(p)p.textContent='Describe a job. Think Deeper plans it, searches sources, runs code to verify, and delivers a finished result.';
+    }else{
+      if(h1)h1.textContent='Think deeper.';
+      if(p)p.textContent='An agentic environment that gives ordinary models time, tools, and self-correction so they can solve harder problems reliably.';
+    }
+  }catch(e){}
   const grid=document.querySelector('.suggestion-grid');
   if(grid&&!grid.dataset.rolled){
     const pool=[
@@ -14347,8 +14404,33 @@ deleteAiTurn(msgId){
 }
 forgetAiTurn(msgId){this.deleteAiTurn(msgId)} /* alias */
 renderMessage(msg,isStreaming=false){const container=$('#messages');const div=document.createElement('div');div.className=`message ${msg.role}`;div.dataset.id=msg.id;const who=this.userLabel();const roleLabel=msg.role==='user'?who.label:'Think Deeper';const avatarText=msg.role==='user'?who.initial:'TD';let attachHtml='';if(msg.attachments?.length){attachHtml='<div class="attachments">';msg.attachments.forEach(a=>{if(a.dataUrl)attachHtml+=`<div class="attachment"><img src="${a.dataUrl}" alt=""></div>`;else attachHtml+=`<div class="attachment"><div class="file-chip">${SVG.file} ${escapeHtml(a.name)}</div></div>`});attachHtml+='</div>'}
-const bodyContent=msg.role==='user'?escapeHtml(this.visibleUserText(msg)).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
-div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);if(msg.role==='assistant'&&msg.activities&&msg.activities.length){try{this.hydrateThoughts(div,msg)}catch(e){console.warn('hydrate',e)}}try{if(msg.role==='assistant'&&(msg.versions&&msg.versions.length))this.paintVersionNav(div,msg)}catch(e){}this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);try{this.wireFileChips(mb)}catch(e){}try{this.wireMessageMedia(mb)}catch(e){}}if(msg.role==='assistant'&&msg.content&&!isStreaming)this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'assistant',text:msg.content});if(msg.role==='user')this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'user',text:msg.content||''});this.setupMessageSelection(div);this.scrollToBottom();return div}
+let bodyContent=msg.role==='user'?escapeHtml(this.visibleUserText(msg)).replace(/\n/g,'<br>'):(msg.content?this.renderMarkdown(msg.content):(isStreaming?this.getThinkingHtml():''));
+if(msg.role==='assistant'&&bodyContent&&!isStreaming)bodyContent='<div class="msg-text-appear">'+bodyContent+'</div>';
+if(msg.role==='user'){
+  const lines=(this.visibleUserText(msg)||'').split(/\n/).length;
+  const long=lines>3||String(this.visibleUserText(msg)||'').length>220;
+  if(long){
+    bodyContent=`<div class="msg-collapse-wrap" data-collapsed="1">${bodyContent}</div><button type="button" class="msg-expand-btn" aria-label="Expand message" title="Show full message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg></button>`;
+  }
+}
+div.innerHTML=`<div class="message-header"><div class="avatar ${msg.role}" style="${msg.role==='user'?who.bg:''}">${who.img&&msg.role==='user'?who.img:avatarText}</div><span class="message-role">${roleLabel}</span><div class="message-hover-actions" data-role="${msg.role}"><span class="msg-time">${fmtTime(msg.ts)}</span></div></div><div class="message-content">${attachHtml}<div class="message-body">${bodyContent}</div></div>`;container.appendChild(div);
+if(msg.role==='user'){
+  const btn=div.querySelector('.msg-expand-btn');
+  const wrap=div.querySelector('.msg-collapse-wrap');
+  if(btn&&wrap){
+    btn.onclick=()=>{
+      const open=wrap.classList.toggle('expanded');
+      btn.classList.toggle('expanded',open);
+      wrap.dataset.collapsed=open?'0':'1';
+      try{this.scrollToBottom()}catch(e){}
+    };
+  }
+}
+if(msg.role==='assistant'&&msg.activities&&msg.activities.length){try{this.hydrateThoughts(div,msg)}catch(e){console.warn('hydrate',e)}}try{if(msg.role==='assistant'&&(msg.versions&&msg.versions.length))this.paintVersionNav(div,msg)}catch(e){}this.bindMessageHover(div,msg);if(msg.role==='assistant'&&msg.content){const mb=div.querySelector('.message-body');this.enhanceCodeBlocks(mb);if(this._renderMath)this._renderMath(mb);try{this.wireFileChips(mb)}catch(e){}try{this.wireMessageMedia(mb)}catch(e){}}if(msg.role==='assistant'&&msg.content&&!isStreaming)this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'assistant',text:msg.content});if(msg.role==='user')this.paintMsgActions(div,{kind:'chat',id:msg.id,role:'user',text:msg.content||''});this.setupMessageSelection(div);
+// Adaptive scroll: wait for appear animation then stick
+requestAnimationFrame(()=>{try{this.scrollToBottom()}catch(e){}});
+if(msg.role==='assistant'&&!isStreaming)setTimeout(()=>{try{this.scrollToBottom()}catch(e){}},240);
+return div}
 
 _imgFigureHtml(src,alt,credit){
   return '<figure class="td-img-wrap"><img src="'+escapeHtml(src)+'" alt="'+escapeHtml(alt||'')+'" loading="lazy"/><button type="button" class="td-img-dl" title="Download" data-dl-src="'+escapeHtml(src)+'" data-dl-name="'+escapeHtml((alt||'image').replace(/\s+/g,'_').slice(0,40))+'.png" aria-label="Download">⬇</button></figure>'+(credit?('<div class="td-img-credit">'+credit+'</div>'):'');
@@ -14732,7 +14814,8 @@ _renderMath(el){
         delimiters:[
           {left:'$$',right:'$$',display:true},
           {left:'\\[',right:'\\]',display:true},
-          {left:'\\(',right:'\\)',display:false}
+          {left:'\\(',right:'\\)',display:false},
+          {left:'$',right:'$',display:false}
         ],
         throwOnError:false,
         strict:false,
@@ -17585,6 +17668,52 @@ P.syncTaskView = function(){
   const inp = document.querySelector('.input-area'); if (inp && onTask) inp.style.display = open ? 'block' : 'none';
   const back = $('#task-back'); if (back) back.style.display = open ? 'flex' : 'none';
   if (onTask && !open) this.renderTaskRuns();
+  // Complete FAB in task runs
+  try{
+    let fab = document.getElementById('task-complete-fab');
+    if(onTask && open){
+      if(!fab){
+        fab = document.createElement('button');
+        fab.type = 'button';
+        fab.id = 'task-complete-fab';
+        fab.className = 'task-complete-fab';
+        fab.title = 'Mark task complete';
+        fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6L9 17l-5-5"/></svg>';
+        fab.onclick = () => this.toggleTaskFinished();
+        if(chat){ chat.style.position = 'relative'; chat.appendChild(fab); }
+      }
+      fab.style.display = 'flex';
+      const c = this.app.conversations.get(this.app.conversations.currentId);
+      fab.classList.toggle('done', !!(c && c.finished));
+    } else if(fab){
+      fab.style.display = 'none';
+    }
+  }catch(e){}
+};
+P.toggleTaskFinished = function(){
+  const id = this.app.conversations.currentId;
+  const c = this.app.conversations.get(id);
+  if(!c) return;
+  c.finished = !c.finished;
+  c.updated = Date.now();
+  try{ this.app.conversations.persist(); }catch(e){}
+  this.renderConversations();
+  const fab = document.getElementById('task-complete-fab');
+  if(fab) fab.classList.toggle('done', !!c.finished);
+  if(c.finished){
+    // sleek complete popup
+    let pop = document.getElementById('td-complete-pop');
+    if(!pop){
+      pop = document.createElement('div');
+      pop.id = 'td-complete-pop';
+      pop.className = 'td-complete-pop';
+      pop.innerHTML = '<span class="td-complete-icon">✓</span><span>Complete</span>';
+      document.body.appendChild(pop);
+    }
+    pop.classList.add('show');
+    setTimeout(() => pop.classList.remove('show'), 1800);
+  }
+  toast(c.finished ? 'Marked complete' : 'Unmarked', 'success');
 };
 
 P.taskTitle = function(c){
@@ -17629,11 +17758,23 @@ P.startTask = function(){
   if (!text) { if (ta) { ta.focus(); ta.classList.add('task-nudge'); setTimeout(() => ta.classList.remove('task-nudge'), 500); } return; }
   this.newChat();
   this._taskOpen = true;
+  try{
+    // Force task intensity limits for this run
+    this.app.storage.set('intensity','task');
+    if(this.bindIntensityBars) this.bindIntensityBars();
+    const chips = document.querySelectorAll('.intensity-chip');
+    chips.forEach(ch => ch.classList.toggle('active', ch.dataset.intensity === 'task' || (ch.dataset.intensity === 'ultra' && !document.querySelector('[data-intensity="task"]'))));
+  }catch(e){}
   const ui = $('#user-input');
   if (ui) { ui.value = text; ui.dispatchEvent(new Event('input', {bubbles: true})); }
   if (ta) ta.value = '';
   this.syncTaskView();
   setTimeout(() => {
+    try{
+      const id = this.app.conversations.currentId;
+      const c = this.app.conversations.get(id);
+      if(c){ c.taskRun = true; c.updated = Date.now(); this.app.conversations.persist(); }
+    }catch(e){}
     const btn = $('#send-btn'); if (btn) { btn.disabled = false; btn.click(); }
     setTimeout(() => { this._runningTaskId = this.app.conversations.currentId; }, 80);
   }, 30);
