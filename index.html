@@ -13117,12 +13117,27 @@ showFolderMenu(x,y,folderPath){
   this.hideCtxMenu();
   const menu=document.createElement('div');menu.id='ft-ctx-menu';menu.className='ctx-menu';
   menu.style.left=x+'px';menu.style.top=y+'px';
-  menu.innerHTML=`<button type="button" data-act="zip">⬇ Download folder as ZIP</button><button type="button" data-act="copy">Copy path</button>`;
+  menu.innerHTML=`<button type="button" data-act="zip">⬇ Download folder as ZIP</button><button type="button" data-act="copy">Copy path</button><button type="button" data-act="clearall">🗑 Clear all files</button>`;
   menu.querySelector('[data-act=zip]').onclick=()=>{this.hideCtxMenu();this.downloadFolderZip(folderPath)};
   menu.querySelector('[data-act=copy]').onclick=()=>{this.hideCtxMenu();navigator.clipboard.writeText(folderPath);toast('Copied path','success')};
+  menu.querySelector('[data-act=clearall]').onclick=()=>{this.hideCtxMenu();this.clearFolderFiles(folderPath)};
   document.body.appendChild(menu);
   const closer=(ev)=>{if(!menu.contains(ev.target)){this.hideCtxMenu();document.removeEventListener('click',closer)}};
   setTimeout(()=>document.addEventListener('click',closer),0);
+}
+async clearFolderFiles(folderPath){
+  const vfs=this.app&&this.app.vfs;
+  if(!vfs)return;
+  const paths=(vfs.filesInFolder(folderPath)||[]).filter(p=>!p.startsWith('archive/'));
+  if(!paths.length){toast('No files in this folder','info');return}
+  const msg=`Clear all ${paths.length} file(s) in "${folderPath}"? They will be moved to the archive folder.`;
+  const ok=this.appConfirm?await this.appConfirm(msg,'Clear all files'):window.confirm(msg);
+  if(!ok)return;
+  let removed=0;
+  paths.forEach(p=>{try{vfs.delete(p);removed++}catch(e){}});
+  try{vfs.persist&&vfs.persist(true)}catch(e){}
+  this.renderFileTree();
+  toast(`Cleared ${removed} file(s) from ${folderPath}`,'success');
 }
 showFileMenu(x,y,path){
   this.hideCtxMenu();
