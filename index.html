@@ -6193,7 +6193,7 @@ class ToolManager{constructor(vfs,ext,py){this.vfs=vfs;this.external=ext;this.py
 {type:'function',function:{name:'search_file',description:'Search a workspace file (or all uploads/) for a keyword or regex. Returns matching snippets with character offsets so you can read_file that section. Use this on large HTML/text instead of loading the whole file.',parameters:{type:'object',properties:{path:{type:'string',description:'File path or folder. Empty = search uploads/ and artifacts/'},query:{type:'string'},regex:{type:'boolean'},context:{type:'number',description:'Chars of context around each hit'},limit:{type:'number'}},required:['query']}}},
 {type:'function',function:{name:'run_onnx',description:'Run a workspace ONNX model in the browser with ONNX Runtime Web. path defaults to the last converted model. input is a number or JSON array of floats.',parameters:{type:'object',properties:{path:{type:'string'},input:{description:'Number or array of floats'}},required:[]}}},
 {type:'function',function:{name:'write_file',description:'Create or overwrite a file in the internal FS. In CODE MODE always write under the current session folder (code/<sessionId>/…), e.g. index.html or style.css — the runtime rewrites bare names into that folder. In chat mode prefer artifacts/ for work products and memory/ for durable facts. Previous versions are archived automatically.',parameters:{type:'object',properties:{path:{type:'string',description:'Destination path (code mode: relative to session code root, e.g. index.html)'},content:{type:'string',description:'Full file contents to write'}},required:['path','content']}}},
-{type:'function',function:{name:'delete_file',description:'Delete a file from the internal filesystem (a copy is archived). Use only when the user asks to remove something.',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}},{type:'function',function:{name:'write_pdf',description:'Create a real downloadable PDF in the workspace. path must end with .pdf; title optional; body is plain text with newlines.',parameters:{type:'object',properties:{path:{type:'string'},title:{type:'string'},body:{type:'string'}},required:['path','body']}}},{type:'function',function:{name:'fetch_url',description:'Fetch a full public web page or file by URL and return cleaned readable text (or image/SVG). Use AFTER web_search on promising result URLs when you need the full article, docs, or source — do not rely on snippets alone for important facts. Works via reader proxies when CORS blocks direct fetch. Prefer https; http is upgraded.',parameters:{type:'object',properties:{url:{type:'string',description:'Page or file URL'},maxChars:{type:'number',description:'Max characters of text to return (default 40000)'}},required:['url']}}},
+{type:'function',function:{name:'weatherrequest',description:'Get the current weather and a short daily forecast for the user\'s location. Sends the user\'s device coordinates to Open-Meteo. Call this when the user asks about weather, temperature, rain, or what to wear/bring outside, or when the answer clearly depends on local weather. Requires the user to have allowed location access in the browser.',parameters:{type:'object',properties:{days:{type:'number',description:'Forecast days, 1-7. Default 3.'}},required:[]}}},{type:'function',function:{name:'delete_file',description:'Delete a file from the internal filesystem (a copy is archived). Use only when the user asks to remove something.',parameters:{type:'object',properties:{path:{type:'string'}},required:['path']}}},{type:'function',function:{name:'write_pdf',description:'Create a real downloadable PDF in the workspace. path must end with .pdf; title optional; body is plain text with newlines.',parameters:{type:'object',properties:{path:{type:'string'},title:{type:'string'},body:{type:'string'}},required:['path','body']}}},{type:'function',function:{name:'fetch_url',description:'Fetch a full public web page or file by URL and return cleaned readable text (or image/SVG). Use AFTER web_search on promising result URLs when you need the full article, docs, or source — do not rely on snippets alone for important facts. Works via reader proxies when CORS blocks direct fetch. Prefer https; http is upgraded.',parameters:{type:'object',properties:{url:{type:'string',description:'Page or file URL'},maxChars:{type:'number',description:'Max characters of text to return (default 40000)'}},required:['url']}}},
 {type:'function',function:{name:'run_python',description:'Run Python in a sandbox. Workspace files are under /workspace (uploads/, artifacts/, models/). Helpers: ws_read(path,start,length) and ws_search(path,keyword). Prefer bounded for-range loops, simplified code, and small data. Infinite loops, huge allocations, and heavy recursion are blocked — especially in agent mode.',parameters:{type:'object',properties:{code:{type:'string',description:'Python source code to execute'}},required:['code']}}},
 {type:'function',function:{name:'self_check',description:'Record a brief self-check of correctness before finalizing an important answer. Use after tool results when stakes are high.',parameters:{type:'object',properties:{observation:{type:'string',description:'What you verified'},passed:{type:'boolean',description:'Whether the check passed'}},required:['observation']}}},
 {type:'function',function:{name:'web_search',description:'Search the web, fetch full page documents for top hits, then a research subagent summarizes them against your query goal. Returns a ready-to-use summary for the user-facing answer. Prefer this over raw link lists. For a specific promising link, also call fetch_url to read the full page. Modes: web (default), wikipedia, github.',parameters:{type:'object',properties:{query:{type:'string',description:'Search goal / query (what you need answered)'},mode:{type:'string',description:'Optional: web|google|wikipedia|github'},max_pages:{type:'number',description:'Max full pages to fetch (default 4, max 6)'}},required:['query']}}},
@@ -6325,6 +6325,7 @@ case'write_file':{
 }
 
 case'delete_file':return this.vfs.delete(args.path);
+case'weatherrequest':return await this.weatherRequest(args||{});
 case'remember':return await this.rememberAcrossChats(args);
 case'run_python':return await this.python.run(args.code);
 case'self_check':return{recorded:true,observation:args.observation,passed:!!args.passed};
@@ -6513,6 +6514,30 @@ async checkCode(path){
     }
   }
   return {ok:errors.length===0,path:target,errors};
+}
+async weatherRequest(args){
+  try{
+    const days=Math.min(7,Math.max(1,Math.round(Number(args&&args.days))||3));
+    if(!navigator.geolocation)return{ok:false,error:'Location is not available in this browser.'};
+    const coords=await new Promise((res,rej)=>{
+      navigator.geolocation.getCurrentPosition(
+        p=>res(p.coords),
+        err=>rej(new Error(err&&err.code===1?'Location permission was denied. Allow location for this site and try again.':'Could not get the current location ('+(err&&err.message||'unknown error')+').')),
+        {enableHighAccuracy:false,timeout:15000,maximumAge:600000}
+      );
+    });
+    const lat=coords.latitude.toFixed(4), lon=coords.longitude.toFixed(4);
+    const url='https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+
+      '&current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m'+
+      '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max'+
+      '&forecast_days='+days+'&timezone=auto';
+    const r=await fetch(url);
+    if(!r.ok)return{ok:false,error:'Open-Meteo request failed with status '+r.status};
+    const d=await r.json();
+    return{ok:true,source:'Open-Meteo',timezone:d.timezone,current:d.current,current_units:d.current_units,daily:d.daily,daily_units:d.daily_units};
+  }catch(e){
+    return{ok:false,error:String((e&&e.message)||e)};
+  }
 }
 async rememberAcrossChats(args){
   try{
@@ -13656,7 +13681,7 @@ let sendText=text;
 $('#user-input').value='';this.pendingAttachments=[];this.renderAttachments();this.autoResizeInput();$('#send-btn').disabled=true;$('#stop-btn').classList.add('visible');$('#send-btn').style.display='none';
 const aiMsg={id:uid(),role:'assistant',content:'',activities:[],ts:now()};this.app.conversations.addMessage(conv.id,aiMsg);const aiEl=this.renderMessage(aiMsg,true);
 try{this.app.storage.set('chatRunState',{v:1,ts:Date.now(),alive:true,convId:conv.id,userMsgId:userMsg.id,aiMsgId:aiMsg.id,userText:sendText,attachments:userMsg.attachments||[]});this.persistChatRun(true)}catch(e){}
-const history=conv.messages.filter(m=>m.id!==aiMsg.id);
+const history=conv.messages.filter(m=>m.id!==aiMsg.id&&m.id!==userMsg.id); // user message is sent as sendText below; keep it out of history so the AI doesn't see it twice
 const inten=this.getIntensity();
 const prevSettings={...this.app.agent.settings};
 this.app.agent.settings.maxIterations=Math.max(8, Number(inten.maxIterations)||24);
