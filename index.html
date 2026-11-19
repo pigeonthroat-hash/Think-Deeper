@@ -4825,6 +4825,18 @@ delete(p){
   this.persist(true);
   return{path:p,removed:lines};
 }
+pruneOldArchives(maxAgeMs=14*24*60*60*1000){
+  const cutoff=Date.now()-maxAgeMs;
+  let removed=0;
+  Object.keys(this.files||{}).forEach(k=>{
+    if(!String(k).startsWith('archive/'))return;
+    let t=Number((this.files[k]||{}).archivedAt)||0;
+    if(!t){const m=String(k).match(/_(\d{13})_deleted\.bak$/);if(m)t=Number(m[1])}
+    if(t&&t<cutoff){delete this.files[k];removed++}
+  });
+  if(removed){try{this.persist()}catch(e){}}
+  return removed;
+}
 persist(forcePush){
   try{
     if(!this.files||typeof this.files!=='object')this.files={};
@@ -13075,6 +13087,7 @@ rehydrateVfsFromStorage(){
 }
 renderFileTree(){
   try{this.rehydrateVfsFromStorage()}catch(e){}
+  try{this.app&&this.app.vfs&&this.app.vfs.pruneOldArchives()}catch(e){}
   const el=$('#file-tree');
   if(!el)return;
   el.innerHTML='';
@@ -13128,13 +13141,23 @@ showFolderMenu(x,y,folderPath){
 async clearFolderFiles(folderPath){
   const vfs=this.app&&this.app.vfs;
   if(!vfs)return;
-  const paths=(vfs.filesInFolder(folderPath)||[]).filter(p=>!p.startsWith('archive/'));
+  const paths=vfs.filesInFolder(folderPath)||[];
   if(!paths.length){toast('No files in this folder','info');return}
-  const msg=`Clear all ${paths.length} file(s) in "${folderPath}"? They will be moved to the archive folder.`;
+  const isArchived=p=>p.startsWith('archive/');
+  const purged=paths.filter(isArchived).length;
+  const msg=`Clear all ${paths.length} file(s) in "${folderPath}"? `+
+    `Files outside the archive move to the archive folder`+
+    (purged?`; the ${purged} already in the archive will be deleted permanently.`:'.');
   const ok=this.appConfirm?await this.appConfirm(msg,'Clear all files'):window.confirm(msg);
   if(!ok)return;
   let removed=0;
-  paths.forEach(p=>{try{vfs.delete(p);removed++}catch(e){}});
+  paths.forEach(p=>{
+    try{
+      if(isArchived(p)){delete vfs.files[p]}   // archive copies are purged, not re-archived
+      else vfs.delete(p);
+      removed++;
+    }catch(e){}
+  });
   try{vfs.persist&&vfs.persist(true)}catch(e){}
   this.renderFileTree();
   toast(`Cleared ${removed} file(s) from ${folderPath}`,'success');
