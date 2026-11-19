@@ -2742,6 +2742,7 @@ body.mode-canvas .sidebar-footer.collapsed{
 <div class="btn-row" style="margin-top:8px">
 <button type="button" class="btn-secondary" id="dev-console-clear">Clear</button>
 <button type="button" class="btn-primary" id="dev-console-ai">AI overview</button>
+<button type="button" class="btn-secondary" id="dev-chat-log">Log current chat</button>
 </div>
 <div id="dev-console-ai-out" class="dev-ai-md"></div>
 </div>
@@ -16711,7 +16712,46 @@ bindDevConsole(){
   ErrorSink.listeners.push(paint);
   const clr=$('#dev-console-clear');if(clr)clr.onclick=()=>{ErrorSink.logs=[];paint()};
   const ai=$('#dev-console-ai');if(ai)ai.onclick=()=>this.reviewDevConsole();
+  const lg=$('#dev-chat-log');if(lg)lg.onclick=()=>this.downloadChatLog();
   paint();
+}
+downloadChatLog(){
+  try{
+    const cm=this.app&&this.app.conversations;
+    const id=cm?cm.currentId:null;
+    const conv=(cm&&id!=null)?cm.get(id):null;
+    if(!conv){toast('No active chat to log','info');return}
+    // Keys that look like credentials are redacted; base64 attachments are summarised, not dumped.
+    const SECRET=/api[-_]?key|secret|password|authorization|access[-_]?token|auth[-_]?token|x-api/i;
+    const clean=(v,depth)=>{
+      if(depth>16)return '[max depth]';
+      if(typeof v==='string'){
+        if(v.length>400&&/^data:[^;]+;base64,/.test(v))return '[data URL omitted, '+v.length+' chars]';
+        return v;
+      }
+      if(Array.isArray(v))return v.map(x=>clean(x,depth+1));
+      if(v&&typeof v==='object'){const o={};for(const k of Object.keys(v)){o[k]=SECRET.test(k)?'[redacted]':clean(v[k],depth+1)}return o}
+      return v;
+    };
+    const msgs=Array.isArray(conv.messages)?conv.messages:[];
+    const logs=(typeof ErrorSink!=='undefined'&&ErrorSink&&Array.isArray(ErrorSink.logs))?ErrorSink.logs:[];
+    const log={
+      exportedAt:new Date().toISOString(),
+      app:'Think Deeper',
+      userAgent:(typeof navigator!=='undefined')?navigator.userAgent:'',
+      url:(typeof location!=='undefined')?location.href:'',
+      conversation:{id:conv.id,title:conv.title,created:conv.created,updated:conv.updated,projectId:conv.projectId||null,messageCount:msgs.length},
+      messages:clean(msgs,0),
+      consoleLog:clean(logs.slice(-500),0)
+    };
+    const blob=new Blob([JSON.stringify(log,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download='chat-log-'+String(conv.id).slice(0,12)+'-'+Date.now()+'.json';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    toast('Chat log downloaded ('+msgs.length+' messages)','info');
+  }catch(e){toast('Could not build chat log: '+((e&&e.message)||e),'error')}
 }
 async reviewDevConsole(){
   const out=$('#dev-console-ai-out');
