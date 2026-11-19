@@ -2392,8 +2392,9 @@ body.mode-canvas .sidebar-footer.collapsed{
 <div class="panel-body">
 <div class="acct-row"><img id="acct-preview" class="acct-preview" alt=""><div>
 <button type="button" class="btn-secondary" id="acct-pic-btn">Change photo</button>
+<button type="button" class="btn-secondary" id="acct-pic-reset" style="margin-left:6px">Reset to default</button>
 <input type="file" id="acct-pic-file" accept="image/*" style="display:none">
-<div class="hint" style="margin-top:6px;font-size:.75rem;color:var(--text-tertiary)">Saved to your account. Keep photos small.</div>
+<div class="hint" style="margin-top:6px;font-size:.75rem;color:var(--text-tertiary)">Default is a generated identicon. Saved to your account. Keep photos small.</div>
 </div></div>
 <div class="form-group"><label>Name</label><input type="text" id="acct-name" placeholder="Your name"></div>
 <div class="form-group"><label>Nickname for the AI</label><input type="text" id="acct-nickname" placeholder="What should the AI call you?"></div>
@@ -3184,6 +3185,313 @@ const ErrorSink={
 };
 ErrorSink.init();
 const fmtTime=ts=>new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+// ---------- Identicon engine (from Identicon Rule Tester) ----------
+window.Identicon = (() => {
+
+
+// ---------- constants ----------
+const V = {IDENTICON:1, HASH:1, GEOMETRY:1, PALETTE:1, COMPOSITION:1};
+const NS = {STRUCTURE:'IDENTITY/STRUCTURE/V1', GEOMETRY:'IDENTITY/GEOMETRY/V1', COLOUR:'IDENTITY/COLOUR/V1', COMPOSITION:'IDENTITY/COMPOSITION/V1', DETAIL:'IDENTITY/DETAIL/V1'};
+const TEMPLATES = ['central-core','four-corners','vertical-pillar','horizontal-bridge','diamond-core','nested-frame'];
+const GRID_W = [[5,30],[7,28],[9,20],[11,15],[13,7]];
+const SYM_W = [['vertical',35],['four',20],['rotational',15],['horizontal',10]];
+const CLASS_W = [['minimal',15],['simple',25],['moderate',35],['complex',20],['exceptional',5]];
+const DENSITY = {minimal:.32, simple:.42, moderate:.5, complex:.58, exceptional:.64};
+const REL_W = [['analogous',25],['complementary',20],['monochromatic',15],['split-complementary',10],['triadic',8],['tetradic',5],['near-monochromatic',7],['warm-cool',5],['dual-hue',3],['limited-three',2]];
+const TYPE_W = {F:30, C:12, T:22, Q:20, S:16};
+const ROLE_MAPS = {
+  A:{F:'primary', C:'primary', T:'accent', Q:'secondary', S:'secondary'},
+  B:{F:'secondary', C:'primary', T:'primary', Q:'accent', S:'secondary'},
+  C:{F:'primary', C:'secondary', T:'primary', Q:'primary', S:'primary'}
+};
+const OPS = {vertical:['X'], horizontal:['Y'], four:['X','Y','XY'], rotational:['XY']};
+const AREA = {F:1, C:Math.PI/4, T:.5, Q:Math.PI/4, S:Math.PI/8};
+const CORNERS = [[0,0],[1,0],[1,1],[0,1]];          // TL, TR, BR, BL
+const EDGE_C = [[.5,0],[1,.5],[.5,1],[0,.5]];        // top, right, bottom, left midpoints
+const EDGE_N = [Math.PI/2, Math.PI, -Math.PI/2, 0];  // inward normals
+const MAPS = {X:{c:[1,0,3,2], e:[0,3,2,1]}, Y:{c:[3,2,1,0], e:[2,1,0,3]}, XY:{c:[2,3,0,1], e:[2,3,0,1]}};
+const MARGIN = .08;
+
+// ---------- Rules 001-004: canonicalisation, hashing, streams ----------
+function canonicalize(raw){
+  const canonical = raw.normalize('NFC').replace(/\s+/g,' ').trim().replace(/[A-Z]+/g, m => m.toLowerCase());
+  return {canonical, bytes: new TextEncoder().encode(canonical).length};
+}
+// Stand-in for BLAKE3: 32-bit mixing hash. Swap for real BLAKE3 + HKDF later.
+function hash32(str){
+  const b = new TextEncoder().encode(str);
+  let h = 1779033703 ^ b.length;
+  for (const x of b){ h = Math.imul(h ^ x, 3432918353); h = (h << 13) | (h >>> 19); }
+  h = Math.imul(h ^ (h >>> 16), 2246822507);
+  h = Math.imul(h ^ (h >>> 13), 3266489909);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+function mulberry32(a){
+  return () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function stream(ns, master, extra=''){ return mulberry32(hash32(ns + '\u0000' + master + '\u0000' + extra)); }
+function wpick(r, items){
+  const tot = items.reduce((s,[,w]) => s + w, 0);
+  let v = r() * tot;
+  for (const [k,w] of items){ if ((v -= w) < 0) return k; }
+  return items[items.length-1][0];
+}
+
+// ---------- Rules 009-011: tile vocabulary and symmetry transforms ----------
+// Tile: {t:'F'|'C'} or {t:'T'|'Q', k:corner 0-3} or {t:'S', k:edge 0-3}
+function allTiles(){
+  return [{t:'F'}]; // square cells only
+}
+function xform(t, op){
+  if (!t) return null;
+  if (t.t==='F' || t.t==='C') return {t:t.t};
+  return {t:t.t, k: t.t==='S' ? MAPS[op].e[t.k] : MAPS[op].c[t.k]};
+}
+function same(a, b){ return (a && b) ? (a.t===b.t && a.k===b.k) : a===b; }
+function imgPos(op, r, c, N){ return op==='X' ? [r, N-1-c] : op==='Y' ? [N-1-r, c] : [N-1-r, N-1-c]; }
+
+// Rule 022: template bias, x/y in [-1,1]
+function templateBias(t, x, y){
+  const ax = Math.abs(x), ay = Math.abs(y), d = Math.hypot(x,y)/Math.SQRT2;
+  const f = {
+    'central-core': 1-d, 'four-corners': d, 'vertical-pillar': 1-ax,
+    'horizontal-bridge': 1-ay, 'diamond-core': 1-(ax+ay)/2, 'nested-frame': Math.max(ax,ay)
+  }[t];
+  return .35 + .65*Math.min(1, Math.max(0, f));
+}
+
+// Rules 005-006: build a symmetric N x N grid by orbit assignment
+function buildGrid(N, sym, tmpl, density, rng){
+  const ops = OPS[sym], zone = Math.max(1, Math.round(N*.6)), mid = (N-1)/2;
+  const all = allTiles();
+  const g = Array.from({length:N}, () => Array(N).fill(undefined));
+  for (let r=0;r<N;r++) for (let c=0;c<N;c++){
+    if (g[r][c] !== undefined) continue;
+    const act = (sym==='partial' && r>=zone) ? [] : ops;
+    const stab = act.filter(op => { const [pr,pc] = imgPos(op,r,c,N); return pr===r && pc===c; });
+    let tile = null;
+    if (rng() < density * templateBias(tmpl, (c-mid)/mid, (r-mid)/mid)){
+      const pool = all.filter(t => stab.every(op => same(xform(t,op), t)));
+      const cnt = {}; pool.forEach(t => cnt[t.t] = (cnt[t.t]||0) + 1);
+      tile = wpick(rng, pool.map(t => [t, TYPE_W[t.t] / cnt[t.t]]));
+    }
+    g[r][c] = tile;
+    for (const op of act){ const [pr,pc] = imgPos(op,r,c,N); g[pr][pc] = xform(tile, op); }
+  }
+  return g;
+}
+
+function symOK(g, N, sym){
+  const zone = Math.max(1, Math.round(N*.6));
+  for (let r=0;r<N;r++) for (let c=0;c<N;c++){
+    if (sym==='partial' && r>=zone) continue;
+    for (const op of OPS[sym]){
+      const [pr,pc] = imgPos(op,r,c,N);
+      if (!same(g[r][c], xform(g[pr][pc], op))) return false;
+    }
+  }
+  return true;
+}
+
+// Rules 007-008, 018: occupancy, connectivity, balance
+function analyse(g, N){
+  const mid = (N-1)/2;
+  let area = 0, sx = 0, sy = 0;
+  for (let r=0;r<N;r++) for (let c=0;c<N;c++){
+    const t = g[r][c]; if (!t) continue;
+    const a = AREA[t.t]; area += a; sx += a*(c-mid); sy += a*(r-mid);
+  }
+  const seen = Array.from({length:N}, () => Array(N).fill(false));
+  let comps = 0, singles = 0;
+  for (let r=0;r<N;r++) for (let c=0;c<N;c++){
+    if (!g[r][c] || seen[r][c]) continue;
+    comps++; let size = 0; const q = [[r,c]]; seen[r][c] = true;
+    while (q.length){
+      const [y,x] = q.pop(); size++;
+      for (const [dy,dx] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const ny=y+dy, nx=x+dx;
+        if (ny>=0 && ny<N && nx>=0 && nx<N && g[ny][nx] && !seen[ny][nx]){ seen[ny][nx]=true; q.push([ny,nx]); }
+      }
+    }
+    if (size===1) singles++;
+  }
+  const dist = area ? Math.hypot(sx/area, sy/area) : 0;
+  return {area, occupancy: area/(N*N), comps, singles, balance: Math.max(0, 1 - dist/(mid*Math.SQRT2))};
+}
+
+// ---------- Rules 013-017: OKLCH palette ----------
+function oklchHex(L, C, h){
+  const hr = h*Math.PI/180;
+  let c = C;
+  for (let i=0;i<30;i++){
+    const a = c*Math.cos(hr), b = c*Math.sin(hr);
+    const l_ = L+0.3963377774*a+0.2158037573*b;
+    const m_ = L-0.1055613458*a-0.0638541728*b;
+    const s_ = L-0.0894841775*a-1.2914855480*b;
+    const l=l_**3, m=m_**3, s=s_**3;
+    const lin = [
+      4.0767416621*l-3.3077115913*m+0.2309699292*s,
+      -1.2684380046*l+2.6097574011*m-0.3413193965*s,
+      -0.0041960863*l-0.7034186147*m+1.7076147010*s
+    ];
+    if (lin.every(v => v>=-0.0005 && v<=1.0005) || i===29){
+      const enc = v => {
+        v = Math.min(1, Math.max(0, v));
+        v = v<=0.0031308 ? 12.92*v : 1.055*Math.pow(v,1/2.4)-0.055;
+        return Math.round(v*255).toString(16).padStart(2,'0');
+      };
+      return '#' + lin.map(enc).join('');
+    }
+    c *= 0.94; // gamut mapping by chroma reduction
+  }
+}
+function makePalette(r){
+  const rel = wpick(r, REL_W), h0 = r()*360;
+  const hues = ({
+    'analogous':[h0,h0+30,h0-30], 'complementary':[h0,h0+180,h0+20], 'monochromatic':[h0,h0,h0],
+    'split-complementary':[h0,h0+150,h0+210], 'triadic':[h0,h0+120,h0+240], 'tetradic':[h0,h0+90,h0+180],
+    'near-monochromatic':[h0,h0+12,h0-12], 'warm-cool':[30+r()*50, 210+r()*50, h0],
+    'dual-hue':[h0,h0+90,h0], 'limited-three':[h0,h0+60,h0+200]
+  })[rel].map(h => ((h%360)+360)%360);
+  const bgL = .94 + r()*.04;
+  const bg = {L:bgL, C:.012+r()*.01, h:hues[0]};
+  const pL = .46 + r()*.16;
+  const primary = {L:pL, C:.13+r()*.05, h:hues[0]};
+  let sL = .6 + r()*.14;
+  if (Math.abs(sL-pL) < .08) sL = pL>.55 ? pL-.16 : pL+.16;
+  sL = Math.min(.85, Math.max(.3, sL));
+  const secondary = {L:sL, C:.09+r()*.05, h:hues[1]};
+  const accent = r()<.4 ? {L:.6+r()*.1, C:.15+r()*.04, h:hues[2]} : null;
+  const bg2 = {...bg, L:bgL-.04};
+  const hex = o => o ? oklchHex(o.L, o.C, o.h) : null;
+  return {
+    rel, dL_bg: Math.abs(pL-bgL), dL_ps: Math.abs(pL-sL), count: 3 + (accent?1:0),
+    colours: {bg:hex(bg), bg2:hex(bg2), primary:hex(primary), secondary:hex(secondary), accent:hex(accent)}
+  };
+}
+
+// ---------- Full identity build ----------
+function buildIdentity(input){
+  const {canonical, bytes} = canonicalize(input);
+  const master = hash32('IDENTITY/MASTER/V1\u0000'+canonical).toString(16).padStart(8,'0')
+               + hash32(canonical+'\u0000IDENTITY/MASTER/V1').toString(16).padStart(8,'0');
+  const rS = stream(NS.STRUCTURE, master);
+  const N = wpick(rS, GRID_W);                                  // Rule 005
+  const sym = wpick(rS, SYM_W);                                 // Rule 006
+  const tmpl = TEMPLATES[Math.floor(rS()*TEMPLATES.length)];   // Rule 022
+  const cls = wpick(stream(NS.COMPOSITION, master), CLASS_W);  // Rule 030
+  const density = DENSITY[cls];
+  const pal = makePalette(stream(NS.COLOUR, master));          // Rules 013-017
+  const rD = stream(NS.DETAIL, master);
+  const colourMap = wpick(rD, [['A',1],['B',1],['C',1]]);      // Rule 015
+  const bgMode = wpick(rD, [['solid',65],['dual-tone',35]]);   // Rule 039
+
+  // Rule 031: deterministic candidates, keep valid, pick highest Q
+  let best = null, valid = 0, tries = 0;
+  for (let k=0; k<64 && valid<6; k++){
+    tries++;
+    const g = buildGrid(N, sym, tmpl, density, stream(NS.GEOMETRY, master, 'cand/'+k));
+    const a = analyse(g, N);
+    const ok = a.occupancy>=.30 && a.occupancy<=.68 && a.comps>=1 && a.comps<=4 && a.singles<=2 && symOK(g, N, sym);
+    if (!ok) continue;
+    valid++;
+    const types = new Set(g.flat().filter(Boolean).map(t => t.t)).size;
+    const Q = .35*a.balance + .25*(1-Math.abs(a.occupancy-.48)/.2) + .25*(1-(a.comps-1)/3) + .15*types/5;
+    if (!best || Q > best.Q) best = {k, g, a, Q};
+  }
+  const fallback = !best;
+  if (fallback){
+    const g = buildGrid(N, sym, tmpl, density, stream(NS.GEOMETRY, master, 'fallback'));
+    best = {k:-1, g, a:analyse(g,N), Q:0};
+  }
+  const {g, a} = best;
+  const fp = {
+    version: V.IDENTICON, symmetry: sym, grid: N, composition: tmpl, shape_family: 'cell-geometry',
+    component_count: a.comps, palette_family: pal.rel, complexity: cls,
+    occupancy: +a.occupancy.toFixed(2), seed: master
+  };
+  return {input, canonical, bytes, N, sym, tmpl, cls, pal, colourMap, bgMode, tiles:g, a,
+          k:best.k, Q:best.Q, valid, tries, fallback, fp};
+}
+
+// ---------- Rendering (normalised coordinates, square cells) ----------
+function drawTile(x, ox, oy, s, t){
+  x.beginPath();
+  if (t.t==='F') x.rect(ox, oy, s, s);
+  else if (t.t==='C') x.arc(ox+s/2, oy+s/2, s/2, 0, Math.PI*2);
+  else if (t.t==='T'){
+    const [cx,cy] = CORNERS[t.k];
+    x.moveTo(ox+cx*s, oy+cy*s); x.lineTo(ox+(1-cx)*s, oy+cy*s); x.lineTo(ox+cx*s, oy+(1-cy)*s);
+  } else if (t.t==='Q'){
+    const [cx,cy] = CORNERS[t.k], px = ox+cx*s, py = oy+cy*s;
+    const aA = cx ? Math.PI : 0, aB = cy ? -Math.PI/2 : Math.PI/2;
+    let d = aB-aA; while (d>Math.PI) d -= 2*Math.PI; while (d<-Math.PI) d += 2*Math.PI;
+    const a0 = d>=0 ? aA : aA+d;
+    x.moveTo(px, py); x.arc(px, py, s, a0, a0+Math.PI/2);
+  } else { // S: half-disc with diameter on the cell edge
+    const [ex,ey] = EDGE_C[t.k], n = EDGE_N[t.k];
+    x.arc(ox+ex*s, oy+ey*s, s/2, n-Math.PI/2, n+Math.PI/2);
+  }
+  x.closePath(); x.fill();
+}
+function render(cv, size, id, overlay=false){
+  cv.width = size; cv.height = size;
+  const x = cv.getContext('2d'), {N, tiles, pal, bgMode, colourMap} = id;
+  const m = MARGIN*size, cell = (size-2*m)/N;
+  x.fillStyle = pal.colours.bg; x.fillRect(0,0,size,size);
+  if (bgMode==='dual-tone'){ x.fillStyle = pal.colours.bg2; x.fillRect(0, size/2, size, size/2); }
+  for (let r=0;r<N;r++) for (let c=0;c<N;c++){
+    const t = tiles[r][c]; if (!t) continue;
+    x.fillStyle = pal.colours.primary; // one colour for every square
+    drawTile(x, m+c*cell, m+r*cell, cell, t);
+  }
+  if (overlay){
+    x.strokeStyle = 'rgba(255,0,200,.6)'; x.lineWidth = Math.max(1, size/400); x.beginPath();
+    for (let i=0;i<=N;i++){ const p = m+i*cell; x.moveTo(p,m); x.lineTo(p,size-m); x.moveTo(m,p); x.lineTo(size-m,p); }
+    x.stroke();
+  }
+}
+
+
+const __idCache = new Map();
+function dataUrl(seed, size){
+  const key = size+'|'+seed;
+  if(!__idCache.has(key)){
+    const cv = document.createElement('canvas');
+    render(cv, size, buildIdentity(seed));
+    __idCache.set(key, cv.toDataURL('image/png'));
+  }
+  return __idCache.get(key);
+}
+return { dataUrl, build: buildIdentity };
+})();
+
+// ---------- Default profile picture helpers ----------
+// A custom photo the user chose (upload or URL). Google's photo is never a default;
+// legacy saves of Google's URL are ignored so they fall back to the identicon.
+function profilePictureUrl(storage){
+  const user=storage.getActiveUser()||{};
+  const pic=String((storage.get('profile',{})||{}).picture||'').trim();
+  if(!pic) return '';
+  if(pic===user.picture) return '';
+  if(/googleusercontent\.com\//i.test(pic)) return '';
+  return pic;
+}
+function identiconSeed(storage){
+  const user=storage.getActiveUser()||{};
+  if(user.id) return 'uid:'+user.id;
+  let s=storage.get('guestAvatarSeed',null);
+  if(!s){ s=Math.random().toString(36).slice(2,12)+Date.now().toString(36); storage.set('guestAvatarSeed',s); }
+  return 'guest:'+s;
+}
+function identiconDefault(storage){ return window.Identicon.dataUrl(identiconSeed(storage),128); }
+function profileAvatarSrc(storage){ return profilePictureUrl(storage)||identiconDefault(storage); }
+
 function toast(msg,type='info',detail){const el=document.createElement('div');el.className=`toast ${type}`;el.innerHTML='<div class="toast-title"></div>'+(detail?'<div class="toast-detail"></div>':'');el.querySelector('.toast-title').textContent=msg;if(detail)el.querySelector('.toast-detail').textContent=detail;$('#toasts').appendChild(el);setTimeout(()=>el.remove(),5200)}
 function escapeHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function countLines(t){return t?t.split('\n').length:0}
@@ -15147,30 +15455,25 @@ shortDisplayName(name){
   if(out.length<=8)return out;
   return kept.map(w=>w[0].toUpperCase()+'.').join('');
 }
-guestAvatarColor(){
-  const colors=['#c2410c','#b45309','#4d7c0f','#0f766e','#1d4ed8','#6d28d9','#be185d','#b91c1c','#0369a1','#3f6212'];
-  let c=this.app.storage.get('guestAvatarColor',null);
-  if(!c){c=colors[Math.floor(Math.random()*colors.length)];this.app.storage.set('guestAvatarColor',c)}
-  return c;
-}
 userLabel(){
   const user=this.app.storage.getActiveUser()||{};
   const profile=this.app.storage.get('profile',{})||{};
   // Prefer live Google account name + photo when signed in
   if(user&&(user.id||user.email)){
     const full=user.name||profile.name||user.email||'You';
-    const pic=user.picture||profile.picture||'';
+    const src=profileAvatarSrc(this.app.storage);
     return {
       label:full,
       short:this.shortDisplayName(full),
       initial:(full[0]||'U').toUpperCase(),
-      img:pic?`<img src="${escapeHtml(pic)}" alt="${escapeHtml(full)}" referrerpolicy="no-referrer">`:'',
-      bg:pic?'':'',
-      picture:pic
+      img:`<img src="${escapeHtml(src)}" alt="${escapeHtml(full)}">`,
+      bg:'',
+      picture:src
     };
   }
   const guestName=profile.name||profile.nickname||'You';
-  return {label:guestName,short:this.shortDisplayName(guestName),initial:(guestName[0]||'Y').toUpperCase(),img:'',bg:'background:'+this.guestAvatarColor()+';color:#fff',picture:''};
+  const gsrc=profileAvatarSrc(this.app.storage);
+  return {label:guestName,short:this.shortDisplayName(guestName),initial:(guestName[0]||'Y').toUpperCase(),img:`<img src="${escapeHtml(gsrc)}" alt="${escapeHtml(guestName)}">`,bg:'',picture:gsrc};
 }
 confirmLogout(){
   const ov=$('#logout-confirm');if(!ov)return this.logoutGoogle();
@@ -15192,7 +15495,7 @@ renderAuth(){
   const box=$('#acct-dev-box');if(box)box.style.display=isDev?'block':'none';
 
   if(user&&user.id){
-    const avatar=user.picture?`<img class="auth-avatar" src="${escapeHtml(user.picture)}" alt="">`:`<span class="auth-avatar" style="display:inline-flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-size:.7rem">${escapeHtml((user.name||user.email||'?')[0]||'?')}</span>`;
+    const avatar=`<img class="auth-avatar" src="${escapeHtml(profileAvatarSrc(this.app.storage))}" alt="">`;
     const who=this.userLabel();
     const shortName=String(who.short||who.label||user.name||user.email||'Account').slice(0,18);
     area.innerHTML=`<button type="button" class="auth-btn" id="btn-account" title="${escapeHtml(who.label||user.email||'')}">${avatar}<span class="auth-user-label">${escapeHtml(shortName)}</span></button><button type="button" class="auth-btn" id="btn-logout">Log out</button>`;
@@ -15897,6 +16200,13 @@ bindAccountUi(){
   const save=$('#save-account');if(save)save.onclick=()=>this.saveAccountProfile();
   const lo=$('#acct-logout');if(lo)lo.onclick=()=>{this.logoutGoogle();$('#account-overlay').classList.remove('open');};
   const pb=$('#acct-pic-btn');const pf=$('#acct-pic-file');
+  const prb=$('#acct-pic-reset');if(prb)prb.onclick=()=>{
+    this._acctPicData=null;
+    if($('#acct-pic-url'))$('#acct-pic-url').value='';
+    if(pf)pf.value='';
+    $('#acct-preview').src=identiconDefault(this.app.storage);
+    toast('Default photo selected — click Save to apply','success');
+  };
   if(pb&&pf){pb.onclick=()=>pf.click();pf.onchange=()=>{
     const f=pf.files&&pf.files[0];if(!f)return;
     if(f.size>350000){toast('Photo too large — use a smaller image or a URL','error');return}
@@ -16733,8 +17043,8 @@ openAccountMenu(){
   this._memorySummary=this.app.storage.get('memorySummary','')||this._memorySummary||'';
   if($('#acct-name'))$('#acct-name').value=p.name||user.name||'';
   if($('#acct-nickname'))$('#acct-nickname').value=p.nickname||'';
-  const pic=p.picture||user.picture||'';
-  if($('#acct-preview'))$('#acct-preview').src=pic||'';
+  const pic=profilePictureUrl(this.app.storage);
+  if($('#acct-preview'))$('#acct-preview').src=pic||identiconDefault(this.app.storage);
   if($('#acct-pic-url'))$('#acct-pic-url').value=(pic&&pic.startsWith('http'))?pic:'';
   this._acctPicData=(pic&&String(pic).startsWith('data:'))?pic:null;
   const signed=!!(user&&user.id);
@@ -16746,7 +17056,7 @@ openAccountMenu(){
 saveAccountProfile(){
   const user=this.app.storage.getActiveUser()||{};
   const url=($('#acct-pic-url')?.value||'').trim();
-  const picture=url||this._acctPicData||user.picture||'';
+  const picture=url||this._acctPicData||'';
   const profile={
     name:($('#acct-name')?.value||'').trim()||user.name||'',
     nickname:($('#acct-nickname')?.value||'').trim(),
@@ -16754,7 +17064,7 @@ saveAccountProfile(){
   };
   this.app.storage.set('profile',profile);
   if(user&&user.id){
-    const next={...user,name:profile.name||user.name,picture:profile.picture||user.picture};
+    const next={...user,name:profile.name||user.name};
     this.app.storage.setActiveUser(next);
   }
   this.renderAuth();
