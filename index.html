@@ -3448,7 +3448,12 @@ function render(cv, size, id, overlay=false){
   for (let r=0;r<N;r++) for (let c=0;c<N;c++){
     const t = tiles[r][c]; if (!t) continue;
     x.fillStyle = pal.colours.primary; // one colour for every square
-    drawTile(x, m+c*cell, m+r*cell, cell, t);
+    if (t.t === 'F'){
+      // snap squares to whole pixels so neighbours share an exact edge (no hairline seams)
+      const x0 = Math.round(m+c*cell), x1 = Math.round(m+(c+1)*cell);
+      const y0 = Math.round(m+r*cell), y1 = Math.round(m+(r+1)*cell);
+      x.fillRect(x0, y0, x1-x0, y1-y0);
+    } else drawTile(x, m+c*cell, m+r*cell, cell, t);
   }
   if (overlay){
     x.strokeStyle = 'rgba(255,0,200,.6)'; x.lineWidth = Math.max(1, size/400); x.beginPath();
@@ -4352,6 +4357,20 @@ class CloudSync{
     if(!base||!files)return;
     if(!this._vfsHash)this._vfsHash={};
     const col=base.collection('vfs');
+    try{
+      const st=window.__app&&window.__app.storage;
+      const pending=((st&&st.get('deletedVfs',[]))||[]).map(String);
+      const gone=pending.filter(p=>!files[p]);
+      for(let i=0;i<gone.length;i+=400){
+        const batch=this.db.batch();
+        gone.slice(i,i+400).forEach(p=>batch.delete(col.doc(this._vfsDocId(p))));
+        await batch.commit();
+      }
+      if(gone.length&&st){
+        const left=(st.get('deletedVfs',[])||[]).filter(p=>!files[p]&&!gone.includes(String(p)));
+        st.set('deletedVfs',left);
+      }
+    }catch(e){console.warn('[CloudSync] vfs delete',e.message||e)}
     for(const path of Object.keys(files)){
       const f=files[path]||{};
       let content=f.content==null?'':String(f.content);
@@ -4408,9 +4427,10 @@ class CloudSync{
     try{
       const snap=await base.collection('vfs').get();
       const files={};
+      const gone=new Set(((window.__app&&window.__app.storage&&window.__app.storage.get('deletedVfs',[]))||[]).map(String));
       snap.docs.forEach(doc=>{
         const d=doc.data()||{};
-        if(!d.path)return;
+        if(!d.path||gone.has(String(d.path)))return;
         files[d.path]={content:d.content||'',updated:d.updated||Date.now(),version:d.version||1,lines:d.lines||0};
       });
       return files;
@@ -4785,6 +4805,7 @@ read(p){
 write(p,c,{archiveOld=true}={}){
   p=String(p||'').replace(/^\/+/,'').trim();
   if(!p)throw new Error('write_file requires a path');
+  this.unmarkVfsDeleted(p);
   let text=c==null?'':String(c);
   if(text.length>MAX_FILE_BYTES){
     throw new Error('FILE_TOO_LARGE: '+p+' is '+text.length+' bytes. Limit is '+MAX_FILE_BYTES+' bytes. Split the file or shorten it.');
@@ -4822,19 +4843,33 @@ delete(p){
   const ap=`archive/${p.replace(/\//g,'__')}_${Date.now()}_deleted.bak`;
   this.files[ap]={...this.files[p],archivedFrom:p,archivedAt:now()};
   delete this.files[p];
+  this.markVfsDeleted([p]);
   this.persist(true);
   return{path:p,removed:lines};
 }
+markVfsDeleted(paths){
+  try{
+    const cur=new Set((this.storage.get('deletedVfs',[])||[]).map(String));
+    (paths||[]).forEach(p=>cur.add(String(p)));
+    this.storage.set('deletedVfs',[...cur].slice(-5000));
+  }catch(e){}
+}
+unmarkVfsDeleted(p){
+  try{
+    const cur=this.storage.get('deletedVfs',[])||[];
+    if(cur.includes(p))this.storage.set('deletedVfs',cur.filter(x=>x!==p));
+  }catch(e){}
+}
 pruneOldArchives(maxAgeMs=14*24*60*60*1000){
   const cutoff=Date.now()-maxAgeMs;
-  let removed=0;
+  let removed=0;const goneKeys=[];
   Object.keys(this.files||{}).forEach(k=>{
     if(!String(k).startsWith('archive/'))return;
     let t=Number((this.files[k]||{}).archivedAt)||0;
     if(!t){const m=String(k).match(/_(\d{13})_deleted\.bak$/);if(m)t=Number(m[1])}
-    if(t&&t<cutoff){delete this.files[k];removed++}
+    if(t&&t<cutoff){delete this.files[k];removed++;goneKeys.push(k)}
   });
-  if(removed){try{this.persist()}catch(e){}}
+  if(removed){this.markVfsDeleted(goneKeys);try{this.persist()}catch(e){}}
   return removed;
 }
 persist(forcePush){
@@ -13151,13 +13186,15 @@ async clearFolderFiles(folderPath){
   const ok=this.appConfirm?await this.appConfirm(msg,'Clear all files'):window.confirm(msg);
   if(!ok)return;
   let removed=0;
+  const purgedPaths=[];
   paths.forEach(p=>{
     try{
-      if(isArchived(p)){delete vfs.files[p]}   // archive copies are purged, not re-archived
+      if(isArchived(p)){delete vfs.files[p];purgedPaths.push(p)}   // archive copies are purged, not re-archived
       else vfs.delete(p);
       removed++;
     }catch(e){}
   });
+  vfs.markVfsDeleted(purgedPaths);
   try{vfs.persist&&vfs.persist(true)}catch(e){}
   this.renderFileTree();
   toast(`Cleared ${removed} file(s) from ${folderPath}`,'success');
