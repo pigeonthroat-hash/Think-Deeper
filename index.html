@@ -152,7 +152,7 @@ window.__tdThemeCss=function(){
   var rs=getComputedStyle(document.documentElement),bs=getComputedStyle(document.body);
   var g=function(n,d){return (rs.getPropertyValue(n)||'').trim()||d};
   var dark=document.documentElement.getAttribute('data-theme')!=='light';
-  return ':root{color-scheme:'+(dark?'dark':'light')+';--td-fg:'+g('--text-primary',bs.color||'#1f1f1f')+';--td-accent:'+g('--accent','#4f6df5')+';--td-card:'+g('--bg-elevated','transparent')+';--td-border:'+g('--border','rgba(127,127,127,.3)')+';--td-muted:'+g('--text-muted','rgba(127,127,127,.8)')+';--td-font:'+(bs.fontFamily||'system-ui,sans-serif')+'}';
+  return ':root{color-scheme:'+(dark?'dark':'light')+';--td-fg:'+g('--text-primary',bs.color||'#1f1f1f')+';--td-accent:'+g('--accent','#4f6df5')+';--td-card:'+g('--bg-elevated','transparent')+';--td-border:'+g('--border','rgba(127,127,127,.3)')+';--td-muted:'+g('--text-muted','rgba(127,127,127,.8)')+';--td-font:'+(bs.fontFamily||'system-ui,sans-serif')+'}html,body{background:transparent!important}';
 };
 function inject(html){
   var s=String(html),css='';try{css=window.__tdThemeCss()}catch(e){}
@@ -174,6 +174,27 @@ window.__tdWidgetRun=function(args){
     return{ok:true,path:path,token:token,markdown:token,hint:'Include the token exactly in your final answer, then write one short sentence about what the widget lets the user do.'};
   }catch(e){return{ok:false,error:String((e&&e.message)||e)}}
 };
+window.__tdWidgetRunStable=function(args){
+  try{
+    var html=String((args&&args.html)||'').trim();if(!html)return{ok:false,error:'html is required'};
+    var vfs=window.__app&&window.__app.vfs;if(!vfs||!vfs.write)return{ok:false,error:'file store unavailable'};
+    var h=0;for(var i=0;i<html.length;i++){h=((h<<5)-h+html.charCodeAt(i))|0}
+    var slug=String((args&&args.title)||'widget').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40)||'widget';
+    var path='widgets/'+slug+'-'+(h>>>0).toString(36)+'.html';
+    var exists=false;try{exists=!!vfs.read(path)}catch(e){}
+    if(!exists)vfs.write(path,wrapDoc(html));
+    return{ok:true,path:path,token:(args&&args.style==='card'?'[[widget-card:':'[[widget:')+path+']]'};
+  }catch(e){return{ok:false,error:String((e&&e.message)||e)}}
+};
+window.__tdRecoverWidgets=function(text){
+  var t=String(text||'');
+  if(t.indexOf('[[widget')<0&&t.indexOf('```widget')<0)return t;
+  var mk=function(a){try{var r=window.__tdWidgetRunStable(a);return r&&r.ok?r.token:''}catch(e){return ''}};
+  t=t.replace(/```widget[^\n]*\n([\s\S]*?)```/g,function(_,h){return mk({title:'Widget',style:'inline',html:h})});
+  t=t.replace(/\[\[widget(-card)?:html=([\s\S]*?)(?:&title=([^&\[\]]*))?(?:&style=(inline|card))?\]\]/g,function(_,c,h,title,style){
+    return mk({title:(title||'Widget').trim(),style:(c||style==='card')?'card':'inline',html:h})});
+  return t;
+};
 window.__tdWidgetCardHtml=function(path,card){
   return '<div class="td-widget '+(card?'td-widget-card':'td-widget-inline')+'"><iframe data-widget-frame="1" data-widget-path="'+esc(path)+'" sandbox="allow-scripts allow-forms" scrolling="no" title="Interactive widget"></iframe></div>';
 };
@@ -183,7 +204,7 @@ window.__tdWireWidgets=function(root){
     if(fr.dataset.wired==='1')return;fr.dataset.wired='1';
     var p=fr.getAttribute('data-widget-path')||'',vfs=window.__app&&window.__app.vfs,html='',state=null;
     try{html=String(vfs.read(p)||'')}catch(e){}
-    if(!html){fr.srcdoc='<p style="font:14px system-ui;color:#888;margin:8px">This widget is no longer available.</p>';return}
+    if(!html){fr.srcdoc=inject(wrapDoc('<p style="opacity:.7;margin:8px">This widget is no longer available.</p>'));return}
     try{var raw=vfs.read(p.replace(/\.html$/,'.state.json'));if(raw)state=JSON.parse(String(raw))}catch(e){}
     fr.addEventListener('load',function(){try{fr.contentWindow.postMessage({td:'widget-init',state:state},'*')}catch(e){}});
     fr.srcdoc=inject(html);
@@ -9244,8 +9265,8 @@ try{
     }
   }
 }catch(e){}
-let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this._agentsRootBlock?this._agentsRootBlock():'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- show_plot for rows/columns (lists of N items, tables, sequences). Call show_plot with columns + rows, paste [[plot:...]] in the final answer, then write a short follow-up after the plot. When asked for the first N of a sequence, include all N rows.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- Standalone HTML files: write_file then [[preview:path]]. Anything interactive inside an answer: use show_widget, never [[visual:path]] and never a preview.\n- INTERACTIVE WIDGETS (show_widget): a widget is a live element that sits inside your answer, the way an inline equation sits inside a sentence. WHEN TO USE: when the user benefits from acting rather than reading: calculators and converters, timers and countdowns, sliders to explore a formula, quizzes and flashcards, checklists and planners, simple simulations, labeled interactive diagrams, or any choice the user should click or adjust. Offer one proactively when it serves the question better than text. WHEN NOT TO USE: plain answers, single numbers, static charts (use show_chart) or tables (use show_plot). PLACEMENT: write the sentence that leads into the widget, put the returned token on its own line where it belongs in the flow, then continue with the explanation or a one-line how-to. The default style inline blends into the text; use style card only for a standalone mini tool the user will come back to. HOW: call show_widget with a title, a style and one complete HTML snippet. Use the tdKit helpers instead of hand-building basics: tdKit.slider, timer, button, counter, toggle, choice, input, quiz, progress, checklist, tabs, stat, bars, el. Each returns a DOM node; add them with document.body.append(...). Controls can send a message back to you through their message option, using {value} for the control value, for example message: \"I picked {value}\". For any other message call tdKit.send(text). Persist state with tdKit.setState(obj) and tdKit.getState(). COLORS: use the CSS variables --td-fg, --td-accent, --td-card, --td-border and --td-muted so the widget matches the app theme; never hard-code a page background. RULES: never alert, confirm or prompt; no external scripts, fonts, images or APIs; keep it under 20 KB. When a message arrives from a widget, treat it as the user speaking and respond to its values directly.\n\n\nMATH RENDERING: Write LaTeX as $\\pi$ or $$...$$ (single backslash before pi). Unicode π is also fine.\nPYTHON PI DIGITS: Prefer one clean script: import mpmath; mpmath.mp.dps=1100; s=str(mpmath.pi); decimals=s.split(\'.\')[1]; print(decimals[1047])  # 1048th digit.\nDo not leave unfinished def compute_pi with pass.\n\nRESEARCH WORKFLOW: For questions needing the live web: (1) call web_search with a clear goal/query, (2) read research_summary, (3) if a specific result URL matters or the summary is thin, call fetch_url on that URL for the full document, (4) answer the user with citations. Prefer fetch_url over guessing from titles alone.\n\nLOGICAL COMPLETENESS: When the user asks for a list, table, or the first/last N items (e.g. first 100 triangular numbers), actually deliver ALL of them — do not summarize, abbreviate with ellipses, or stop early. Prefer show_plot for large row/column data so it stays readable.\n\nHARD / IMPOSSIBLE QUESTIONS:HARD / IMPOSSIBLE QUESTIONS: If a request seems impossible or blocked, do NOT quit. Take an extra thinking step on how to make it possible (reframe, approximate, split steps, use tools, smaller inputs). Then try the best approach and report what worked.\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
-let toolCalls=0,finalContent='',iteration=0;
+let messages=[{role:'system',content:this.getSystemPrompt(deepThink)+this._memoryContext()+(typeof window!=='undefined'&&window.__app&&window.__app.ui?window.__app.ui.projectContext():'')+(this.intensityExtra?('\n\nINTENSITY:\n'+this.intensityExtra+'\nTOOLS: write_file, read_file, list_files, run_python and the rest of the tool set are enabled at this intensity. Use write_file whenever the user wants a file created or updated.'):'')+(this.projectCtx||'')+(this.pinCtx||'')+(this._agentsRootBlock?this._agentsRootBlock():'')+(this.userProfileCtx||'')+'\n\nVISUALS (use when helpful — user need not ask explicitly):\n- show_chart for bar/pie/line when numbers/shares/trends are clearer as a chart; put the returned [[chart:...]] token in your final answer.\n- show_plot for rows/columns (lists of N items, tables, sequences). Call show_plot with columns + rows, paste [[plot:...]] in the final answer, then write a short follow-up after the plot. When asked for the first N of a sequence, include all N rows.\n- image_search for real photos; paste the returned markdown (includes Source credits).\n- generate_image when a custom illustration helps; embed ![](path) and always add a short follow-up sentence.\n- run_python + matplotlib for data graphs; embed the plot markdown paths returned.\n- Standalone HTML files: write_file then [[preview:path]]. Anything interactive inside an answer: use show_widget, never [[visual:path]] and never a preview.\n- INTERACTIVE WIDGETS (show_widget): a widget is a live element that sits inside your answer, the way an inline equation sits inside a sentence. WHEN TO USE: when the user benefits from acting rather than reading: calculators and converters, timers and countdowns, sliders to explore a formula, quizzes and flashcards, checklists and planners, simple simulations, labeled interactive diagrams, or any choice the user should click or adjust. Offer one proactively when it serves the question better than text. WHEN NOT TO USE: plain answers, single numbers, static charts (use show_chart) or tables (use show_plot). PLACEMENT: write the sentence that leads into the widget, put the returned token on its own line where it belongs in the flow, then continue with the explanation or a one-line how-to. The default style inline blends into the text; use style card only for a standalone mini tool the user will come back to. HOW: make a real show_widget function call (never type the token, the HTML or a widget:html= string into the answer) with a title, a style and one complete HTML snippet. Use the tdKit helpers instead of hand-building basics: tdKit.slider, timer, button, counter, toggle, choice, input, quiz, progress, checklist, tabs, stat, bars, el. Each returns a DOM node; add them with document.body.append(...). Controls can send a message back to you through their message option, using {value} for the control value, for example message: \"I picked {value}\". For any other message call tdKit.send(text). Persist state with tdKit.setState(obj) and tdKit.getState(). COLORS: use the CSS variables --td-fg, --td-accent, --td-card, --td-border and --td-muted so the widget matches the app theme; never hard-code a page background. RULES: never alert, confirm or prompt; no external scripts, fonts, images or APIs; keep it under 20 KB. When a message arrives from a widget, treat it as the user speaking and respond to its values directly.\n\n\nMATH RENDERING: Write LaTeX as $\\pi$ or $$...$$ (single backslash before pi). Unicode π is also fine.\nPYTHON PI DIGITS: Prefer one clean script: import mpmath; mpmath.mp.dps=1100; s=str(mpmath.pi); decimals=s.split(\'.\')[1]; print(decimals[1047])  # 1048th digit.\nDo not leave unfinished def compute_pi with pass.\n\nRESEARCH WORKFLOW: For questions needing the live web: (1) call web_search with a clear goal/query, (2) read research_summary, (3) if a specific result URL matters or the summary is thin, call fetch_url on that URL for the full document, (4) answer the user with citations. Prefer fetch_url over guessing from titles alone.\n\nLOGICAL COMPLETENESS: When the user asks for a list, table, or the first/last N items (e.g. first 100 triangular numbers), actually deliver ALL of them — do not summarize, abbreviate with ellipses, or stop early. Prefer show_plot for large row/column data so it stays readable.\n\nHARD / IMPOSSIBLE QUESTIONS:HARD / IMPOSSIBLE QUESTIONS: If a request seems impossible or blocked, do NOT quit. Take an extra thinking step on how to make it possible (reframe, approximate, split steps, use tools, smaller inputs). Then try the best approach and report what worked.\n'+((this.storage.get('appMode','')==='code' ||(typeof window!=='undefined'&&window.__app&&window.__app.mode==='code'))&&!(this.codeQuickChat||(window.__app&&window.__app.ui&&window.__app.ui._codeQuickChat))?'\n\nCODE MODE — SIMPLE FLOW (every model / every intensity):\n1) PLAN — one short step about what you will build.\n2) WRITE — call write_file with path index.html and the FULL HTML (embed <style> and <script>). Code fences alone do NOT count.\n3) PREVIEW — end with [[preview:index.html]] (or the real path under the session folder).\nRules: write_file is required. Do not only list_files or describe the file. Prefer one solid write_file over many tiny steps. Fast/Medium/Hard still must write real files.':'')},...(function(){const h=history.filter(m=>m.role==='user'||m.role==='assistant');const maxH=deepThink?16:10;const sliced=h.length>maxH?h.slice(-maxH):h;return sliced.map(m=>({role:m.role,content:(m.content||'').length>6000?(m.content||'').slice(0,6000)+'\n…[truncated]':m.content}))})(),{role:'user',content:this._buildUserContent(userMessage,attachments)}];
+let toolCalls=0,finalContent='',iteration=0,pseudoRetries=0;
 try{while(iteration<maxIter&&this.running){if(!this.running)break;if(Date.now()-start>maxMs){console.warn("[Agent] time budget");break;}if(toolCalls>=maxTools){console.warn("[Agent] tool budget");break;}
 iteration++;
 console.log('[Agent] iteration',iteration,'/',maxIter,'toolCalls so far',toolCalls);
@@ -9579,6 +9600,22 @@ if(codeHotEnd&&iteration<=5){
       messages.push({role:'user',content:'STOP. Call write_file with path index.html and FULL HTML (style+script embedded). Do not only plan.'});
       continue;
     }
+  }
+}
+{
+  // Tool calls written as plain text (e.g. "<- call:default_api:weatherrequest{days:3} ->") are never executed.
+  // Strip them; if nothing real is left, retry once in prose instead of ending the turn on junk.
+  const rawTxt=String(assistantMsg.content||'');
+  const pseudoTest=/<-\s*call:[^\n]*?->|\bcall:[A-Za-z_]+(?::[A-Za-z_]+)?\{[^}\n]*\}/i;
+  if(!hasTools&&pseudoTest.test(rawTxt)){
+    const cleaned=rawTxt.replace(new RegExp(pseudoTest.source,'gi'),'').trim();
+    if(!cleaned&&pseudoRetries<2){
+      pseudoRetries++;
+      messages.pop();
+      messages.push({role:'user',content:'Your last reply wrote a tool call as plain text, which does not run. Reply to my last message directly in normal prose. Only use a tool through the real function interface, and only if I actually asked for that information.'});
+      continue;
+    }
+    assistantMsg.content=cleaned;
   }
 }
 finalContent=(extractTextToolCalls(assistantMsg.content||'').text)||'';
@@ -15189,6 +15226,7 @@ wireMessageMedia(root){
 renderMarkdown(text){
   if(!text)return '';
   let t=String(text);
+  try{t=window.__tdRecoverWidgets(t)}catch(e){}
   // Special tokens → placeholders (so markdown parsers never strip chips into plain paths)
   const chips=[];
   const pushChip=(html)=>{chips.push(html);return '%%CHIP'+(chips.length-1)+'%%'};
